@@ -1,0 +1,25 @@
+# 稀有钥匙配置
+# 可以打开多种宝箱
+
+# 钥匙显示名称
+name: "<!i><gold>稀有钥匙"
+
+# 钥匙物品设置
+item:
+  material: TRIPWIRE_HOOK
+  name: "<!i><gold>稀有钥匙"
+  lore:
+    - "<!i><gray>使用此钥匙可以打开"
+    - "<!i><gray>多种宝箱！"
+    - ""
+    - "<!i><yellow>可打开: <!i><white>普通宝箱, 稀有宝箱"
+    - ""
+    - "<!i><yellow>右键点击宝箱使用"
+  custom-model-data: 1
+  glow: true
+
+# 可以打开的宝箱列表
+# 此钥匙可以打开common和rare两种宝箱
+allowed-crates:
+  - "common"
+  - "rare"

@@ -1,0 +1,62 @@
+# 历史记录GUI配置
+# 使用Layout布局方式
+
+title: "<!i><dark_gray>{player} 的抽奖历史"
+
+layout:
+  - '#########'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '<#P#I#N#X'
+
+icons:
+  '#':
+    display:
+      material: gray_stained_glass_pane
+      name: ' '
+
+  'C':
+    content: true
+
+  '<':
+    display:
+      material: barrier
+      name: '<!i><red>关闭'
+      lore:
+        - '<!i><gray>关闭菜单'
+    action: close
+
+  'P':
+    display:
+      material: arrow
+      name: '<!i><yellow>上一页'
+      lore:
+        - '<!i><gray>点击查看上一页'
+    action: prev_page
+
+  'I':
+    display:
+      material: paper
+      name: '<!i><gold>第 {page}/{max_page} 页'
+      lore:
+        - '<!i><gray>共 {total} 条记录'
+
+  'N':
+    display:
+      material: arrow
+      name: '<!i><yellow>下一页'
+      lore:
+        - '<!i><gray>点击查看下一页'
+    action: next_page
+
+  'X':
+    display:
+      material: barrier
+      name: '<!i><red>清空历史'
+      lore:
+        - '<!i><gray>清空所有抽奖历史'
+        - ''
+        - '<!i><red>此操作不可撤销！'
+    action: clear_history

@@ -1,0 +1,175 @@
+# 普通抽奖箱配置
+
+# 抽奖箱显示名称
+name: "<!i><green>普通宝箱"
+
+# 开箱权限（留空则使用默认权限 fotiacrates.open.<宝箱ID>）
+# 示例: "vip.crate.common" 或留空
+permission: ""
+
+# 物理抽奖箱方块设置
+block:
+  material: CHEST
+  # 宝箱方块物品设置（用于give命令）
+  item:
+    name: "<!i><green>普通宝箱方块"
+    lore:
+      - "<!i><gray>放置此方块创建抽奖箱"
+      - ""
+      - "<!i><yellow>右键放置"
+  # ModelEngine模型设置（可选）
+  modelengine:
+    enabled: false
+    model-id: "common_crate"
+    # 待机动画（bbmodel中定义的动画名称）
+    idle-animation: "idle"
+    # 开启动画（bbmodel中定义的动画名称）
+    open-animation: "open"
+    # 开启动画延迟（tick，20tick=1秒）
+    # 播放开启动画后等待多久开始滚动抽奖
+    open-delay: 20
+    # 模型可视距离（方块），减小可降低性能损耗
+    view-range: 48
+
+# 全息显示设置
+hologram:
+  # 全息显示高度（相对于方块位置）
+  height: 1.5
+  # 全息显示内容（留空则使用全局配置）
+  # 支持占位符: {crate_name}, {crate_id}, {keys}
+  lines:
+    - "<!i><green>{crate_name}"
+    - "<!i><gray>钥匙: <yellow>{keys}"
+    - "<!i><gray>左键预览 | 右键开启"
+
+# 预览 GUI 设置
+preview:
+  enabled: true
+  show-chance: true
+  title: "<!i><dark_gray>普通宝箱预览"
+
+# 动画设置
+animation:
+  enabled: true
+  # 动画类型: ROULETTE(GUI转盘), CSGO(GUI), PHYSICAL(物理漂浮物品), INSTANT(即时)
+  # PHYSICAL: 在箱子上方显示漂浮物品滚动效果，如果是箱子类型方块会打开盖子
+  type: ROULETTE
+  # 持续时间(秒)
+  duration: 3
+  # 抽奖GUI标题（留空则使用全局配置）
+  title: "<!i><dark_gray>普通宝箱抽奖中..."
+
+# 物理动画设置（在宝箱上方显示滚动物品）
+physical-animation:
+  enabled: false
+  # 物品显示高度（相对于方块位置）
+  height: 1.5
+
+# 粒子效果
+particles:
+  enabled: true
+  type: FLAME
+  count: 10
+
+# 音效
+sounds:
+  # 转动时的音效
+  spin:
+    sound: BLOCK_NOTE_BLOCK_PLING
+    volume: 1.0
+    pitch: 1.0
+  # 获奖时的音效
+  win:
+    sound: ENTITY_PLAYER_LEVELUP
+    volume: 1.0
+    pitch: 1.0
+
+# 保底系统 (抽取X次后必得稀有奖励)
+pity:
+  enabled: true
+  # 保底次数
+  count: 50
+  # 保底最低稀有度
+  rarity: rare
+
+# 多连抽设置
+multi-open:
+  enabled: true
+  # 最大连抽数量
+  max: 10
+
+# 奖励列表
+rewards:
+  diamond_sword:
+    display-name: "<!i><aqua>钻石剑"
+    rarity: rare
+    chance: 5.0
+    broadcast: true
+    type: item
+    item:
+      material: DIAMOND_SWORD
+      name: "<!i><aqua>传说之剑"
+      lore:
+        - "<!i><gray>一把传说中的剑"
+        - "<!i><gray>来自宝箱！"
+      enchantments:
+        sharpness: 5
+        unbreaking: 3
+
+  iron_set:
+    display-name: "<!i><white>铁甲套装"
+    rarity: uncommon
+    chance: 15.0
+    broadcast: false
+    type: item
+    item:
+      material: IRON_CHESTPLATE
+      name: "<!i><white>铁甲套装"
+      lore:
+        - "<!i><gray>一套完整的铁甲！"
+    # 额外给予的物品
+    extra-items:
+      - material: IRON_HELMET
+      - material: IRON_LEGGINGS
+      - material: IRON_BOOTS
+
+  money_1000:
+    display-name: "<!i><gold>1000金币"
+    rarity: common
+    chance: 30.0
+    broadcast: false
+    type: command
+    commands:
+      - "eco give %player% 1000"
+    # 预览中显示的物品
+    display:
+      material: GOLD_INGOT
+      name: "<!i><gold>1000金币"
+      lore:
+        - "<!i><gray>获得1000金币！"
+
+  exp_500:
+    display-name: "<!i><green>500经验"
+    rarity: common
+    chance: 40.0
+    broadcast: false
+    type: experience
+    experience:
+      amount: 500
+      # 类型: points(经验点) 或 levels(经验等级)
+      type: points
+    display:
+      material: EXPERIENCE_BOTTLE
+      name: "<!i><green>500经验"
+      lore:
+        - "<!i><gray>获得500经验点！"
+
+  coal_stack:
+    display-name: "<!i><dark_gray>煤炭x64"
+    rarity: common
+    chance: 10.0
+    broadcast: false
+    type: item
+    item:
+      material: COAL
+      amount: 64

@@ -1,0 +1,161 @@
+# 奖励编辑GUI配置
+# 编辑单个奖励的设置
+
+# GUI标题 (支持 {reward} 占位符)
+title: "<!i><dark_gray>编辑奖励: {reward}"
+
+# GUI大小
+size: 45
+
+# 填充空槽位
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+# 固定物品配置
+items:
+  # 返回按钮
+  back:
+    slot: 36
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回抽奖箱编辑界面"
+    action: "back"
+
+  # 奖励预览
+  preview:
+    slot: 4
+    material: PAPER
+    name: "<!i><gold>{reward}"
+    lore:
+      - "<!i><gray>奖励ID: {reward_id}"
+      - "<!i><gray>类型: {reward_type}"
+      - ""
+      - "<!i><yellow>概率: <!i><white>{chance}%"
+      - "<!i><yellow>稀有度: <!i><white>{rarity}"
+      - "<!i><yellow>广播: <!i><white>{broadcast}"
+
+  # 编辑名称
+  edit_name:
+    slot: 10
+    material: NAME_TAG
+    name: "<!i><yellow>编辑名称"
+    lore:
+      - "<!i><gray>当前: {display_name}"
+      - ""
+      - "<!i><yellow>左键点击编辑"
+    action: "edit_name"
+
+  # 编辑概率
+  edit_chance:
+    slot: 12
+    material: EXPERIENCE_BOTTLE
+    name: "<!i><aqua>编辑概率"
+    lore:
+      - "<!i><gray>当前: {chance}%"
+      - ""
+      - "<!i><yellow>左键 +1%"
+      - "<!i><yellow>右键 -1%"
+      - "<!i><yellow>Shift+左键 +10%"
+      - "<!i><yellow>Shift+右键 -10%"
+    action: "edit_chance"
+
+  # 编辑稀有度
+  edit_rarity:
+    slot: 14
+    material: DIAMOND
+    name: "<!i><light_purple>编辑稀有度"
+    lore:
+      - "<!i><gray>当前: {rarity}"
+      - ""
+      - "<!i><yellow>左键切换稀有度"
+      - ""
+      - "<!i><gray>可选: common, uncommon,"
+      - "<!i><gray>rare, epic, legendary"
+    action: "edit_rarity"
+
+  # 编辑广播
+  edit_broadcast:
+    slot: 16
+    material: BELL
+    name: "<!i><gold>编辑广播"
+    lore:
+      - "<!i><gray>当前: {broadcast}"
+      - ""
+      - "<!i><yellow>左键切换开关"
+    action: "edit_broadcast"
+
+  # 编辑物品 (仅物品奖励)
+  edit_item:
+    slot: 22
+    material: CHEST
+    name: "<!i><green>编辑奖励物品"
+    lore:
+      - "<!i><gray>编辑奖励给予的物品"
+      - ""
+      - "<!i><yellow>左键点击编辑"
+      - "<!i><gray>将物品放入背包后点击"
+    action: "edit_item"
+
+  # 编辑命令 (仅命令奖励)
+  edit_commands:
+    slot: 28
+    material: COMMAND_BLOCK
+    name: "<!i><red>编辑命令"
+    lore:
+      - "<!i><gray>编辑执行的命令"
+      - ""
+      - "<!i><yellow>左键点击编辑"
+    action: "edit_commands"
+
+  # 编辑金额 (仅金币奖励)
+  edit_amount:
+    slot: 30
+    material: GOLD_INGOT
+    name: "<!i><gold>编辑金额"
+    lore:
+      - "<!i><gray>当前: {amount}"
+      - ""
+      - "<!i><yellow>左键 +100"
+      - "<!i><yellow>右键 -100"
+      - "<!i><yellow>Shift+左键 +1000"
+      - "<!i><yellow>Shift+右键 -1000"
+    action: "edit_amount"
+
+  # 编辑经验 (仅经验奖励)
+  edit_experience:
+    slot: 32
+    material: EXPERIENCE_BOTTLE
+    name: "<!i><green>编辑经验"
+    lore:
+      - "<!i><gray>当前: {exp_amount} {exp_type}"
+      - ""
+      - "<!i><yellow>左键 +100"
+      - "<!i><yellow>右键 -100"
+      - "<!i><yellow>Shift+左键切换类型"
+    action: "edit_experience"
+
+  # 保存奖励
+  save:
+    slot: 40
+    material: WRITABLE_BOOK
+    name: "<!i><green>保存奖励"
+    lore:
+      - "<!i><gray>保存当前奖励配置"
+      - ""
+      - "<!i><yellow>左键点击保存"
+    action: "save_reward"
+
+  # 删除奖励
+  delete:
+    slot: 44
+    material: BARRIER
+    name: "<!i><red>删除奖励"
+    lore:
+      - "<!i><gray>从抽奖箱中删除此奖励"
+      - ""
+      - "<!i><red>此操作不可撤销！"
+      - "<!i><yellow>Shift+左键确认删除"
+    action: "delete_reward"

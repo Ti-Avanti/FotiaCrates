@@ -1,0 +1,151 @@
+# 抽奖箱编辑GUI配置
+# 使用Layout布局方式，更直观易配置
+
+# GUI标题 (支持 {crate} 占位符)
+title: "<!i><dark_gray>编辑: {crate}"
+
+# 布局配置
+# 每个字符代表一个槽位，每行9个字符
+# '#' = 填充物品
+# 'C' = 内容槽位（奖励列表）
+# 其他字符 = 自定义图标
+layout:
+  - 'BAS#I#RMX'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '<#Q#V#D#>'
+
+# 图标配置
+icons:
+  '#':
+    display:
+      material: gray_stained_glass_pane
+      name: ' '
+
+  'C':
+    content: true  # 标记为内容槽位
+
+  '<':
+    display:
+      material: arrow
+      name: '<!i><red>返回'
+      lore:
+        - '<!i><gray>返回管理主界面'
+    action: open_gui
+    action-value: admin
+
+  '>':
+    display:
+      material: barrier
+      name: '<!i><red>关闭'
+      lore:
+        - '<!i><gray>关闭菜单'
+    action: close
+
+  'B':
+    display:
+      material: name_tag
+      name: '<!i><yellow>基本设置'
+      lore:
+        - '<!i><gray>编辑抽奖箱名称、方块、粒子'
+        - ''
+        - '<!i><yellow>左键点击编辑'
+    action: edit_basic
+
+  'A':
+    display:
+      material: clock
+      name: '<!i><aqua>动画设置'
+      lore:
+        - '<!i><gray>编辑动画类型和时长'
+        - ''
+        - '<!i><yellow>当前: {animation_type}'
+        - '<!i><yellow>时长: {animation_duration}秒'
+    action: edit_animation
+
+  'S':
+    display:
+      material: note_block
+      name: '<!i><light_purple>音效设置'
+      lore:
+        - '<!i><gray>编辑开箱音效'
+        - ''
+        - '<!i><yellow>左键点击编辑'
+    action: edit_sounds
+
+  'I':
+    display:
+      material: chest
+      name: '<!i><gold>{crate}'
+      lore:
+        - '<!i><gray>抽奖箱ID: {crate_id}'
+        - ''
+        - '<!i><yellow>奖励数量: <!i><white>{reward_count}'
+        - '<!i><yellow>总概率: <!i><white>{total_chance}%'
+
+  'R':
+    display:
+      material: diamond
+      name: '<!i><aqua>保底设置'
+      lore:
+        - '<!i><gray>编辑多级保底系统'
+        - ''
+        - '<!i><yellow>启用: {pity_enabled}'
+    action: edit_pity
+
+  'M':
+    display:
+      material: ender_eye
+      name: '<!i><green>预览设置'
+      lore:
+        - '<!i><gray>编辑预览功能'
+        - ''
+        - '<!i><yellow>启用: {preview_enabled}'
+        - '<!i><yellow>显示概率: {show_chance}'
+    action: edit_preview
+
+  'X':
+    display:
+      material: chest_minecart
+      name: '<!i><yellow>多连抽设置'
+      lore:
+        - '<!i><gray>编辑多连抽功能'
+        - ''
+        - '<!i><yellow>启用: {multi_open_enabled}'
+        - '<!i><yellow>最大数量: {multi_open_max}'
+    action: edit_multi_open
+
+  'Q':
+    display:
+      material: hopper
+      name: '<!i><gold>奖励管理'
+      lore:
+        - '<!i><gray>打开奖励管理界面'
+        - '<!i><gray>支持批量管理、复制'
+        - ''
+        - '<!i><yellow>左键点击打开'
+      glow: true
+    action: manage_rewards
+
+  'V':
+    display:
+      material: writable_book
+      name: '<!i><green>保存配置'
+      lore:
+        - '<!i><gray>保存当前抽奖箱配置'
+        - ''
+        - '<!i><yellow>左键点击保存'
+    action: save_crate
+
+  'D':
+    display:
+      material: tnt
+      name: '<!i><red>删除抽奖箱'
+      lore:
+        - '<!i><gray>删除此抽奖箱'
+        - ''
+        - '<!i><red>此操作不可撤销！'
+        - '<!i><yellow>Shift+左键确认删除'
+    action: delete_crate

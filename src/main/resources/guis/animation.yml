@@ -1,0 +1,113 @@
+# 动画GUI配置
+# 抽奖动画界面
+
+# GUI标题
+title: "<!i><dark_gray>正在抽奖..."
+
+# GUI大小
+size: 27
+
+# 填充空槽位
+fill:
+  enabled: false
+
+# 固定物品配置
+items:
+  # 上边框
+  border_top_0:
+    slot: 0
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_top_1:
+    slot: 1
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_top_2:
+    slot: 2
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_top_3:
+    slot: 3
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_top_4:
+    slot: 4
+    material: YELLOW_STAINED_GLASS_PANE
+    name: " "
+  border_top_5:
+    slot: 5
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_top_6:
+    slot: 6
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_top_7:
+    slot: 7
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_top_8:
+    slot: 8
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+
+  # 左右边框
+  border_left:
+    slot: 9
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_right:
+    slot: 17
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+
+  # 下边框
+  border_bottom_0:
+    slot: 18
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_bottom_1:
+    slot: 19
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_bottom_2:
+    slot: 20
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_bottom_3:
+    slot: 21
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_bottom_4:
+    slot: 22
+    material: YELLOW_STAINED_GLASS_PANE
+    name: " "
+  border_bottom_5:
+    slot: 23
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_bottom_6:
+    slot: 24
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_bottom_7:
+    slot: 25
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+  border_bottom_8:
+    slot: 26
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "
+
+# 动画槽位 (物品滚动的位置)
+animation-slots:
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+
+# 中心槽位 (最终奖励显示位置)
+center-slot: 13

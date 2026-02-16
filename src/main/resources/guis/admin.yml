@@ -1,0 +1,86 @@
+# 管理员主界面GUI配置
+# 使用Layout布局方式
+
+title: "<!i><dark_gray>FotiaCrates 管理"
+
+layout:
+  - '####I####'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#N#K#S#R#X'
+
+icons:
+  '#':
+    display:
+      material: gray_stained_glass_pane
+      name: ' '
+
+  'C':
+    content: true
+
+  'I':
+    display:
+      material: nether_star
+      name: '<!i><gold>FotiaCrates 管理面板'
+      lore:
+        - '<!i><gray>在这里管理你的抽奖箱'
+        - ''
+        - '<!i><yellow>抽奖箱数量: <!i><white>{crate_count}'
+        - '<!i><yellow>钥匙数量: <!i><white>{key_count}'
+      glow: true
+
+  'N':
+    display:
+      material: emerald
+      name: '<!i><green>创建新抽奖箱'
+      lore:
+        - '<!i><gray>点击创建一个新的抽奖箱'
+        - ''
+        - '<!i><yellow>左键点击创建'
+      glow: true
+    action: create_crate
+
+  'K':
+    display:
+      material: tripwire_hook
+      name: '<!i><aqua>管理钥匙'
+      lore:
+        - '<!i><gray>点击管理钥匙配置'
+        - ''
+        - '<!i><yellow>左键点击打开'
+      glow: true
+    action: open_gui
+    action-value: admin_keys
+
+  'S':
+    display:
+      material: diamond
+      name: '<!i><light_purple>稀有度管理'
+      lore:
+        - '<!i><gray>管理奖励稀有度等级'
+        - '<!i><gray>可自定义稀有度名称和颜色'
+        - ''
+        - '<!i><yellow>左键点击打开'
+      glow: true
+    action: open_gui
+    action-value: rarity_manager
+
+  'R':
+    display:
+      material: redstone
+      name: '<!i><red>重载配置'
+      lore:
+        - '<!i><gray>重新加载所有配置文件'
+        - ''
+        - '<!i><yellow>左键点击重载'
+    action: reload
+
+  'X':
+    display:
+      material: barrier
+      name: '<!i><red>关闭'
+      lore:
+        - '<!i><gray>关闭管理界面'
+    action: close

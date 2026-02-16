@@ -1,0 +1,12 @@
+package gg.fotia.crates.command.subcommand;
+
+import org.bukkit.command.CommandSender;
+import java.util.List;
+
+public interface SubCommand {
+    void execute(CommandSender sender, String[] args);
+    List<String> tabComplete(CommandSender sender, String[] args);
+    boolean hasPermission(CommandSender sender);
+    String getPermission();
+    String getUsage();
+}

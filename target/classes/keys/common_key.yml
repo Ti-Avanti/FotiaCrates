@@ -1,0 +1,39 @@
+# 普通钥匙配置
+# 一个钥匙可以对应多个宝箱
+
+# 钥匙ID（文件名即为ID）
+# 钥匙显示名称
+name: "<!i><green>普通钥匙"
+
+# 钥匙物品设置
+item:
+  material: TRIPWIRE_HOOK
+  name: "<!i><green>普通钥匙"
+  lore:
+    - "<!i><gray>使用此钥匙可以打开"
+    - "<!i><gray>普通宝箱！"
+    - ""
+    - "<!i><yellow>右键点击宝箱使用"
+  custom-model-data: 0
+  glow: true
+
+  # 1.21.4+ 物品模型 (可选)
+  # item-model: "minecraft:custom/key"
+
+  # 1.21.4+ 提示框样式 (可选)
+  # tooltip-style: "minecraft:custom/tooltip"
+
+  # CraftEngine物品ID (可选，需要安装CraftEngine插件)
+  # craftengine-id: "namespace:item_id"
+
+  # ItemsAdder物品ID (可选，需要安装ItemsAdder插件)
+  # itemsadder-id: "namespace:item_id"
+
+  # Oraxen物品ID (可选，需要安装Oraxen插件)
+  # oraxen-id: "item_id"
+
+# 可以打开的宝箱列表
+# 使用 "*" 表示可以打开所有宝箱
+# 留空也表示可以打开所有宝箱
+allowed-crates:
+  - "common"

@@ -1,0 +1,1364 @@
+package gg.fotia.crates.crate;
+
+import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.animation.AnimationType;
+import gg.fotia.crates.reward.*;
+import gg.fotia.crates.util.ItemBuilder;
+import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+
+import java.io.File;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.*;
+
+public class CrateManager {
+
+    private final FotiaCrates plugin;
+    private final Map<String, Crate> crates = new HashMap<>();
+    private final List<CrateLocation> crateLocations = new ArrayList<>();
+
+    public CrateManager(FotiaCrates plugin) {
+        this.plugin = plugin;
+    }
+
+    public void loadCrates() {
+        crates.clear();
+        File cratesFolder = new File(plugin.getDataFolder(), "crates");
+        if (!cratesFolder.exists()) {
+            cratesFolder.mkdirs();
+            return;
+        }
+
+        File[] files = cratesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) return;
+
+        for (File file : files) {
+            String id = file.getName().replace(".yml", "");
+            try {
+                Crate crate = loadCrate(id, file);
+                if (crate != null) {
+                    crates.put(id, crate);
+                    plugin.getLogger().info("Loaded crate: " + id);
+                }
+            } catch (Exception e) {
+                plugin.getLogger().severe("Failed to load crate " + id + ": " + e.getMessage());
+            }
+        }
+
+        plugin.getLogger().info("Loaded " + crates.size() + " crates.");
+    }
+
+    private Crate loadCrate(String id, File file) {
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+
+        String name = config.getString("name", id);
+        Material blockMaterial = Material.valueOf(config.getString("block.material", "CHEST"));
+
+        // 宝箱方块物品设置
+        String blockItemName = config.getString("block.item.name", name);
+        List<String> blockItemLore = config.getStringList("block.item.lore");
+
+        // ModelEngine设置
+        boolean modelEngineEnabled = config.getBoolean("block.modelengine.enabled", false);
+        String modelEngineId = config.getString("block.modelengine.model-id", "");
+        String modelEngineIdleAnimation = config.getString("block.modelengine.idle-animation", "idle");
+        String modelEngineOpenAnimation = config.getString("block.modelengine.open-animation", "open");
+        int modelEngineOpenDelay = config.getInt("block.modelengine.open-delay", 20); // 默认1秒(20tick)
+        int modelEngineViewRange = config.getInt("block.modelengine.view-range", 48); // 默认48格
+
+        boolean previewEnabled = config.getBoolean("preview.enabled", true);
+        boolean showChance = config.getBoolean("preview.show-chance", true);
+        String previewTitle = config.getString("preview.title", name + " Preview");
+
+        boolean animationEnabled = config.getBoolean("animation.enabled", true);
+        AnimationType animationType = AnimationType.valueOf(config.getString("animation.type", "ROULETTE"));
+        int animationDuration = config.getInt("animation.duration", 3);
+        String animationTitle = config.getString("animation.title", "<!i><dark_gray>" + name);
+
+        boolean physicalAnimationEnabled = config.getBoolean("physical-animation.enabled", false);
+        double physicalAnimationHeight = config.getDouble("physical-animation.height", 1.5);
+
+        double hologramHeight = config.getDouble("hologram.height", 1.5);
+        List<String> hologramLines = config.getStringList("hologram.lines");
+
+        boolean particlesEnabled = config.getBoolean("particles.enabled", true);
+        Particle particleType = Particle.valueOf(config.getString("particles.type", "FLAME"));
+        int particleCount = config.getInt("particles.count", 10);
+
+        Sound spinSound = Sound.valueOf(config.getString("sounds.spin.sound", "BLOCK_NOTE_BLOCK_PLING"));
+        float spinVolume = (float) config.getDouble("sounds.spin.volume", 1.0);
+        float spinPitch = (float) config.getDouble("sounds.spin.pitch", 1.0);
+        Sound winSound = Sound.valueOf(config.getString("sounds.win.sound", "ENTITY_PLAYER_LEVELUP"));
+        float winVolume = (float) config.getDouble("sounds.win.volume", 1.0);
+        float winPitch = (float) config.getDouble("sounds.win.pitch", 1.0);
+
+        boolean pityEnabled = config.getBoolean("pity.enabled", false);
+
+        // 加载多级保底配置
+        List<Crate.PityTier> pityTiers = new ArrayList<>();
+        ConfigurationSection pityTiersSection = config.getConfigurationSection("pity.tiers");
+        if (pityTiersSection != null) {
+            for (String tierKey : pityTiersSection.getKeys(false)) {
+                ConfigurationSection tierSection = pityTiersSection.getConfigurationSection(tierKey);
+                if (tierSection != null) {
+                    int count = tierSection.getInt("count", 50);
+                    String rarity = tierSection.getString("rarity", "rare");
+                    pityTiers.add(new Crate.PityTier(count, rarity));
+                }
+            }
+        }
+        // 兼容旧版单级保底配置
+        if (pityTiers.isEmpty() && pityEnabled) {
+            int pityCount = config.getInt("pity.count", 50);
+            String pityRarity = config.getString("pity.rarity", "rare");
+            pityTiers.add(new Crate.PityTier(pityCount, pityRarity));
+        }
+
+        boolean multiOpenEnabled = config.getBoolean("multi-open.enabled", true);
+        int multiOpenMax = config.getInt("multi-open.max", 10);
+
+        // 权限节点，默认为空（使用默认权限 fotiacrates.open.<id>）
+        String permission = config.getString("permission", "");
+
+        List<Reward> rewards = loadRewards(config.getConfigurationSection("rewards"));
+
+        return new Crate(id, name, blockMaterial,
+                blockItemName, blockItemLore,
+                modelEngineEnabled, modelEngineId,
+                modelEngineIdleAnimation, modelEngineOpenAnimation,
+                modelEngineOpenDelay, modelEngineViewRange, physicalAnimationHeight,
+                hologramHeight, hologramLines,
+                rewards,
+                previewEnabled, showChance, previewTitle,
+                animationEnabled, animationType, animationDuration,
+                animationTitle, physicalAnimationEnabled,
+                particlesEnabled, particleType, particleCount,
+                spinSound, spinVolume, spinPitch,
+                winSound, winVolume, winPitch,
+                pityEnabled, pityTiers,
+                multiOpenEnabled, multiOpenMax, permission);
+    }
+
+    private List<Reward> loadRewards(ConfigurationSection section) {
+        List<Reward> rewards = new ArrayList<>();
+        if (section == null) return rewards;
+
+        for (String rewardId : section.getKeys(false)) {
+            ConfigurationSection rewardSection = section.getConfigurationSection(rewardId);
+            if (rewardSection == null) continue;
+
+            Reward reward = loadReward(rewardId, rewardSection);
+            if (reward != null) {
+                rewards.add(reward);
+            }
+        }
+
+        return rewards;
+    }
+
+    private Reward loadReward(String id, ConfigurationSection section) {
+        String displayName = section.getString("display-name", id);
+        String rarity = section.getString("rarity", "common");
+        double chance = section.getDouble("chance", 10.0);
+        boolean broadcast = section.getBoolean("broadcast", false);
+        String type = section.getString("type", "item");
+
+        ItemStack displayItem = loadDisplayItem(section, displayName);
+
+        return switch (type.toLowerCase()) {
+            case "item" -> loadItemReward(id, displayName, rarity, chance, broadcast, displayItem, section);
+            case "command" -> loadCommandReward(id, displayName, rarity, chance, broadcast, displayItem, section);
+            case "money" -> loadMoneyReward(id, displayName, rarity, chance, broadcast, displayItem, section);
+            case "experience" -> loadExperienceReward(id, displayName, rarity, chance, broadcast, displayItem, section);
+            default -> null;
+        };
+    }
+
+    private ItemStack loadDisplayItem(ConfigurationSection section, String defaultName) {
+        // 首先尝试直接获取序列化的ItemStack
+        Object displayObj = section.get("display");
+        if (displayObj instanceof ItemStack) {
+            return (ItemStack) displayObj;
+        }
+
+        ConfigurationSection displaySection = section.getConfigurationSection("display");
+        if (displaySection != null) {
+            // 检查是否是序列化的ItemStack格式
+            if (displaySection.contains("==") || displaySection.contains("type") || displaySection.contains("v")) {
+                ItemStack item = section.getItemStack("display");
+                if (item != null) return item;
+            }
+            return loadItemFromSection(displaySection, defaultName);
+        }
+
+        // 尝试从item配置加载
+        Object itemObj = section.get("item");
+        if (itemObj instanceof ItemStack) {
+            return (ItemStack) itemObj;
+        }
+
+        ConfigurationSection itemSection = section.getConfigurationSection("item");
+        if (itemSection != null) {
+            if (itemSection.contains("==") || itemSection.contains("type") || itemSection.contains("v")) {
+                ItemStack item = section.getItemStack("item");
+                if (item != null) return item;
+            }
+            return loadItemFromSection(itemSection, defaultName);
+        }
+
+        return new ItemBuilder(Material.PAPER).name(defaultName).build();
+    }
+
+    private ItemStack loadItemFromSection(ConfigurationSection section, String defaultName) {
+        Material material = Material.valueOf(section.getString("material", "PAPER"));
+        String name = section.getString("name", defaultName);
+        List<String> lore = section.getStringList("lore");
+        int amount = section.getInt("amount", 1);
+
+        ItemBuilder builder = new ItemBuilder(material)
+                .name(name)
+                .lore(lore)
+                .amount(amount);
+
+        ConfigurationSection enchantSection = section.getConfigurationSection("enchantments");
+        if (enchantSection != null) {
+            Map<String, Integer> enchants = new HashMap<>();
+            for (String enchantName : enchantSection.getKeys(false)) {
+                enchants.put(enchantName, enchantSection.getInt(enchantName));
+            }
+            builder.enchantments(enchants);
+        }
+
+        return builder.build();
+    }
+
+    private ItemReward loadItemReward(String id, String displayName, String rarity, double chance,
+                                      boolean broadcast, ItemStack displayItem, ConfigurationSection section) {
+        ItemStack item;
+
+        // 首先尝试直接获取序列化的ItemStack
+        Object itemObj = section.get("item");
+        if (itemObj instanceof ItemStack) {
+            item = (ItemStack) itemObj;
+        } else {
+            ConfigurationSection itemSection = section.getConfigurationSection("item");
+            if (itemSection != null) {
+                // 检查是否是序列化的ItemStack格式
+                if (itemSection.contains("==") || itemSection.contains("type") || itemSection.contains("v")) {
+                    ItemStack serializedItem = section.getItemStack("item");
+                    item = serializedItem != null ? serializedItem : displayItem.clone();
+                } else {
+                    item = loadItemFromSection(itemSection, displayName);
+                }
+            } else {
+                item = displayItem.clone();
+            }
+        }
+
+        List<ItemStack> extraItems = new ArrayList<>();
+        // 尝试加载序列化的extra-items列表
+        List<?> extraList = section.getList("extra-items");
+        if (extraList != null) {
+            for (Object obj : extraList) {
+                if (obj instanceof ItemStack) {
+                    extraItems.add((ItemStack) obj);
+                } else if (obj instanceof Map) {
+                    // 旧格式兼容
+                    Map<?, ?> extraMap = (Map<?, ?>) obj;
+                    if (extraMap.containsKey("material")) {
+                        try {
+                            Material material = Material.valueOf((String) extraMap.get("material"));
+                            ItemStack extraItem = new ItemStack(material);
+                            extraItems.add(extraItem);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            }
+        }
+
+        return new ItemReward(id, displayName, rarity, chance, broadcast, displayItem, item, extraItems);
+    }
+
+    private CommandReward loadCommandReward(String id, String displayName, String rarity, double chance,
+                                            boolean broadcast, ItemStack displayItem, ConfigurationSection section) {
+        List<String> commands = section.getStringList("commands");
+        return new CommandReward(id, displayName, rarity, chance, broadcast, displayItem, commands);
+    }
+
+    private MoneyReward loadMoneyReward(String id, String displayName, String rarity, double chance,
+                                        boolean broadcast, ItemStack displayItem, ConfigurationSection section) {
+        double amount = section.getDouble("amount", 100);
+        return new MoneyReward(id, displayName, rarity, chance, broadcast, displayItem, amount);
+    }
+
+    private ExperienceReward loadExperienceReward(String id, String displayName, String rarity, double chance,
+                                                  boolean broadcast, ItemStack displayItem, ConfigurationSection section) {
+        ConfigurationSection expSection = section.getConfigurationSection("experience");
+        int amount = expSection != null ? expSection.getInt("amount", 100) : 100;
+        boolean levels = expSection != null && expSection.getString("type", "points").equalsIgnoreCase("levels");
+        return new ExperienceReward(id, displayName, rarity, chance, broadcast, displayItem, amount, levels);
+    }
+
+    public void loadLocations() {
+        crateLocations.clear();
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement("SELECT * FROM crate_locations");
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                String world = rs.getString("world");
+                int x = rs.getInt("x");
+                int y = rs.getInt("y");
+                int z = rs.getInt("z");
+                String crateId = rs.getString("crate_id");
+                crateLocations.add(new CrateLocation(world, x, y, z, crateId));
+            }
+
+            plugin.getLogger().info("Loaded " + crateLocations.size() + " crate locations.");
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Failed to load crate locations: " + e.getMessage());
+        }
+    }
+
+    public void addLocation(CrateLocation location) {
+        crateLocations.add(location);
+        String sql = plugin.getConfigManager().getDatabaseType().equalsIgnoreCase("mysql")
+                ? "INSERT INTO crate_locations (world, x, y, z, crate_id) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE crate_id = VALUES(crate_id)"
+                : "INSERT OR REPLACE INTO crate_locations (world, x, y, z, crate_id) VALUES (?, ?, ?, ?, ?)";
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, location.getWorld());
+            stmt.setInt(2, location.getX());
+            stmt.setInt(3, location.getY());
+            stmt.setInt(4, location.getZ());
+            stmt.setString(5, location.getCrateId());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Failed to save crate location: " + e.getMessage());
+        }
+    }
+
+    public void removeLocation(Location location) {
+        crateLocations.removeIf(cl -> cl.matches(location));
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                     "DELETE FROM crate_locations WHERE world = ? AND x = ? AND y = ? AND z = ?")) {
+            stmt.setString(1, location.getWorld().getName());
+            stmt.setInt(2, location.getBlockX());
+            stmt.setInt(3, location.getBlockY());
+            stmt.setInt(4, location.getBlockZ());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Failed to remove crate location: " + e.getMessage());
+        }
+    }
+
+    public CrateLocation getLocationAt(Location location) {
+        for (CrateLocation cl : crateLocations) {
+            if (cl.matches(location)) {
+                return cl;
+            }
+        }
+        return null;
+    }
+
+    public boolean isLocationSet(Location location) {
+        return getLocationAt(location) != null;
+    }
+
+    public Crate getCrate(String id) { return crates.get(id); }
+    public Collection<Crate> getAllCrates() { return crates.values(); }
+    public Set<String> getCrateIds() { return crates.keySet(); }
+    public List<CrateLocation> getCrateLocations() { return new ArrayList<>(crateLocations); }
+
+    public void setCrateLocation(String crateId, Location location) {
+        CrateLocation crateLocation = new CrateLocation(
+                location.getWorld().getName(),
+                location.getBlockX(),
+                location.getBlockY(),
+                location.getBlockZ(),
+                crateId
+        );
+        addLocation(crateLocation);
+    }
+
+    public Crate getCrateAtLocation(Location location) {
+        CrateLocation crateLocation = getLocationAt(location);
+        if (crateLocation == null) return null;
+        return getCrate(crateLocation.getCrateId());
+    }
+
+    public void removeCrateLocation(Location location) {
+        removeLocation(location);
+    }
+
+    /**
+     * 创建宝箱方块物品
+     * @param crate 宝箱
+     * @param amount 数量
+     * @return 带有PDC标记的宝箱方块物品
+     */
+    public ItemStack createCrateBlockItem(Crate crate, int amount) {
+        ItemStack item = new ItemBuilder(crate.getBlockMaterial())
+                .name(crate.getBlockItemName())
+                .lore(crate.getBlockItemLore())
+                .amount(amount)
+                .build();
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.getPersistentDataContainer().set(
+                    new NamespacedKey(plugin, "crate_block"),
+                    org.bukkit.persistence.PersistentDataType.STRING,
+                    crate.getId()
+            );
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    /**
+     * 检查物品是否为宝箱方块
+     * @param item 物品
+     * @return 宝箱ID，如果不是宝箱方块则返回null
+     */
+    public String getCrateIdFromItem(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) return null;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return null;
+        return meta.getPersistentDataContainer().get(
+                new NamespacedKey(plugin, "crate_block"),
+                org.bukkit.persistence.PersistentDataType.STRING
+        );
+    }
+
+    // ==================== 编辑功能 ====================
+
+    /**
+     * 更新宝箱名称
+     */
+    public void updateCrateName(String crateId, String newName) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("name", newName);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update crate name: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新宝箱方块类型
+     */
+    public void updateCrateBlock(String crateId, Material material) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("block.material", material.name());
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update crate block: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新动画时长
+     */
+    public void updateAnimationDuration(String crateId, int duration) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("animation.duration", duration);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update animation duration: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新多连抽最大数量
+     */
+    public void updateMultiOpenMax(String crateId, int max) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("multi-open.max", max);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update multi-open max: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 切换粒子效果
+     */
+    public void toggleParticles(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("particles.enabled", true);
+            config.set("particles.enabled", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle particles: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 切换预览功能
+     */
+    public void togglePreview(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("preview.enabled", true);
+            config.set("preview.enabled", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle preview: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 切换多连抽功能
+     */
+    public void toggleMultiOpen(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("multi-open.enabled", true);
+            config.set("multi-open.enabled", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle multi-open: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 添加奖励
+     */
+    public void addReward(String crateId, ItemStack item, double chance, String rarity) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String rewardId = "reward_" + java.util.UUID.randomUUID().toString().substring(0, 8);
+            String path = "rewards." + rewardId;
+
+            config.set(path + ".type", "ITEM");
+            config.set(path + ".item", item);
+            config.set(path + ".chance", chance);
+            config.set(path + ".rarity", rarity);
+            config.set(path + ".broadcast", rarity.equalsIgnoreCase("legendary") || rarity.equalsIgnoreCase("epic"));
+
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to add reward: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 移除奖励
+     */
+    public void removeReward(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId, null);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to remove reward: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新奖励概率
+     */
+    public void updateRewardChance(String crateId, String rewardId, double chance) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId + ".chance", chance);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward chance: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新奖励稀有度
+     */
+    public void updateRewardRarity(String crateId, String rewardId, String rarity) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId + ".rarity", rarity);
+            config.set("rewards." + rewardId + ".broadcast", rarity.equalsIgnoreCase("legendary") || rarity.equalsIgnoreCase("epic"));
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward rarity: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新动画类型
+     */
+    public void updateAnimationType(String crateId, AnimationType type) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("animation.type", type.name());
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update animation type: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 切换GUI动画开关
+     */
+    public void toggleGuiAnimation(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("animation.enabled", true);
+            config.set("animation.enabled", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle GUI animation: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 切换物理动画开关
+     */
+    public void togglePhysicalAnimation(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("physical-animation.enabled", false);
+            config.set("physical-animation.enabled", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle physical animation: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新物理动画高度
+     */
+    public void updatePhysicalAnimationHeight(String crateId, double height) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("physical-animation.height", height);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update physical animation height: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 切换保底启用状态
+     */
+    public void togglePity(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("pity.enabled", false);
+            config.set("pity.enabled", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle pity: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 添加保底等级
+     */
+    public void addPityTier(String crateId, int count, String rarity) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String tierId = "tier_" + System.currentTimeMillis();
+            config.set("pity.tiers." + tierId + ".count", count);
+            config.set("pity.tiers." + tierId + ".rarity", rarity);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to add pity tier: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新保底等级
+     */
+    public void updatePityTier(String crateId, int tierIndex, int count, String rarity) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            ConfigurationSection tiersSection = config.getConfigurationSection("pity.tiers");
+            if (tiersSection == null) return;
+
+            List<String> tierKeys = new ArrayList<>(tiersSection.getKeys(false));
+            if (tierIndex < 0 || tierIndex >= tierKeys.size()) return;
+
+            String tierKey = tierKeys.get(tierIndex);
+            config.set("pity.tiers." + tierKey + ".count", count);
+            config.set("pity.tiers." + tierKey + ".rarity", rarity);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update pity tier: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 删除保底等级
+     */
+    public void removePityTier(String crateId, int tierIndex) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            ConfigurationSection tiersSection = config.getConfigurationSection("pity.tiers");
+            if (tiersSection == null) return;
+
+            List<String> tierKeys = new ArrayList<>(tiersSection.getKeys(false));
+            if (tierIndex < 0 || tierIndex >= tierKeys.size()) return;
+
+            String tierKey = tierKeys.get(tierIndex);
+            config.set("pity.tiers." + tierKey, null);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to remove pity tier: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新保底设置（旧版兼容）
+     */
+    @Deprecated
+    public void updatePity(String crateId, boolean enabled, int count, String rarity) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("pity.enabled", enabled);
+            config.set("pity.count", count);
+            config.set("pity.rarity", rarity);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update pity: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 保存宝箱配置
+     */
+    public void saveCrate(String crateId) {
+        // 配置已经在每次修改时保存，这里只是重新加载确保同步
+        loadCrates();
+    }
+
+    /**
+     * 删除宝箱
+     */
+    public void deleteCrate(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (file.exists()) {
+            file.delete();
+        }
+        crates.remove(crateId);
+
+        // 删除相关的位置
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement("DELETE FROM crate_locations WHERE crate_id = ?")) {
+            stmt.setString(1, crateId);
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Failed to delete crate locations: " + e.getMessage());
+        }
+
+        crateLocations.removeIf(cl -> cl.getCrateId().equals(crateId));
+    }
+
+    /**
+     * 创建新宝箱
+     */
+    public void createCrate(String crateId, String name) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (file.exists()) return;
+
+        try {
+            YamlConfiguration config = new YamlConfiguration();
+            config.set("name", name);
+            config.set("block.material", "CHEST");
+            config.set("block.item.name", "<!i><gold>" + name);
+            config.set("block.item.lore", List.of("<!i><gray>放置此方块创建宝箱"));
+            config.set("preview.enabled", true);
+            config.set("preview.show-chance", true);
+            config.set("animation.enabled", true);
+            config.set("animation.type", "ROULETTE");
+            config.set("animation.duration", 3);
+            config.set("particles.enabled", true);
+            config.set("particles.type", "FLAME");
+            config.set("particles.count", 10);
+            config.set("sounds.spin.sound", "BLOCK_NOTE_BLOCK_PLING");
+            config.set("sounds.spin.volume", 1.0);
+            config.set("sounds.spin.pitch", 1.0);
+            config.set("sounds.win.sound", "ENTITY_PLAYER_LEVELUP");
+            config.set("sounds.win.volume", 1.0);
+            config.set("sounds.win.pitch", 1.0);
+            config.set("pity.enabled", false);
+            config.set("pity.count", 50);
+            config.set("pity.rarity", "rare");
+            config.set("multi-open.enabled", true);
+            config.set("multi-open.max", 10);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to create crate: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 切换奖励广播
+     */
+    public void toggleRewardBroadcast(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("rewards." + rewardId + ".broadcast", false);
+            config.set("rewards." + rewardId + ".broadcast", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle reward broadcast: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新奖励物品（实际给予玩家的物品）
+     */
+    public void updateRewardItem(String crateId, String rewardId, ItemStack item) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String path = "rewards." + rewardId + ".item";
+
+            // 只更新item配置（实际给予的物品）
+            config.set(path + ".material", item.getType().name());
+            config.set(path + ".amount", item.getAmount());
+
+            if (item.hasItemMeta()) {
+                ItemMeta meta = item.getItemMeta();
+                if (meta.hasDisplayName()) {
+                    config.set(path + ".name", meta.getDisplayName());
+                } else {
+                    config.set(path + ".name", null);
+                }
+                if (meta.hasLore()) {
+                    config.set(path + ".lore", meta.getLore());
+                } else {
+                    config.set(path + ".lore", null);
+                }
+            } else {
+                config.set(path + ".name", null);
+                config.set(path + ".lore", null);
+            }
+
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward item: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新奖励类型
+     */
+    public void updateRewardType(String crateId, String rewardId, String type) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId + ".type", type);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward type: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新奖励显示图标（完整保存NBT，使用序列化）
+     */
+    public void updateRewardDisplayIconFull(String crateId, String rewardId, ItemStack item) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            // 使用Bukkit序列化完整保存物品（包含所有NBT）
+            config.set("rewards." + rewardId + ".display", item);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward display icon: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新奖励显示图标（仅用于预览显示，不影响实际给予的物品）
+     */
+    public void updateRewardDisplayIcon(String crateId, String rewardId, ItemStack item) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String path = "rewards." + rewardId + ".display";
+
+            // 只更新display配置
+            config.set(path + ".material", item.getType().name());
+            config.set(path + ".amount", item.getAmount());
+
+            if (item.hasItemMeta()) {
+                ItemMeta meta = item.getItemMeta();
+                if (meta.hasDisplayName()) {
+                    config.set(path + ".name", meta.getDisplayName());
+                } else {
+                    config.set(path + ".name", null);
+                }
+                if (meta.hasLore()) {
+                    config.set(path + ".lore", meta.getLore());
+                } else {
+                    config.set(path + ".lore", null);
+                }
+            } else {
+                config.set(path + ".name", null);
+                config.set(path + ".lore", null);
+            }
+
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward display icon: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新奖励物品（完整保存NBT，使用序列化）
+     */
+    public void updateRewardItemFull(String crateId, String rewardId, ItemStack item) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String path = "rewards." + rewardId + ".item";
+
+            // 使用Bukkit序列化完整保存物品（包含所有NBT）
+            config.set(path, item);
+
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward item: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 清除奖励物品（使用显示图标作为奖励）
+     */
+    public void clearRewardItem(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId + ".item", null);
+            config.set("rewards." + rewardId + ".extra-items", null);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to clear reward item: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 清除所有奖励物品
+     */
+    public void clearRewardItems(String crateId, String rewardId) {
+        clearRewardItem(crateId, rewardId);
+    }
+
+    /**
+     * 更新奖励物品（支持多个物品）
+     */
+    public void updateRewardItems(String crateId, String rewardId, List<ItemStack> items) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String basePath = "rewards." + rewardId;
+
+            if (items.isEmpty()) {
+                config.set(basePath + ".item", null);
+                config.set(basePath + ".extra-items", null);
+            } else {
+                // 第一个物品作为主物品
+                config.set(basePath + ".item", items.get(0));
+
+                // 其余物品作为额外物品
+                if (items.size() > 1) {
+                    List<ItemStack> extraItems = items.subList(1, items.size());
+                    config.set(basePath + ".extra-items", extraItems);
+                } else {
+                    config.set(basePath + ".extra-items", null);
+                }
+            }
+
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward items: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 清除奖励命令
+     */
+    public void clearRewardCommands(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId + ".commands", new ArrayList<String>());
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to clear reward commands: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 添加奖励命令
+     */
+    public void addRewardCommand(String crateId, String rewardId, String command) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            List<String> commands = config.getStringList("rewards." + rewardId + ".commands");
+            commands.add(command);
+            config.set("rewards." + rewardId + ".commands", commands);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to add reward command: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新奖励显示名称
+     */
+    public void updateRewardDisplayName(String crateId, String rewardId, String displayName) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId + ".display-name", displayName);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward display name: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取奖励的广播状态
+     */
+    public boolean getRewardBroadcast(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return false;
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        return config.getBoolean("rewards." + rewardId + ".broadcast", false);
+    }
+
+    /**
+     * 获取奖励的命令列表
+     */
+    public List<String> getRewardCommands(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return new ArrayList<>();
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        return config.getStringList("rewards." + rewardId + ".commands");
+    }
+
+    /**
+     * 复制奖励
+     */
+    public String copyReward(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return null;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            ConfigurationSection sourceSection = config.getConfigurationSection("rewards." + rewardId);
+            if (sourceSection == null) return null;
+
+            String newRewardId = "reward_" + java.util.UUID.randomUUID().toString().substring(0, 8);
+            String newPath = "rewards." + newRewardId;
+
+            // 复制所有配置
+            for (String key : sourceSection.getKeys(true)) {
+                Object value = sourceSection.get(key);
+                if (!(value instanceof ConfigurationSection)) {
+                    config.set(newPath + "." + key, value);
+                }
+            }
+
+            config.save(file);
+            loadCrates();
+            return newRewardId;
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to copy reward: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 平衡所有奖励概率使总和为100%
+     */
+    public void balanceRewardChances(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            ConfigurationSection rewardsSection = config.getConfigurationSection("rewards");
+            if (rewardsSection == null) return;
+
+            Set<String> rewardIds = rewardsSection.getKeys(false);
+            if (rewardIds.isEmpty()) return;
+
+            // 计算当前总概率
+            double totalChance = 0;
+            for (String id : rewardIds) {
+                totalChance += config.getDouble("rewards." + id + ".chance", 0);
+            }
+
+            if (totalChance <= 0) {
+                // 如果总概率为0，平均分配
+                double equalChance = 100.0 / rewardIds.size();
+                for (String id : rewardIds) {
+                    config.set("rewards." + id + ".chance", Math.round(equalChance * 100.0) / 100.0);
+                }
+            } else {
+                // 按比例调整
+                double ratio = 100.0 / totalChance;
+                for (String id : rewardIds) {
+                    double currentChance = config.getDouble("rewards." + id + ".chance", 0);
+                    double newChance = currentChance * ratio;
+                    config.set("rewards." + id + ".chance", Math.round(newChance * 100.0) / 100.0);
+                }
+            }
+
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to balance reward chances: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 创建空奖励（用户先创建，再配置）
+     * @return 新奖励的ID
+     */
+    public String createEmptyReward(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return null;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String rewardId = "reward_" + java.util.UUID.randomUUID().toString().substring(0, 8);
+            String path = "rewards." + rewardId;
+
+            config.set(path + ".type", "ITEM");
+            config.set(path + ".chance", 10.0);
+            config.set(path + ".rarity", "common");
+            config.set(path + ".broadcast", false);
+            config.set(path + ".display-name", "新奖励");
+
+            // 设置默认显示物品为钻石
+            config.set(path + ".display.material", "DIAMOND");
+            config.set(path + ".display.amount", 1);
+
+            config.save(file);
+            loadCrates();
+            return rewardId;
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to create empty reward: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 添加奖励（增强版，支持更多参数）
+     */
+    public String addRewardEnhanced(String crateId, ItemStack item, double chance, String rarity, String displayName) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return null;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String rewardId = "reward_" + java.util.UUID.randomUUID().toString().substring(0, 8);
+            String path = "rewards." + rewardId;
+
+            config.set(path + ".type", "item");
+            config.set(path + ".chance", chance);
+            config.set(path + ".rarity", rarity);
+            config.set(path + ".broadcast", rarity.equalsIgnoreCase("legendary") || rarity.equalsIgnoreCase("epic"));
+
+            // 设置显示名称
+            String name = displayName;
+            if (name == null || name.isEmpty()) {
+                if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
+                    name = item.getItemMeta().getDisplayName();
+                } else {
+                    name = formatMaterialName(item.getType().name());
+                }
+            }
+            config.set(path + ".display-name", name);
+
+            // 设置物品
+            config.set(path + ".item.material", item.getType().name());
+            config.set(path + ".item.amount", item.getAmount());
+            if (item.hasItemMeta()) {
+                ItemMeta meta = item.getItemMeta();
+                if (meta.hasDisplayName()) {
+                    config.set(path + ".item.name", meta.getDisplayName());
+                }
+                if (meta.hasLore()) {
+                    config.set(path + ".item.lore", meta.getLore());
+                }
+            }
+
+            // 设置显示物品
+            config.set(path + ".display.material", item.getType().name());
+            config.set(path + ".display.amount", item.getAmount());
+            if (item.hasItemMeta()) {
+                ItemMeta meta = item.getItemMeta();
+                if (meta.hasDisplayName()) {
+                    config.set(path + ".display.name", meta.getDisplayName());
+                }
+                if (meta.hasLore()) {
+                    config.set(path + ".display.lore", meta.getLore());
+                }
+            }
+
+            config.save(file);
+            loadCrates();
+            return rewardId;
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to add reward: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 格式化材质名称
+     */
+    private String formatMaterialName(String materialName) {
+        String[] words = materialName.toLowerCase().split("_");
+        StringBuilder result = new StringBuilder();
+        for (String word : words) {
+            if (!word.isEmpty()) {
+                result.append(Character.toUpperCase(word.charAt(0)))
+                        .append(word.substring(1))
+                        .append(" ");
+            }
+        }
+        return result.toString().trim();
+    }
+}

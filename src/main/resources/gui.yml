@@ -1,0 +1,40 @@
+# FotiaCrates GUI 配置文件
+
+# 主菜单
+main-menu:
+  title: "<!i><dark_gray>抽奖箱菜单"
+  size: 54
+  # 填充空槽位
+  fill:
+    enabled: true
+    material: GRAY_STAINED_GLASS_PANE
+    name: " "
+
+# 预览 GUI 模板
+preview-gui:
+  title: "<!i><dark_gray>{crate} 预览"
+  size: 54
+  # 填充空槽位
+  fill:
+    enabled: true
+    material: GRAY_STAINED_GLASS_PANE
+    name: " "
+  # 返回按钮
+  back-button:
+    enabled: true
+    slot: 49
+    material: ARROW
+    name: "<!i><red>返回"
+
+# 动画 GUI
+animation-gui:
+  title: "<!i><dark_gray>正在抽奖..."
+  size: 27
+  # 指示器物品 (显示当前选中)
+  indicator:
+    material: YELLOW_STAINED_GLASS_PANE
+    name: " "
+  # 边框物品
+  border:
+    material: BLACK_STAINED_GLASS_PANE
+    name: " "

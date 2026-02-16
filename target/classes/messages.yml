@@ -1,0 +1,57 @@
+# FotiaCrates 消息配置文件
+# 支持 MiniMessage 格式
+# 使用 <!i> 禁用斜体
+
+prefix: "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> "
+
+messages:
+  # 通用消息
+  no-permission: "<!i><red>你没有权限执行此操作！"
+  no-key: "<!i><red>你没有足够的钥匙！"
+  reward-received: "<!i><green>恭喜！你获得了 {reward}！"
+  broadcast-rare: "<!i><gold>{player} <yellow>从 <gold>{crate} <yellow>中获得了 <gold>{reward}<yellow>！"
+  key-given: "<!i><green>你获得了 {amount} 把 {key}！"
+  key-removed: "<!i><red>你被移除了 {amount} 把 {key}！"
+  key-given-other: "<!i><green>已给予 {player} {amount} 把 {key}！"
+  key-removed-other: "<!i><red>已从 {player} 移除 {amount} 把 {key}！"
+  key-check: "<!i><yellow>{player} 拥有 {amount} 把 {key} (虚拟: {virtual}, 物理: {physical})"
+  crate-placed: "<!i><green>抽奖箱位置已设置！"
+  crate-removed: "<!i><green>抽奖箱位置已移除！"
+  invalid-crate: "<!i><red>无效的抽奖箱！"
+  invalid-player: "<!i><red>找不到该玩家！"
+  inventory-full: "<!i><red>你的背包已满！物品已掉落在地上。"
+  reload-success: "<!i><green>配置已重新加载！"
+  history-header: "<!i><gold>===== 抽奖历史 ====="
+  history-entry: "<!i><gray>{time} - {crate}: {reward}"
+  history-empty: "<!i><gray>没有找到历史记录。"
+  pity-progress: "<!i><yellow>保底进度: {current}/{max}"
+  not-looking-at-block: "<!i><red>你必须看着一个方块！"
+  not-crate-location: "<!i><red>这不是一个抽奖箱位置！"
+  already-crate-location: "<!i><red>这个位置已经有抽奖箱了！"
+  multi-open-start: "<!i><yellow>正在打开 {amount} 个抽奖箱..."
+  must-be-player: "<!i><red>此命令只能由玩家使用！"
+  usage: "<!i><yellow>用法: {usage}"
+
+  # 命令帮助
+  help-header: "<!i><gold>===== FotiaCrates 帮助 ====="
+  help-open: "<!i><yellow>/crate open <抽奖箱> [数量] <gray>- 打开抽奖箱"
+  help-preview: "<!i><yellow>/crate preview <抽奖箱> <gray>- 预览抽奖箱奖励"
+  help-key-give: "<!i><yellow>/crate key give <玩家> <抽奖箱> <数量> [virtual/physical] <gray>- 给予钥匙"
+  help-key-take: "<!i><yellow>/crate key take <玩家> <抽奖箱> <数量> [virtual/physical] <gray>- 移除钥匙"
+  help-key-check: "<!i><yellow>/crate key check <玩家> [抽奖箱] <gray>- 查看钥匙数量"
+  help-set: "<!i><yellow>/crate set <抽奖箱> <gray>- 设置抽奖箱位置"
+  help-remove: "<!i><yellow>/crate remove <gray>- 移除抽奖箱位置"
+  help-history: "<!i><yellow>/crate history [玩家] <gray>- 查看抽奖历史"
+  help-reload: "<!i><yellow>/crate reload <gray>- 重载配置"
+  help-key: "<!i><yellow>/crate key <give|take|check> <gray>- 钥匙管理"
+  help-footer: "<!i><gold>=========================="
+
+  # 额外消息
+  no-block: "<!i><red>你必须看着一个方块！"
+  no-history: "<!i><gray>没有找到历史记录。"
+  crate-set: "<!i><green>已将 {crate} 设置到此位置！"
+  crate-block-received: "<!i><green>你获得了 {amount} 个 {crate} 方块！"
+  crate-block-given: "<!i><green>已给予 {player} {amount} 个 {crate} 方块！"
+  crate-block-placed: "<!i><green>已放置 {crate} 抽奖箱！"
+  invalid-key: "<!i><red>无效的钥匙！"
+  key-not-for-crate: "<!i><red>这把钥匙不能打开这个抽奖箱！"

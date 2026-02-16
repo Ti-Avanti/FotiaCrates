@@ -1,0 +1,110 @@
+# 钥匙编辑GUI配置
+# 使用Layout布局方式
+
+title: "<!i><dark_gray>编辑钥匙: {key}"
+
+layout:
+  - '####I####'
+  - '#NEG#####'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '<#A#V#D#X'
+
+icons:
+  '#':
+    display:
+      material: gray_stained_glass_pane
+      name: ' '
+
+  'C':
+    content: true
+
+  'I':
+    display:
+      material: tripwire_hook
+      name: '<!i><gold>{key}'
+      lore:
+        - '<!i><gray>钥匙ID: {key_id}'
+        - ''
+        - '<!i><yellow>可开启宝箱数量: <!i><white>{crate_count}'
+      glow: true
+
+  '<':
+    display:
+      material: arrow
+      name: '<!i><red>返回'
+      lore:
+        - '<!i><gray>返回钥匙管理界面'
+    action: open_gui
+    action-value: admin_keys
+
+  'N':
+    display:
+      material: name_tag
+      name: '<!i><yellow>编辑名称'
+      lore:
+        - '<!i><gray>当前名称: {key}'
+        - ''
+        - '<!i><yellow>左键点击编辑'
+    action: edit_key_name
+
+  'E':
+    display:
+      material: chest
+      name: '<!i><aqua>编辑物品'
+      lore:
+        - '<!i><gray>设置钥匙的物品外观'
+        - ''
+        - '<!i><yellow>手持物品后左键点击设置'
+    action: edit_key_item
+
+  'G':
+    display:
+      material: glowstone_dust
+      name: '<!i><light_purple>编辑发光'
+      lore:
+        - '<!i><gray>当前: {glow}'
+        - ''
+        - '<!i><yellow>左键点击切换'
+    action: toggle_key_glow
+
+  'A':
+    display:
+      material: emerald
+      name: '<!i><green>添加可开启宝箱'
+      lore:
+        - '<!i><gray>添加此钥匙可以开启的宝箱'
+        - ''
+        - '<!i><yellow>左键点击添加'
+      glow: true
+    action: add_key_crate
+
+  'V':
+    display:
+      material: writable_book
+      name: '<!i><green>保存配置'
+      lore:
+        - '<!i><gray>保存当前钥匙配置'
+        - ''
+        - '<!i><yellow>左键点击保存'
+    action: save_key
+
+  'D':
+    display:
+      material: tnt
+      name: '<!i><red>删除钥匙'
+      lore:
+        - '<!i><gray>删除此钥匙'
+        - ''
+        - '<!i><red>此操作不可撤销！'
+        - '<!i><yellow>Shift+左键确认删除'
+    action: delete_key
+
+  'X':
+    display:
+      material: barrier
+      name: '<!i><red>关闭'
+      lore:
+        - '<!i><gray>关闭菜单'
+    action: close

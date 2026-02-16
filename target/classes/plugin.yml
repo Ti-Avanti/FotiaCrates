@@ -1,0 +1,66 @@
+name: FotiaCrates
+version: 1.0.1
+main: gg.fotia.crates.FotiaCrates
+api-version: '1.20'
+authors:
+  - Fotia
+description: 功能丰富的Minecraft抽奖箱插件
+softdepend:
+  - Vault
+  - PlaceholderAPI
+  - ModelEngine
+  - CraftEngine
+  - ProtocolLib
+
+commands:
+  crate:
+    description: FotiaCrates主命令
+    usage: /<command> [args]
+    aliases:
+      - crates
+      - fc
+
+permissions:
+  fotiacrates.use:
+    description: 使用抽奖箱系统
+    default: true
+  fotiacrates.preview:
+    description: 预览抽奖箱奖励
+    default: true
+  fotiacrates.history:
+    description: 查看自己的抽奖历史
+    default: true
+  fotiacrates.history.others:
+    description: 查看其他玩家的抽奖历史
+    default: op
+  fotiacrates.open.*:
+    description: 打开所有抽奖箱
+    default: op
+  fotiacrates.admin.*:
+    description: 所有管理员权限
+    default: op
+    children:
+      fotiacrates.admin.key: true
+      fotiacrates.admin.give: true
+      fotiacrates.admin.place: true
+      fotiacrates.admin.set: true
+      fotiacrates.admin.remove: true
+      fotiacrates.admin.reload: true
+  fotiacrates.admin.key:
+    description: 管理钥匙
+    default: op
+  fotiacrates.admin.give:
+    description: 给予宝箱方块
+    default: op
+  fotiacrates.admin.place:
+    description: 放置宝箱方块
+    default: op
+  fotiacrates.admin.set:
+    description: 设置抽奖箱位置
+    default: op
+  fotiacrates.admin.remove:
+    description: 移除抽奖箱位置
+    default: op
+  fotiacrates.admin.reload:
+    description: 重载插件配置
+    default: op

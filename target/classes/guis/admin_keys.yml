@@ -1,0 +1,59 @@
+# 钥匙管理GUI配置
+# 使用Layout布局方式
+
+title: "<!i><dark_gray>钥匙管理"
+
+layout:
+  - '####I####'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '<#N#####X'
+
+icons:
+  '#':
+    display:
+      material: gray_stained_glass_pane
+      name: ' '
+
+  'C':
+    content: true
+
+  'I':
+    display:
+      material: tripwire_hook
+      name: '<!i><gold>钥匙管理'
+      lore:
+        - '<!i><gray>在这里管理你的钥匙'
+        - ''
+        - '<!i><yellow>钥匙数量: <!i><white>{key_count}'
+      glow: true
+
+  '<':
+    display:
+      material: arrow
+      name: '<!i><red>返回'
+      lore:
+        - '<!i><gray>返回管理主界面'
+    action: open_gui
+    action-value: admin
+
+  'N':
+    display:
+      material: emerald
+      name: '<!i><green>创建新钥匙'
+      lore:
+        - '<!i><gray>点击创建一个新的钥匙'
+        - ''
+        - '<!i><yellow>左键点击创建'
+      glow: true
+    action: create_key
+
+  'X':
+    display:
+      material: barrier
+      name: '<!i><red>关闭'
+      lore:
+        - '<!i><gray>关闭管理界面'
+    action: close

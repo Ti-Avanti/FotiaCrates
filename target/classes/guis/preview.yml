@@ -1,0 +1,56 @@
+# 预览GUI配置
+# 使用Layout布局方式
+
+title: "<!i><dark_gray>{crate} 预览"
+
+layout:
+  - '####I####'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '<###O###>'
+
+icons:
+  '#':
+    display:
+      material: gray_stained_glass_pane
+      name: ' '
+
+  'C':
+    content: true
+
+  'I':
+    display:
+      material: paper
+      name: '<!i><gold>{crate}'
+      lore:
+        - '<!i><gray>查看此抽奖箱的所有奖励'
+        - ''
+        - '<!i><yellow>奖励数量: <!i><white>{reward_count}'
+
+  '<':
+    display:
+      material: barrier
+      name: '<!i><red>关闭'
+      lore:
+        - '<!i><gray>关闭菜单'
+    action: close
+
+  '>':
+    display:
+      material: barrier
+      name: '<!i><red>关闭'
+      lore:
+        - '<!i><gray>关闭菜单'
+    action: close
+
+  'O':
+    display:
+      material: chest
+      name: '<!i><green>打开抽奖箱'
+      lore:
+        - '<!i><gray>点击打开此抽奖箱'
+        - ''
+        - '<!i><yellow>你拥有 {keys} 把钥匙'
+    action: open_crate

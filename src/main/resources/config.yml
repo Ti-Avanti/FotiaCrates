@@ -1,0 +1,69 @@
+# FotiaCrates 主配置文件
+
+# 数据库设置
+database:
+  # 数据库类型: sqlite 或 mysql
+  type: sqlite
+
+  # MySQL 设置 (仅当 type 为 mysql 时使用)
+  mysql:
+    host: localhost
+    port: 3306
+    database: fotiacrates
+    username: root
+    password: ""
+
+  # SQLite 设置 (仅当 type 为 sqlite 时使用)
+  sqlite:
+    file: data.db
+
+# 稀有度配置
+# 可以自定义稀有度的ID、显示名称和颜色
+# display-name 用于显示，支持MiniMessage格式，可用于设置贴图字符
+rarities:
+  common:
+    display-name: "<!i><gray>普通"
+    color: "gray"
+  uncommon:
+    display-name: "<!i><green>稀有"
+    color: "green"
+  rare:
+    display-name: "<!i><blue>精良"
+    color: "blue"
+  epic:
+    display-name: "<!i><dark_purple>史诗"
+    color: "dark_purple"
+  legendary:
+    display-name: "<!i><gold>传说"
+    color: "gold"
+  mythic:
+    display-name: "<!i><light_purple>神话"
+    color: "light_purple"
+
+# 全息显示设置
+hologram:
+  # 是否启用全息显示
+  enabled: true
+  # 全息显示高度偏移（相对于宝箱方块）
+  height-offset: 1.5
+  # 全息显示缩放
+  scale: 1.0
+  # 全息显示内容（支持MiniMessage格式）
+  # 可用占位符: {crate_name} 宝箱名称, {crate_id} 宝箱ID, {keys} 玩家钥匙数量
+  lines:
+    - "<!i><gold>{crate_name}"
+    - "<!i><gray>钥匙: <yellow>{keys}"
+    - "<!i><gray>左键预览 | 右键开启"
+
+# 全局设置
+settings:
+  # 默认语言 (对应 lang/ 文件夹中的文件名，不含.yml)
+  default-language: zh_CN
+  # 默认启用动画
+  default-animation: true
+  # 全服广播稀有奖励
+  broadcast-rare-rewards: true
+  # 保存抽奖历史
+  save-history: true
+  # 每个玩家最大历史记录数 (0 = 无限制)
+  max-history-entries: 100
