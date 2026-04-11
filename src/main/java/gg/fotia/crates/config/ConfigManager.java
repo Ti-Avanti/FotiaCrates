@@ -3,18 +3,20 @@ package gg.fotia.crates.config;
 import gg.fotia.crates.FotiaCrates;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class ConfigManager {
 
     private final FotiaCrates plugin;
     private FileConfiguration config;
-
-    // 稀有度缓存
     private final Map<String, RarityConfig> rarities = new LinkedHashMap<>();
 
     public ConfigManager(FotiaCrates plugin) {
@@ -31,96 +33,120 @@ public class ConfigManager {
         loadRarities();
     }
 
-    /**
-     * 加载稀有度配置
-     */
     private void loadRarities() {
         rarities.clear();
+
         ConfigurationSection raritiesSection = config.getConfigurationSection("rarities");
         if (raritiesSection != null) {
             for (String id : raritiesSection.getKeys(false)) {
                 ConfigurationSection raritySection = raritiesSection.getConfigurationSection(id);
-                if (raritySection != null) {
-                    String displayName = raritySection.getString("display-name", id);
-                    String color = raritySection.getString("color", "white");
-                    rarities.put(id, new RarityConfig(id, displayName, color));
+                if (raritySection == null) {
+                    continue;
                 }
+
+                String normalizedId = id.toLowerCase(Locale.ROOT);
+                String displayName = raritySection.getString("display-name", normalizedId);
+                String color = raritySection.getString("color", "white");
+                rarities.put(normalizedId, new RarityConfig(normalizedId, displayName, color));
             }
         }
 
-        // 如果没有配置，添加默认稀有度
         if (rarities.isEmpty()) {
-            rarities.put("common", new RarityConfig("common", "<!i><gray>普通", "gray"));
-            rarities.put("uncommon", new RarityConfig("uncommon", "<!i><green>稀有", "green"));
-            rarities.put("rare", new RarityConfig("rare", "<!i><blue>精良", "blue"));
-            rarities.put("epic", new RarityConfig("epic", "<!i><dark_purple>史诗", "dark_purple"));
-            rarities.put("legendary", new RarityConfig("legendary", "<!i><gold>传说", "gold"));
+            addDefaultRarities();
         }
     }
 
-    /**
-     * 获取所有稀有度ID
-     */
+    private void addDefaultRarities() {
+        rarities.put("common", new RarityConfig("common", "<!i><gray>普通", "gray"));
+        rarities.put("uncommon", new RarityConfig("uncommon", "<!i><green>稀有", "green"));
+        rarities.put("rare", new RarityConfig("rare", "<!i><blue>精良", "blue"));
+        rarities.put("epic", new RarityConfig("epic", "<!i><dark_purple>史诗", "dark_purple"));
+        rarities.put("legendary", new RarityConfig("legendary", "<!i><gold>传说", "gold"));
+        rarities.put("mythic", new RarityConfig("mythic", "<!i><light_purple>神话", "light_purple"));
+    }
+
     public List<String> getRarityIds() {
         return new ArrayList<>(rarities.keySet());
     }
 
-    /**
-     * 获取稀有度配置
-     */
-    public RarityConfig getRarity(String id) {
-        return rarities.get(id.toLowerCase());
+    public String getDefaultRarityId() {
+        return rarities.isEmpty() ? "common" : getRarityIds().get(0);
     }
 
-    /**
-     * 获取稀有度显示名称
-     */
+    public String getDefaultPityRarityId() {
+        List<String> rarityIds = getRarityIds();
+        if (rarityIds.isEmpty()) {
+            return "rare";
+        }
+
+        return rarityIds.get(Math.min(2, rarityIds.size() - 1));
+    }
+
+    public String getHighestRarityId() {
+        List<String> rarityIds = getRarityIds();
+        if (rarityIds.isEmpty()) {
+            return getDefaultPityRarityId();
+        }
+
+        return rarityIds.get(rarityIds.size() - 1);
+    }
+
+    public int getRarityIndex(String id) {
+        if (id == null) {
+            return -1;
+        }
+
+        int index = 0;
+        for (String rarityId : rarities.keySet()) {
+            if (rarityId.equalsIgnoreCase(id)) {
+                return index;
+            }
+            index++;
+        }
+        return -1;
+    }
+
+    public RarityConfig getRarity(String id) {
+        if (id == null) {
+            return null;
+        }
+        return rarities.get(id.toLowerCase(Locale.ROOT));
+    }
+
     public String getRarityDisplayName(String id) {
-        RarityConfig rarity = rarities.get(id.toLowerCase());
+        RarityConfig rarity = getRarity(id);
         return rarity != null ? rarity.getDisplayName() : id;
     }
 
-    /**
-     * 获取稀有度颜色
-     */
     public String getRarityColor(String id) {
-        RarityConfig rarity = rarities.get(id.toLowerCase());
+        RarityConfig rarity = getRarity(id);
         return rarity != null ? rarity.getColor() : "white";
     }
 
-    /**
-     * 获取所有稀有度配置
-     */
     public Collection<RarityConfig> getAllRarities() {
         return rarities.values();
     }
 
-    /**
-     * 添加或更新稀有度
-     */
     public void saveRarity(String id, String displayName, String color) {
-        rarities.put(id.toLowerCase(), new RarityConfig(id.toLowerCase(), displayName, color));
+        String normalizedId = id.toLowerCase(Locale.ROOT);
+        rarities.put(normalizedId, new RarityConfig(normalizedId, displayName, color));
         saveRaritiesToConfig();
     }
 
-    /**
-     * 删除稀有度
-     */
     public void deleteRarity(String id) {
-        rarities.remove(id.toLowerCase());
+        if (id == null) {
+            return;
+        }
+
+        rarities.remove(id.toLowerCase(Locale.ROOT));
         saveRaritiesToConfig();
     }
 
-    /**
-     * 保存稀有度到配置文件
-     */
     private void saveRaritiesToConfig() {
         File configFile = new File(plugin.getDataFolder(), "config.yml");
         try {
-            // 清除旧的稀有度配置
             config.set("rarities", null);
 
-            // 写入新的稀有度配置
             for (RarityConfig rarity : rarities.values()) {
                 String path = "rarities." + rarity.getId();
                 config.set(path + ".display-name", rarity.getDisplayName());
@@ -133,23 +159,18 @@ public class ConfigManager {
         }
     }
 
-    /**
-     * 获取下一个稀有度（用于循环切换）
-     */
     public String getNextRarity(String currentRarity) {
         List<String> ids = getRarityIds();
-        if (ids.isEmpty()) return currentRarity;
-
-        int index = ids.indexOf(currentRarity.toLowerCase());
-        if (index < 0) return ids.get(0);
-        return ids.get((index + 1) % ids.size());
-    }
-
-    private void saveDefaultConfig(String fileName) {
-        File file = new File(plugin.getDataFolder(), fileName);
-        if (!file.exists()) {
-            plugin.saveResource(fileName, false);
+        if (ids.isEmpty()) {
+            return currentRarity;
         }
+
+        int index = getRarityIndex(currentRarity);
+        if (index < 0) {
+            return ids.get(0);
+        }
+
+        return ids.get((index + 1) % ids.size());
     }
 
     private void saveDefaultCrate(String fileName) {
@@ -211,9 +232,26 @@ public class ConfigManager {
         return config.getInt("settings.max-history-entries", 100);
     }
 
-    /**
-     * 稀有度配置类
-     */
+    public boolean isOverflowMailEnabled() {
+        return config.getBoolean("overflow-mail.enabled", true);
+    }
+
+    public String getOverflowMailIcon() {
+        return config.getString("overflow-mail.icon", "CHEST");
+    }
+
+    public String getOverflowMailSenderDisplay() {
+        return config.getString("overflow-mail.sender-display", "<!i><gold>FotiaCrates");
+    }
+
+    public String getOverflowMailTitle() {
+        return config.getString("overflow-mail.title", "<!i><yellow>抽奖奖励补发");
+    }
+
+    public List<String> getOverflowMailContent() {
+        return config.getStringList("overflow-mail.content");
+    }
+
     public static class RarityConfig {
         private final String id;
         private final String displayName;
@@ -225,8 +263,16 @@ public class ConfigManager {
             this.color = color;
         }
 
-        public String getId() { return id; }
-        public String getDisplayName() { return displayName; }
-        public String getColor() { return color; }
+        public String getId() {
+            return id;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public String getColor() {
+            return color;
+        }
     }
 }

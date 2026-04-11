@@ -1,7 +1,7 @@
 package gg.fotia.crates.command.subcommand;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.config.MessageConfig;
+import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.history.HistoryManager;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -17,74 +17,62 @@ public class HistoryCommand extends AbstractSubCommand {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
+        Player viewer = sender instanceof Player player ? player : null;
         Player target;
 
         if (args.length > 0) {
             if (!sender.hasPermission("fotiacrates.history.others")) {
-                if (sender instanceof Player p) {
-                    plugin.getMessageConfig().send(p, "no-permission");
+                if (viewer != null) {
+                    plugin.getLanguageManager().send(viewer, "no-permission");
                 } else {
-                    sender.sendMessage(plugin.getMessageConfig().getMessage("no-permission"));
+                    sender.sendMessage(plugin.getLanguageManager().getMessage("no-permission"));
                 }
                 return;
             }
             target = Bukkit.getPlayer(args[0]);
             if (target == null) {
-                if (sender instanceof Player p) {
-                    plugin.getMessageConfig().send(p, "invalid-player");
+                if (viewer != null) {
+                    plugin.getLanguageManager().send(viewer, "invalid-player");
                 } else {
-                    sender.sendMessage(plugin.getMessageConfig().getMessage("invalid-player"));
+                    sender.sendMessage(plugin.getLanguageManager().getMessage("invalid-player"));
                 }
                 return;
             }
         } else {
-            if (!(sender instanceof Player player)) {
-                sender.sendMessage(plugin.getMessageConfig().getMessage("must-be-player"));
+            if (viewer == null) {
+                sender.sendMessage(plugin.getLanguageManager().getMessage("must-be-player"));
                 return;
             }
-            target = player;
+            target = viewer;
+        }
+
+        if (viewer != null) {
+            plugin.getGuiManager().openHistoryGui(viewer, target.getUniqueId(), target.getName(), 0);
+            return;
         }
 
         List<HistoryManager.HistoryEntry> history = plugin.getHistoryManager()
                 .getHistory(target.getUniqueId(), 10);
 
         if (history.isEmpty()) {
-            if (sender instanceof Player p) {
-                plugin.getMessageConfig().send(p, "no-history");
-            } else {
-                sender.sendMessage(plugin.getMessageConfig().getMessage("no-history"));
-            }
+            sender.sendMessage(plugin.getLanguageManager().getMessage("no-history"));
             return;
         }
 
-        if (sender instanceof Player p) {
-            plugin.getMessageConfig().send(p, "history-header",
-                    MessageConfig.placeholders("player", target.getName()));
-        } else {
-            sender.sendMessage(plugin.getMessageConfig().getMessage("history-header",
-                    MessageConfig.placeholders("player", target.getName())));
-        }
+        sender.sendMessage(plugin.getLanguageManager().getMessage("history-header",
+                LanguageManager.placeholders("player", target.getName())));
 
         for (HistoryManager.HistoryEntry entry : history) {
             String crateName = plugin.getCrateManager().getCrate(entry.crateId()) != null
                     ? plugin.getCrateManager().getCrate(entry.crateId()).getName()
                     : entry.crateId();
 
-            if (sender instanceof Player p) {
-                plugin.getMessageConfig().send(p, "history-entry",
-                        MessageConfig.placeholders(
-                                "crate", crateName,
-                                "reward", entry.rewardName(),
-                                "time", entry.formattedTime()
-                        ));
-            } else {
-                sender.sendMessage(plugin.getMessageConfig().getMessage("history-entry",
-                        MessageConfig.placeholders(
-                                "crate", crateName,
-                                "reward", entry.rewardName(),
-                                "time", entry.formattedTime()
-                        )));
-            }
+            sender.sendMessage(plugin.getLanguageManager().getMessage("history-entry",
+                    LanguageManager.placeholders(
+                            "crate", crateName,
+                            "reward", entry.rewardName(),
+                            "time", entry.formattedTime()
+                    )));
         }
     }
 

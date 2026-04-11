@@ -1,7 +1,7 @@
 package gg.fotia.crates.command.subcommand;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.config.MessageConfig;
+import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.key.Key;
 import gg.fotia.crates.key.KeyType;
 import org.bukkit.Bukkit;
@@ -77,16 +77,16 @@ public class KeyCommand extends AbstractSubCommand {
             plugin.getKeyManager().addVirtualKeys(target.getUniqueId(), keyId, amount);
         }
 
-        plugin.getMessageConfig().send(target, "key-given",
-                MessageConfig.placeholders("amount", String.valueOf(amount), "key", key.getName()));
+        plugin.getLanguageManager().send(target, "key-given",
+                LanguageManager.placeholders("amount", String.valueOf(amount), "key", key.getName()));
 
         if (sender instanceof Player p && !p.equals(target)) {
-            plugin.getMessageConfig().send(p, "key-given-other",
-                    MessageConfig.placeholders("amount", String.valueOf(amount),
+            plugin.getLanguageManager().send(p, "key-given-other",
+                    LanguageManager.placeholders("amount", String.valueOf(amount),
                             "key", key.getName(), "player", target.getName()));
         } else if (!(sender instanceof Player)) {
-            sender.sendMessage(plugin.getMessageConfig().getMessage("key-given-other",
-                    MessageConfig.placeholders("amount", String.valueOf(amount),
+            sender.sendMessage(plugin.getLanguageManager().getMessage("key-given-other",
+                    LanguageManager.placeholders("amount", String.valueOf(amount),
                             "key", key.getName(), "player", target.getName())));
         }
     }
@@ -133,16 +133,16 @@ public class KeyCommand extends AbstractSubCommand {
             plugin.getKeyManager().removeVirtualKeys(target.getUniqueId(), keyId, amount);
         }
 
-        plugin.getMessageConfig().send(target, "key-removed",
-                MessageConfig.placeholders("amount", String.valueOf(amount), "key", key.getName()));
+        plugin.getLanguageManager().send(target, "key-removed",
+                LanguageManager.placeholders("amount", String.valueOf(amount), "key", key.getName()));
 
         if (sender instanceof Player p && !p.equals(target)) {
-            plugin.getMessageConfig().send(p, "key-removed-other",
-                    MessageConfig.placeholders("amount", String.valueOf(amount),
+            plugin.getLanguageManager().send(p, "key-removed-other",
+                    LanguageManager.placeholders("amount", String.valueOf(amount),
                             "key", key.getName(), "player", target.getName()));
         } else if (!(sender instanceof Player)) {
-            sender.sendMessage(plugin.getMessageConfig().getMessage("key-removed-other",
-                    MessageConfig.placeholders("amount", String.valueOf(amount),
+            sender.sendMessage(plugin.getLanguageManager().getMessage("key-removed-other",
+                    LanguageManager.placeholders("amount", String.valueOf(amount),
                             "key", key.getName(), "player", target.getName())));
         }
     }
@@ -172,7 +172,7 @@ public class KeyCommand extends AbstractSubCommand {
             int total = virtual + physical;
 
             sendMessage(sender, "key-check",
-                    MessageConfig.placeholders(
+                    LanguageManager.placeholders(
                             "player", target.getName(),
                             "amount", String.valueOf(total),
                             "key", key.getName(),
@@ -187,7 +187,7 @@ public class KeyCommand extends AbstractSubCommand {
 
                 if (total > 0) {
                     sendMessage(sender, "key-check",
-                            MessageConfig.placeholders(
+                            LanguageManager.placeholders(
                                     "player", target.getName(),
                                     "amount", String.valueOf(total),
                                     "key", key.getName(),
@@ -201,26 +201,26 @@ public class KeyCommand extends AbstractSubCommand {
 
     private void sendUsage(CommandSender sender, String usage) {
         if (sender instanceof Player p) {
-            plugin.getMessageConfig().send(p, "usage", MessageConfig.placeholders("usage", usage));
+            plugin.getLanguageManager().send(p, "usage", LanguageManager.placeholders("usage", usage));
         } else {
-            sender.sendMessage(plugin.getMessageConfig().getMessage("usage",
-                    MessageConfig.placeholders("usage", usage)));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("usage",
+                    LanguageManager.placeholders("usage", usage)));
         }
     }
 
     private void sendMessage(CommandSender sender, String key) {
         if (sender instanceof Player p) {
-            plugin.getMessageConfig().send(p, key);
+            plugin.getLanguageManager().send(p, key);
         } else {
-            sender.sendMessage(plugin.getMessageConfig().getMessage(key));
+            sender.sendMessage(plugin.getLanguageManager().getMessage(key));
         }
     }
 
     private void sendMessage(CommandSender sender, String key, Map<String, String> placeholders) {
         if (sender instanceof Player p) {
-            plugin.getMessageConfig().send(p, key, placeholders);
+            plugin.getLanguageManager().send(p, key, placeholders);
         } else {
-            sender.sendMessage(plugin.getMessageConfig().getMessage(key, placeholders));
+            sender.sendMessage(plugin.getLanguageManager().getMessage(key, placeholders));
         }
     }
 

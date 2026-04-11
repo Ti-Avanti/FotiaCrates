@@ -12,21 +12,32 @@ public class CrateLocation {
     private final int y;
     private final int z;
     private final String crateId;
+    private final float yaw; // 模型朝向
 
     public CrateLocation(String world, int x, int y, int z, String crateId) {
+        this(world, x, y, z, crateId, 0f);
+    }
+
+    public CrateLocation(String world, int x, int y, int z, String crateId, float yaw) {
         this.world = world;
         this.x = x;
         this.y = y;
         this.z = z;
         this.crateId = crateId;
+        this.yaw = yaw;
     }
 
     public CrateLocation(Location location, String crateId) {
+        this(location, crateId, 0f);
+    }
+
+    public CrateLocation(Location location, String crateId, float yaw) {
         this.world = location.getWorld().getName();
         this.x = location.getBlockX();
         this.y = location.getBlockY();
         this.z = location.getBlockZ();
         this.crateId = crateId;
+        this.yaw = yaw;
     }
 
     public String getWorld() { return world; }
@@ -34,6 +45,7 @@ public class CrateLocation {
     public int getY() { return y; }
     public int getZ() { return z; }
     public String getCrateId() { return crateId; }
+    public float getYaw() { return yaw; }
 
     public boolean matches(Location location) {
         if (location == null || location.getWorld() == null) {
@@ -49,7 +61,9 @@ public class CrateLocation {
         if (world == null) {
             return null;
         }
-        return new Location(world, x, y, z);
+        Location loc = new Location(world, x, y, z);
+        loc.setYaw(yaw);
+        return loc;
     }
 
     @Override

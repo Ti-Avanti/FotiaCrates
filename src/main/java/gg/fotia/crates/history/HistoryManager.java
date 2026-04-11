@@ -78,27 +78,66 @@ public class HistoryManager {
     }
 
     public List<HistoryEntry> getHistory(UUID uuid, int limit) {
+        return getHistory(uuid, null, limit);
+    }
+
+    public List<HistoryEntry> getHistory(UUID uuid, String crateId, int limit) {
         List<HistoryEntry> history = new ArrayList<>();
+        boolean filterByCrate = crateId != null && !crateId.isBlank();
+        String sql = filterByCrate
+                ? "SELECT * FROM crate_history WHERE uuid = ? AND crate_id = ? ORDER BY timestamp DESC LIMIT ?"
+                : "SELECT * FROM crate_history WHERE uuid = ? ORDER BY timestamp DESC LIMIT ?";
+
         try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT * FROM crate_history WHERE uuid = ? ORDER BY timestamp DESC LIMIT ?")) {
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, uuid.toString());
-            stmt.setInt(2, limit);
+            int parameterIndex = 2;
+            if (filterByCrate) {
+                stmt.setString(parameterIndex++, crateId);
+            }
+            stmt.setInt(parameterIndex, limit);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                history.add(new HistoryEntry(
-                        rs.getString("uuid"),
-                        rs.getString("player_name"),
-                        rs.getString("crate_id"),
-                        rs.getString("reward_id"),
-                        rs.getString("reward_name"),
-                        rs.getLong("timestamp")
-                ));
+                history.add(mapHistoryEntry(rs));
             }
         } catch (SQLException e) {
             plugin.getLogger().severe("Failed to get history: " + e.getMessage());
         }
         return history;
+    }
+
+    public int clearHistory(UUID uuid) {
+        return clearHistory(uuid, null);
+    }
+
+    public int clearHistory(UUID uuid, String crateId) {
+        boolean filterByCrate = crateId != null && !crateId.isBlank();
+        String sql = filterByCrate
+                ? "DELETE FROM crate_history WHERE uuid = ? AND crate_id = ?"
+                : "DELETE FROM crate_history WHERE uuid = ?";
+
+        try (Connection conn = plugin.getDatabaseManager().getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, uuid.toString());
+            if (filterByCrate) {
+                stmt.setString(2, crateId);
+            }
+            return stmt.executeUpdate();
+        } catch (SQLException e) {
+            plugin.getLogger().severe("Failed to clear history: " + e.getMessage());
+            return 0;
+        }
+    }
+
+    private HistoryEntry mapHistoryEntry(ResultSet rs) throws SQLException {
+        return new HistoryEntry(
+                rs.getString("uuid"),
+                rs.getString("player_name"),
+                rs.getString("crate_id"),
+                rs.getString("reward_id"),
+                rs.getString("reward_name"),
+                rs.getLong("timestamp")
+        );
     }
 
     public static class HistoryEntry {

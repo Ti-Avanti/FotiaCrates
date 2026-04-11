@@ -1,7 +1,7 @@
 package gg.fotia.crates.command.subcommand;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.config.MessageConfig;
+import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.crate.Crate;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
@@ -20,33 +20,33 @@ public class SetCommand extends AbstractSubCommand {
     @Override
     public void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(plugin.getMessageConfig().getMessage("must-be-player"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("must-be-player"));
             return;
         }
 
         if (args.length < 1) {
-            plugin.getMessageConfig().send(player, "usage",
-                    MessageConfig.placeholders("usage", getUsage()));
+            plugin.getLanguageManager().send(player, "usage",
+                    LanguageManager.placeholders("usage", getUsage()));
             return;
         }
 
         String crateId = args[0];
         Crate crate = plugin.getCrateManager().getCrate(crateId);
         if (crate == null) {
-            plugin.getMessageConfig().send(player, "invalid-crate");
+            plugin.getLanguageManager().send(player, "invalid-crate");
             return;
         }
 
         Block targetBlock = player.getTargetBlockExact(5);
         if (targetBlock == null || targetBlock.getType().isAir()) {
-            plugin.getMessageConfig().send(player, "no-block");
+            plugin.getLanguageManager().send(player, "no-block");
             return;
         }
 
         plugin.getCrateManager().setCrateLocation(crate.getId(), targetBlock.getLocation());
 
-        plugin.getMessageConfig().send(player, "crate-set",
-                MessageConfig.placeholders("crate", crate.getName()));
+        plugin.getLanguageManager().send(player, "crate-set",
+                LanguageManager.placeholders("crate", crate.getName()));
     }
 
     @Override

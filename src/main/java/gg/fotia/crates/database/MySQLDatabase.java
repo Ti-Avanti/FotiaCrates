@@ -118,9 +118,17 @@ public class MySQLDatabase implements Database {
                     y INT NOT NULL,
                     z INT NOT NULL,
                     crate_id VARCHAR(64) NOT NULL,
+                    yaw FLOAT DEFAULT 0,
                     UNIQUE KEY unique_location (world, x, y, z)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """);
+
+            // 为旧表添加yaw列（如果不存在）
+            try {
+                stmt.executeUpdate("ALTER TABLE crate_locations ADD COLUMN yaw FLOAT DEFAULT 0");
+            } catch (SQLException ignored) {
+                // 列已存在，忽略错误
+            }
 
             plugin.getLogger().info("Database tables created successfully!");
         } catch (SQLException e) {

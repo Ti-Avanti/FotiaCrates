@@ -83,9 +83,9 @@ public class MessageUtil {
         if (message == null || message.isEmpty()) {
             return Component.empty();
         }
-        // 如果包含§符号，先转换为纯文本再处理
-        if (message.contains("§")) {
-            message = stripColor(message);
+        // 如果包含&或§符号，先转换为MiniMessage格式
+        if (message.contains("§") || message.contains("&")) {
+            message = LegacyColorConverter.convertToMiniMessage(message);
         }
         if (message.contains("<") && message.contains(">")) {
             // 尝试使用 CraftEngine 解析器
@@ -103,7 +103,7 @@ public class MessageUtil {
             }
             return MINI_MESSAGE.deserialize(message);
         }
-        return LEGACY_SERIALIZER.deserialize(message);
+        return MINI_MESSAGE.deserialize(message);
     }
 
     public static Component parse(String message, Map<String, String> placeholders) {

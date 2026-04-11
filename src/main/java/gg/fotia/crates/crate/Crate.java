@@ -1,10 +1,12 @@
 package gg.fotia.crates.crate;
 
 import gg.fotia.crates.animation.AnimationType;
+import gg.fotia.crates.reward.PermissionAction;
 import gg.fotia.crates.reward.Reward;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
+import org.bukkit.entity.Player;
 
 import java.util.*;
 
@@ -47,6 +49,7 @@ public class Crate {
     private final boolean multiOpenEnabled;
     private final int multiOpenMax;
     private final String permission; // 开箱权限节点
+    private final List<String> rarityOrder;
     private final Random random = new Random();
 
     /**
@@ -78,7 +81,8 @@ public class Crate {
                  Sound spinSound, float spinVolume, float spinPitch,
                  Sound winSound, float winVolume, float winPitch,
                  boolean pityEnabled, List<PityTier> pityTiers,
-                 boolean multiOpenEnabled, int multiOpenMax, String permission) {
+                 boolean multiOpenEnabled, int multiOpenMax, String permission,
+                 List<String> rarityOrder) {
         this.id = id;
         this.name = name;
         this.blockMaterial = blockMaterial;
@@ -116,6 +120,7 @@ public class Crate {
         this.multiOpenEnabled = multiOpenEnabled;
         this.multiOpenMax = multiOpenMax;
         this.permission = permission;
+        this.rarityOrder = rarityOrder != null ? new ArrayList<>(rarityOrder) : new ArrayList<>();
     }
 
     public Reward rollReward() {
@@ -134,6 +139,174 @@ public class Crate {
     }
 
     /**
+     * 抽取奖励（带权限检测）
+     * @param player 玩家
+     * @return 最终奖励，如果所有奖励都被跳过则返回null
+     */
+    public Reward rollRewardWithPermissionCheck(Player player) {
+        RewardResult result = rollRewardWithPermissionCheckResult(player);
+        return result != null ? result.getActualReward() : null;
+    }
+
+    /**
+     * 抽取奖励（带权限检测），返回完整结果
+     * @param player 玩家
+     * @return 抽奖结果（包含显示奖励和实际奖励），如果所有奖励都被跳过则返回null
+     */
+    public RewardResult rollRewardWithPermissionCheckResult(Player player) {
+        return rollRewardWithPermissionCheckResult(player, new HashSet<>());
+    }
+
+    /**
+     * 抽取奖励（带权限检测，递归防循环）
+     * @param player 玩家
+     * @param checkedRewardIds 已检测过的奖励ID集合（防止循环引用）
+     * @return 抽奖结果，如果所有奖励都被跳过则返回null
+     */
+    private RewardResult rollRewardWithPermissionCheckResult(Player player, Set<String> checkedRewardIds) {
+        // 过滤掉需要跳过的奖励
+        List<Reward> availableRewards = new ArrayList<>();
+        for (Reward reward : rewards) {
+            if (shouldSkipReward(player, reward, checkedRewardIds)) {
+                continue;
+            }
+            availableRewards.add(reward);
+        }
+
+        // 如果没有可用奖励，返回null
+        if (availableRewards.isEmpty()) {
+            return null;
+        }
+
+        // 从可用奖励中抽取
+        double totalChance = availableRewards.stream().mapToDouble(Reward::getChance).sum();
+        double roll = random.nextDouble() * totalChance;
+        double cumulative = 0;
+
+        Reward selectedReward = null;
+        for (Reward reward : availableRewards) {
+            cumulative += reward.getChance();
+            if (roll < cumulative) {
+                selectedReward = reward;
+                break;
+            }
+        }
+
+        if (selectedReward == null) {
+            selectedReward = availableRewards.get(availableRewards.size() - 1);
+        }
+
+        // 检查是否需要替代奖励
+        return processPermissionCheckResult(player, selectedReward, selectedReward, checkedRewardIds);
+    }
+
+    /**
+     * 抽取奖励（带权限检测，递归防循环）- 旧方法保留兼容
+     */
+    private Reward rollRewardWithPermissionCheck(Player player, Set<String> checkedRewardIds) {
+        RewardResult result = rollRewardWithPermissionCheckResult(player, checkedRewardIds);
+        return result != null ? result.getActualReward() : null;
+    }
+
+    /**
+     * 检查是否应该跳过该奖励
+     */
+    private boolean shouldSkipReward(Player player, Reward reward, Set<String> checkedRewardIds) {
+        if (!reward.isPermissionCheckEnabled()) {
+            return false;
+        }
+
+        String permission = reward.getCheckPermission();
+        if (permission == null || permission.isEmpty()) {
+            return false;
+        }
+
+        // 检查玩家是否拥有权限
+        if (!player.hasPermission(permission)) {
+            return false;
+        }
+
+        // 玩家拥有权限，检查行为
+        if (reward.getPermissionAction() == PermissionAction.SKIP) {
+            return true; // 跳过该奖励
+        }
+
+        return false; // ALTERNATIVE行为不跳过，后续处理
+    }
+
+    /**
+     * 处理权限检测，返回最终奖励
+     */
+    private Reward processPermissionCheck(Player player, Reward reward, Set<String> checkedRewardIds) {
+        RewardResult result = processPermissionCheckResult(player, reward, reward, checkedRewardIds);
+        return result != null ? result.getActualReward() : null;
+    }
+
+    /**
+     * 处理权限检测，返回完整结果
+     * @param player 玩家
+     * @param originalReward 原始抽中的奖励（用于显示）
+     * @param currentReward 当前处理的奖励
+     * @param checkedRewardIds 已检测过的奖励ID
+     * @return 抽奖结果
+     */
+    private RewardResult processPermissionCheckResult(Player player, Reward originalReward, Reward currentReward, Set<String> checkedRewardIds) {
+        if (!currentReward.isPermissionCheckEnabled()) {
+            return originalReward == currentReward
+                    ? RewardResult.normal(currentReward)
+                    : RewardResult.replaced(originalReward, currentReward);
+        }
+
+        String permission = currentReward.getCheckPermission();
+        if (permission == null || permission.isEmpty()) {
+            return originalReward == currentReward
+                    ? RewardResult.normal(currentReward)
+                    : RewardResult.replaced(originalReward, currentReward);
+        }
+
+        // 检查玩家是否拥有权限
+        if (!player.hasPermission(permission)) {
+            return originalReward == currentReward
+                    ? RewardResult.normal(currentReward)
+                    : RewardResult.replaced(originalReward, currentReward);
+        }
+
+        // 玩家拥有权限，检查行为
+        PermissionAction action = currentReward.getPermissionAction();
+
+        if (action == PermissionAction.SKIP) {
+            // 这种情况不应该发生（应该在shouldSkipReward中被过滤）
+            return null;
+        }
+
+        if (action == PermissionAction.ALTERNATIVE) {
+            String alternativeId = currentReward.getAlternativeRewardId();
+            if (alternativeId != null && !alternativeId.isEmpty()) {
+                // 防止循环引用
+                if (checkedRewardIds.contains(alternativeId)) {
+                    return RewardResult.replaced(originalReward, currentReward);
+                }
+
+                // 查找替代奖励
+                Reward alternativeReward = rewards.stream()
+                        .filter(r -> r.getId().equals(alternativeId))
+                        .findFirst()
+                        .orElse(null);
+
+                if (alternativeReward != null) {
+                    // 递归检测替代奖励，但保持原始奖励用于显示
+                    checkedRewardIds.add(currentReward.getId());
+                    return processPermissionCheckResult(player, originalReward, alternativeReward, checkedRewardIds);
+                }
+            }
+        }
+
+        return originalReward == currentReward
+                ? RewardResult.normal(currentReward)
+                : RewardResult.replaced(originalReward, currentReward);
+    }
+
+    /**
      * 根据当前抽奖次数获取应该触发的保底等级
      * @param currentCount 当前抽奖次数
      * @return 触发的保底等级，如果没有触发则返回null
@@ -146,12 +319,37 @@ public class Crate {
         sortedTiers.sort(Comparator.comparingInt(PityTier::getCount));
 
         // 检查是否触发某个保底
+        PityTier triggeredTier = null;
         for (PityTier tier : sortedTiers) {
             if (currentCount > 0 && currentCount % tier.getCount() == 0) {
+                triggeredTier = tier;
+            }
+        }
+        return triggeredTier;
+    }
+
+    public PityTier getNextPityTier(int currentCount) {
+        if (!pityEnabled || pityTiers.isEmpty()) return null;
+
+        List<PityTier> sortedTiers = new ArrayList<>(pityTiers);
+        sortedTiers.sort(Comparator.comparingInt(PityTier::getCount));
+
+        for (PityTier tier : sortedTiers) {
+            if (tier.getCount() > currentCount) {
                 return tier;
             }
         }
+
         return null;
+    }
+
+    public int getRemainingToNextPity(int currentCount) {
+        PityTier nextTier = getNextPityTier(currentCount);
+        if (nextTier == null) {
+            return 0;
+        }
+
+        return Math.max(0, nextTier.getCount() - currentCount);
     }
 
     /**
@@ -190,6 +388,66 @@ public class Crate {
     }
 
     /**
+     * 根据指定稀有度抽取保底奖励（带权限检测）
+     */
+    public Reward rollPityRewardWithPermissionCheck(Player player, String targetRarity) {
+        RewardResult result = rollPityRewardWithPermissionCheckResult(player, targetRarity);
+        return result != null ? result.getActualReward() : null;
+    }
+
+    /**
+     * 根据指定稀有度抽取保底奖励（带权限检测），返回完整结果
+     */
+    public RewardResult rollPityRewardWithPermissionCheckResult(Player player, String targetRarity) {
+        return rollPityRewardWithPermissionCheckResult(player, targetRarity, new HashSet<>());
+    }
+
+    /**
+     * 根据指定稀有度抽取保底奖励（带权限检测，递归防循环）
+     */
+    private RewardResult rollPityRewardWithPermissionCheckResult(Player player, String targetRarity, Set<String> checkedRewardIds) {
+        // 过滤出符合稀有度且不需要跳过的奖励
+        List<Reward> pityRewards = rewards.stream()
+                .filter(r -> r.getRarity().equalsIgnoreCase(targetRarity) ||
+                        isRarityHigherOrEqual(r.getRarity(), targetRarity))
+                .filter(r -> !shouldSkipReward(player, r, checkedRewardIds))
+                .toList();
+
+        if (pityRewards.isEmpty()) {
+            // 如果保底奖励都被跳过，尝试普通抽取
+            return rollRewardWithPermissionCheckResult(player);
+        }
+
+        double totalChance = pityRewards.stream().mapToDouble(Reward::getChance).sum();
+        double roll = random.nextDouble() * totalChance;
+        double cumulative = 0;
+
+        Reward selectedReward = null;
+        for (Reward reward : pityRewards) {
+            cumulative += reward.getChance();
+            if (roll < cumulative) {
+                selectedReward = reward;
+                break;
+            }
+        }
+
+        if (selectedReward == null) {
+            selectedReward = pityRewards.get(pityRewards.size() - 1);
+        }
+
+        // 检查是否需要替代奖励
+        return processPermissionCheckResult(player, selectedReward, selectedReward, checkedRewardIds);
+    }
+
+    /**
+     * 根据指定稀有度抽取保底奖励（带权限检测，递归防循环）- 旧方法保留兼容
+     */
+    private Reward rollPityRewardWithPermissionCheck(Player player, String targetRarity, Set<String> checkedRewardIds) {
+        RewardResult result = rollPityRewardWithPermissionCheckResult(player, targetRarity, checkedRewardIds);
+        return result != null ? result.getActualReward() : null;
+    }
+
+    /**
      * 旧版兼容方法
      */
     @Deprecated
@@ -204,18 +462,29 @@ public class Crate {
     }
 
     private boolean isRarityHigherOrEqual(String rarity, String target) {
-        return getRarityLevel(rarity) >= getRarityLevel(target);
+        int rarityLevel = getRarityLevel(rarity);
+        int targetLevel = getRarityLevel(target);
+        return rarityLevel >= 0 && targetLevel >= 0 && rarityLevel >= targetLevel;
     }
 
     private int getRarityLevel(String rarity) {
-        return switch (rarity.toLowerCase()) {
-            case "common" -> 1;
-            case "uncommon" -> 2;
-            case "rare" -> 3;
-            case "epic" -> 4;
-            case "legendary" -> 5;
-            default -> 0;
-        };
+        if (rarity == null) {
+            return -1;
+        }
+
+        for (int i = 0; i < rarityOrder.size(); i++) {
+            if (rarityOrder.get(i).equalsIgnoreCase(rarity)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private String getHighestConfiguredRarity() {
+        if (rarityOrder.isEmpty()) {
+            return "legendary";
+        }
+        return rarityOrder.get(rarityOrder.size() - 1);
     }
 
     public String getId() { return id; }
@@ -264,10 +533,10 @@ public class Crate {
 
     @Deprecated
     public String getPityRarity() {
-        if (pityTiers.isEmpty()) return "legendary";
+        if (pityTiers.isEmpty()) return getHighestConfiguredRarity();
         return pityTiers.stream()
                 .max(Comparator.comparingInt(PityTier::getCount))
                 .map(PityTier::getRarity)
-                .orElse("legendary");
+                .orElse(getHighestConfiguredRarity());
     }
 }

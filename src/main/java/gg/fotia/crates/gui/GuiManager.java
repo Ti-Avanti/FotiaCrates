@@ -35,6 +35,13 @@ public class GuiManager {
      * 打开预览界面
      */
     public void openPreview(Player player, Crate crate) {
+        openPreview(player, crate, 0);
+    }
+
+    /**
+     * 打开预览界面（带分页）
+     */
+    public void openPreview(Player player, Crate crate, int page) {
         if (!crate.isPreviewEnabled()) {
             return;
         }
@@ -45,10 +52,24 @@ public class GuiManager {
             return;
         }
 
+        List<Integer> contentSlots = config.getContentSlots();
+        List<Reward> rewards = crate.getRewards();
+        int itemsPerPage = contentSlots.size();
+        int totalPages = (int) Math.ceil((double) rewards.size() / itemsPerPage);
+        if (totalPages == 0) totalPages = 1;
+        page = Math.max(0, Math.min(page, totalPages - 1));
+
         String title = config.getTitle()
-                .replace("{crate}", MessageUtil.stripColor(crate.getName()));
+                .replace("{crate}", MessageUtil.stripColor(crate.getName()))
+                .replace("{page}", String.valueOf(page + 1))
+                .replace("{total_pages}", String.valueOf(totalPages));
+
+        CrateGuiHolder holder = new CrateGuiHolder(GuiType.PREVIEW, crate);
+        holder.setCurrentPage(page);
+        holder.setData("total_pages", totalPages);
+
         Inventory inventory = Bukkit.createInventory(
-                new CrateGuiHolder(GuiType.PREVIEW, crate),
+                holder,
                 config.getSize(),
                 MessageUtil.parse(title)
         );
@@ -56,16 +77,22 @@ public class GuiManager {
         // 填充背景
         fillBackground(inventory, config);
 
-        // 放置固定物品
-        placeFixedItems(inventory, config, player, crate);
+        // 放置固定物品（带分页占位符）
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("{crate}", crate.getName());
+        placeholders.put("{reward_count}", String.valueOf(rewards.size()));
+        placeholders.put("{page}", String.valueOf(page + 1));
+        placeholders.put("{total_pages}", String.valueOf(totalPages));
+        placeholders.put("{keys}", String.valueOf(plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId())));
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
 
-        // 放置奖励图标
-        List<Integer> contentSlots = config.getContentSlots();
-        List<Reward> rewards = crate.getRewards();
+        // 放置奖励图标（分页）
+        int startIndex = page * itemsPerPage;
+        int endIndex = Math.min(startIndex + itemsPerPage, rewards.size());
         int slotIndex = 0;
-        for (Reward reward : rewards) {
+        for (int i = startIndex; i < endIndex; i++) {
             if (slotIndex >= contentSlots.size()) break;
-
+            Reward reward = rewards.get(i);
             int slot = contentSlots.get(slotIndex);
             ItemStack rewardItem = createRewardPreviewItem(reward, crate.isShowChance());
             inventory.setItem(slot, rewardItem);
@@ -360,17 +387,38 @@ public class GuiManager {
      * 打开历史记录界面
      */
     public void openHistoryGui(Player player, UUID targetUuid, String targetName, int page) {
+        openHistoryGui(player, targetUuid, targetName, null, page);
+    }
+
+    public void openHistoryGui(Player player, UUID targetUuid, String targetName, String crateId, int page) {
         GuiConfig config = configManager.getGuiConfig("history");
         if (config == null) {
             plugin.getLogger().warning("History GUI config not found!");
             return;
         }
 
-        String title = config.getTitle().replace("{player}", targetName);
+        boolean filterByCrate = crateId != null && !crateId.isBlank();
+        Crate historyCrate = filterByCrate ? plugin.getCrateManager().getCrate(crateId) : null;
+        String crateDisplayName = historyCrate != null
+                ? MessageUtil.stripColor(historyCrate.getName())
+                : (filterByCrate ? crateId : "");
+
+        List<HistoryManager.HistoryEntry> history = filterByCrate
+                ? plugin.getHistoryManager().getHistory(targetUuid, crateId, 100)
+                : plugin.getHistoryManager().getHistory(targetUuid, 100);
+
+        int itemsPerPage = config.getContentSlots().size();
+        int totalPages = Math.max(1, (int) Math.ceil((double) history.size() / itemsPerPage));
+        page = Math.max(0, Math.min(page, totalPages - 1));
+
+        String title = config.getTitle()
+                .replace("{player}", targetName)
+                .replace("{crate}", crateDisplayName);
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.HISTORY, null);
         holder.setCurrentPage(page);
         holder.setData("target_uuid", targetUuid);
         holder.setData("target_name", targetName);
+        holder.setData("crate_id", filterByCrate ? crateId : null);
 
         Inventory inventory = Bukkit.createInventory(
                 holder,
@@ -381,18 +429,14 @@ public class GuiManager {
         // 填充背景
         fillBackground(inventory, config);
 
-        // 获取历史记录
-        List<HistoryManager.HistoryEntry> history = plugin.getHistoryManager().getHistory(targetUuid, 100);
-        int itemsPerPage = config.getContentSlots().size();
-        int maxPage = Math.max(1, (int) Math.ceil((double) history.size() / itemsPerPage));
-
         // 准备占位符
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{page}", String.valueOf(page + 1));
-        placeholders.put("{max_page}", String.valueOf(maxPage));
+        placeholders.put("{max_page}", String.valueOf(totalPages));
         placeholders.put("{total}", String.valueOf(history.size()));
+        placeholders.put("{crate}", crateDisplayName);
 
-        placeFixedItemsWithPlaceholders(inventory, config, player, null, placeholders);
+        placeFixedItemsWithPlaceholders(inventory, config, player, historyCrate, placeholders);
 
         // 放置历史记录
         List<Integer> contentSlots = config.getContentSlots();
@@ -494,6 +538,8 @@ public class GuiManager {
             lore.add("<!i><gold>★ 稀有奖励");
         }
 
+        replaceRawRarityLine(lore, reward.getRarity());
+
         if (item.hasItemMeta() && item.getItemMeta().hasLore()) {
             List<Component> originalLore = item.getItemMeta().lore();
             List<Component> newLore = new ArrayList<>();
@@ -545,6 +591,8 @@ public class GuiManager {
         lore.add("<!i><yellow>左键 <!i><gray>- 编辑奖励");
         lore.add("<!i><red>Shift+右键 <!i><gray>- 删除奖励");
 
+        replaceRawRarityLine(lore, reward.getRarity());
+
         if (item.hasItemMeta() && item.getItemMeta().hasLore()) {
             List<Component> originalLore = item.getItemMeta().lore();
             List<Component> newLore = new ArrayList<>();
@@ -566,19 +614,34 @@ public class GuiManager {
      * 创建历史记录物品
      */
     private ItemStack createHistoryItem(HistoryManager.HistoryEntry entry) {
-        String crateName = entry.getCrateId();
+        String crateId = entry.getCrateId();
+        String rewardId = entry.getRewardId();
         String rewardName = entry.getRewardName();
         String time = entry.formattedTime();
 
-        Crate crate = plugin.getCrateManager().getCrate(crateName);
-        Material material = crate != null ? crate.getBlockMaterial() : Material.CHEST;
+        Crate crate = plugin.getCrateManager().getCrate(crateId);
+        String crateName = crate != null ? MessageUtil.stripColor(crate.getName()) : crateId;
+        Reward reward = crate != null
+                ? crate.getRewards().stream()
+                .filter(candidate -> candidate.getId().equals(rewardId))
+                .findFirst()
+                .orElse(null)
+                : null;
+
+        ItemStack displayItem;
+        if (reward != null && reward.getDisplayItem() != null && !reward.getDisplayItem().getType().isAir()) {
+            displayItem = reward.getDisplayItem().clone();
+        } else {
+            Material material = crate != null ? crate.getBlockMaterial() : Material.CHEST;
+            displayItem = new ItemStack(material);
+        }
 
         List<String> lore = new ArrayList<>();
         lore.add("<!i><gray>奖励: <!i><white>" + rewardName);
         lore.add("<!i><gray>时间: <!i><white>" + time);
 
-        return new ItemBuilder(material)
-                .name("<!i><yellow>" + crateName)
+        return new ItemBuilder(displayItem)
+                .name(rewardName)
                 .lore(lore)
                 .build();
     }
@@ -862,6 +925,16 @@ public class GuiManager {
         inventory.setItem(49, info);
 
         // 保存按钮
+        inventory.setItem(49, new ItemBuilder(Material.BOOK)
+                .name("<!i><gold>多级保底说明")
+                .lore(buildPityInfoLoreSafe(crate))
+                .build());
+
+        inventory.setItem(49, new ItemBuilder(Material.BOOK)
+                .name("<!i><gold>\u591a\u7ea7\u4fdd\u5e95\u8bf4\u660e")
+                .lore(buildPityInfoLoreSafe(crate))
+                .build());
+
         ItemStack save = new ItemBuilder(Material.WRITABLE_BOOK)
                 .name("<!i><green>保存并返回")
                 .lore(List.of("<!i><gray>保存保底设置"))
@@ -916,13 +989,11 @@ public class GuiManager {
         // ===== 第二行：奖励物品 =====
         // 获取所有奖励物品
         ItemStack actualItem = reward.getItem();
-        List<ItemStack> extraItems = new ArrayList<>();
-        if (reward instanceof gg.fotia.crates.reward.ItemReward itemReward) {
-            extraItems = itemReward.getExtraItems();
-        }
+        List<ItemStack> extraItems = reward.getExtraItems();
 
         // 显示奖励物品数量
-        int totalItems = (actualItem != null && !actualItem.getType().isAir() ? 1 : 0) + extraItems.size();
+        int totalItems = (actualItem != null && !actualItem.getType().isAir() ? 1 : 0)
+                + (int) extraItems.stream().filter(item -> item != null && !item.getType().isAir()).count();
 
         ItemStack rewardItemBtn;
         if (totalItems > 0) {
@@ -1020,6 +1091,75 @@ public class GuiManager {
                 ))
                 .build();
         inventory.setItem(34, displayName);
+
+        // ===== 第四行：权限检测配置 =====
+        // 权限检测开关
+        boolean permCheckEnabled = reward.isPermissionCheckEnabled();
+        ItemStack permToggle = new ItemBuilder(permCheckEnabled ? Material.LIME_DYE : Material.GRAY_DYE)
+                .name(permCheckEnabled ? "<!i><green>权限检测: 开启" : "<!i><gray>权限检测: 关闭")
+                .lore(List.of(
+                        "<!i><gray>检测玩家是否拥有指定权限",
+                        "<!i><gray>拥有权限时可跳过或替代奖励",
+                        "",
+                        "<!i><yellow>点击切换"
+                ))
+                .build();
+        inventory.setItem(37, permToggle);
+
+        // 权限节点设置
+        String checkPerm = reward.getCheckPermission();
+        ItemStack permNode = new ItemBuilder(Material.PAPER)
+                .name("<!i><aqua>权限节点")
+                .lore(List.of(
+                        "<!i><gray>当前: " + (checkPerm != null && !checkPerm.isEmpty() ? checkPerm : "未设置"),
+                        "",
+                        "<!i><yellow>点击设置权限节点"
+                ))
+                .build();
+        inventory.setItem(39, permNode);
+
+        // 行为选择
+        gg.fotia.crates.reward.PermissionAction permAction = reward.getPermissionAction();
+        ItemStack actionBtn = new ItemBuilder(permAction == gg.fotia.crates.reward.PermissionAction.SKIP
+                        ? Material.BARRIER : Material.CHEST)
+                .name("<!i><light_purple>匹配行为: " + (permAction == gg.fotia.crates.reward.PermissionAction.SKIP ? "跳过" : "替代"))
+                .lore(List.of(
+                        "<!i><gray>玩家拥有权限时的行为",
+                        "",
+                        "<!i><white>跳过: 不会抽到此奖励",
+                        "<!i><white>替代: 给予替代奖励",
+                        "",
+                        "<!i><yellow>点击切换"
+                ))
+                .build();
+        inventory.setItem(41, actionBtn);
+
+        // 替代奖励选择
+        String altRewardId = reward.getAlternativeRewardId();
+        String altRewardName = "未设置";
+        if (altRewardId != null && !altRewardId.isEmpty()) {
+            Reward altReward = crate.getRewards().stream()
+                    .filter(r -> r.getId().equals(altRewardId))
+                    .findFirst()
+                    .orElse(null);
+            if (altReward != null) {
+                altRewardName = MessageUtil.stripColor(altReward.getDisplayName());
+            } else {
+                altRewardName = altRewardId + " (无效)";
+            }
+        }
+        ItemStack altRewardBtn = new ItemBuilder(Material.ENDER_CHEST)
+                .name("<!i><gold>替代奖励")
+                .lore(List.of(
+                        "<!i><gray>当前: " + altRewardName,
+                        "",
+                        "<!i><gray>玩家拥有权限时给予的替代奖励",
+                        "<!i><gray>仅在行为为\"替代\"时生效",
+                        "",
+                        "<!i><yellow>点击选择替代奖励"
+                ))
+                .build();
+        inventory.setItem(43, altRewardBtn);
 
         // ===== 底部工具栏 =====
         // 复制奖励
@@ -1179,11 +1319,9 @@ public class GuiManager {
             inventory.setItem(itemSlots.get(slotIndex++), mainItem.clone());
         }
 
-        if (reward instanceof gg.fotia.crates.reward.ItemReward itemReward) {
-            for (ItemStack extra : itemReward.getExtraItems()) {
-                if (slotIndex < itemSlots.size() && extra != null && !extra.getType().isAir()) {
-                    inventory.setItem(itemSlots.get(slotIndex++), extra.clone());
-                }
+        for (ItemStack extra : reward.getExtraItems()) {
+            if (slotIndex < itemSlots.size() && extra != null && !extra.getType().isAir()) {
+                inventory.setItem(itemSlots.get(slotIndex++), extra.clone());
             }
         }
 
@@ -1234,8 +1372,158 @@ public class GuiManager {
     }
 
     /**
+     * 打开替代奖励选择界面
+     */
+    public void openAlternativeRewardSelectGui(Player player, Crate crate, String sourceRewardId) {
+        Inventory inventory = Bukkit.createInventory(
+                new CrateGuiHolder(GuiType.ADMIN_REWARD_EDIT, crate),
+                54,
+                MessageUtil.parse("<!i><dark_gray>选择替代奖励")
+        );
+
+        CrateGuiHolder holder = (CrateGuiHolder) inventory.getHolder();
+        holder.setData("source_reward_id", sourceRewardId);
+        holder.setData("alternative_select", true);
+
+        // 填充背景
+        ItemStack fill = new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
+        for (int i = 0; i < 54; i++) {
+            inventory.setItem(i, fill);
+        }
+
+        // 奖励槽位
+        List<Integer> rewardSlots = List.of(
+                10, 11, 12, 13, 14, 15, 16,
+                19, 20, 21, 22, 23, 24, 25,
+                28, 29, 30, 31, 32, 33, 34,
+                37, 38, 39, 40, 41, 42, 43
+        );
+
+        // 显示所有奖励（排除自己）
+        List<Reward> rewards = crate.getRewards().stream()
+                .filter(r -> !r.getId().equals(sourceRewardId))
+                .toList();
+
+        for (int i = 0; i < Math.min(rewards.size(), rewardSlots.size()); i++) {
+            Reward reward = rewards.get(i);
+            ItemStack item = reward.getDisplayItem().clone();
+            ItemBuilder builder = new ItemBuilder(item);
+
+            List<String> lore = new ArrayList<>();
+            if (item.hasItemMeta() && item.getItemMeta().hasLore()) {
+                lore.addAll(item.getItemMeta().getLore().stream()
+                        .map(MessageUtil::toLegacy).toList());
+            }
+            lore.add("");
+            lore.add("<!i><gray>ID: " + reward.getId());
+            lore.add("<!i><gray>稀有度: " + getRarityDisplayName(reward.getRarity()));
+            lore.add("");
+            lore.add("<!i><yellow>点击选择此奖励作为替代");
+
+            builder.lore(lore);
+            inventory.setItem(rewardSlots.get(i), builder.build());
+        }
+
+        // 返回按钮
+        ItemStack back = new ItemBuilder(Material.ARROW)
+                .name("<!i><red>返回")
+                .lore(List.of("<!i><gray>返回奖励编辑界面"))
+                .build();
+        inventory.setItem(45, back);
+
+        // 清除替代奖励按钮
+        ItemStack clear = new ItemBuilder(Material.BARRIER)
+                .name("<!i><red>清除替代奖励")
+                .lore(List.of(
+                        "<!i><gray>移除当前设置的替代奖励",
+                        "",
+                        "<!i><yellow>点击清除"
+                ))
+                .build();
+        inventory.setItem(49, clear);
+
+        player.openInventory(inventory);
+    }
+
+    /**
      * 获取奖励类型显示名称
      */
+    /*
+    private List<String> buildPityInfoLore(Crate crate) {
+        ItemBuilder builder = new ItemBuilder(displayItem).name(rewardName);
+        List<Component> lore = new ArrayList<>();
+        lore.add("<!i><gray>可以设置多个保底等级");
+
+        List<Crate.PityTier> tiers = new ArrayList<>(crate.getPityTiers());
+        tiers.sort(Comparator.comparingInt(Crate.PityTier::getCount));
+        if (!tiers.isEmpty()) {
+            lore.add("<!i><gray>当前保底档位:");
+            int maxLines = Math.min(3, tiers.size());
+            for (int i = 0; i < maxLines; i++) {
+                Crate.PityTier tier = tiers.get(i);
+                lore.add("<!i><white>  " + tier.getCount() + "次 -> "
+                        + getRarityColor(tier.getRarity()) + getRarityDisplayName(tier.getRarity()));
+            }
+            if (tiers.size() > maxLines) {
+                lore.add("<!i><gray>  ...");
+            }
+        } else {
+            List<String> rarityIds = plugin.getConfigManager().getRarityIds();
+            if (!rarityIds.isEmpty()) {
+                lore.add("<!i><gray>当前稀有度顺序:");
+                int maxLines = Math.min(3, rarityIds.size());
+                for (int i = 0; i < maxLines; i++) {
+                    String rarityId = rarityIds.get(i);
+                    lore.add("<!i><white>  " + (i + 1) + ". "
+                            + getRarityColor(rarityId) + getRarityDisplayName(rarityId));
+                }
+            }
+        }
+
+        lore.add("");
+        lore.add("<!i><gray>达到对应次数后");
+        lore.add("<!i><gray>将保证获得该稀有度或更高稀有度奖励");
+        lore.add("<!i><gray>达到最高档位后重置保底计数");
+        return lore;
+    }
+
+    */
+
+    private List<String> buildPityInfoLoreSafe(Crate crate) {
+        List<String> lore = new ArrayList<>();
+        lore.add("<!i><gray>\u53ef\u4ee5\u8bbe\u7f6e\u591a\u4e2a\u4fdd\u5e95\u7b49\u7ea7");
+
+        List<Crate.PityTier> tiers = new ArrayList<>(crate.getPityTiers());
+        tiers.sort(Comparator.comparingInt(Crate.PityTier::getCount));
+        if (!tiers.isEmpty()) {
+            lore.add("<!i><gray>\u5f53\u524d\u4fdd\u5e95\u6863\u4f4d:");
+            for (Crate.PityTier tier : tiers) {
+                lore.add("<!i><white>  " + tier.getCount() + "\u6b21 -> "
+                        + getRarityColor(tier.getRarity()) + getRarityDisplayName(tier.getRarity()));
+            }
+            List<String> rarityIds = plugin.getConfigManager().getRarityIds();
+            if (!rarityIds.isEmpty()) {
+                lore.add("");
+                lore.add("<!i><gray>\u53ef\u7528\u7a00\u6709\u5ea6:");
+                for (int i = 0; i < rarityIds.size(); i++) {
+                    String rarityId = rarityIds.get(i);
+                    lore.add("<!i><white>  " + (i + 1) + ". "
+                            + getRarityColor(rarityId) + getRarityDisplayName(rarityId));
+                }
+            }
+        } else {
+            lore.add("");
+            lore.add("<!i><yellow>\u5f53\u524d\u672a\u8bbe\u7f6e\u4efb\u4f55\u4fdd\u5e95\u6863\u4f4d");
+            lore.add("<!i><gray>\u8bf7\u5148\u70b9\u51fb\u7eff\u8272\u6309\u94ae\u6dfb\u52a0\u4fdd\u5e95\u7b49\u7ea7");
+        }
+
+        lore.add("");
+        lore.add("<!i><gray>\u8fbe\u5230\u5bf9\u5e94\u6b21\u6570\u540e");
+        lore.add("<!i><gray>\u5c06\u4fdd\u8bc1\u83b7\u5f97\u8be5\u7a00\u6709\u5ea6\u6216\u66f4\u9ad8\u7a00\u6709\u5ea6\u5956\u52b1");
+        lore.add("<!i><gray>\u8fbe\u5230\u6700\u9ad8\u6863\u4f4d\u540e\u91cd\u7f6e\u4fdd\u5e95\u8ba1\u6570");
+        return lore;
+    }
+
     private String getRewardTypeDisplayName(String type) {
         return switch (type.toUpperCase()) {
             case "ITEM" -> "物品";
@@ -1392,6 +1680,22 @@ public class GuiManager {
         return plugin.getConfigManager().getRarityDisplayName(rarity);
     }
 
+    private void replaceRawRarityLine(List<String> lore, String rarity) {
+        if (rarity == null || lore.isEmpty()) {
+            return;
+        }
+
+        String configuredRarityLine = "<!i><gray>\u7a00\u6709\u5ea6: "
+                + getRarityColor(rarity)
+                + getRarityDisplayName(rarity);
+
+        for (int i = 0; i < lore.size(); i++) {
+            if (lore.get(i).contains(rarity)) {
+                lore.set(i, configuredRarityLine);
+            }
+        }
+    }
+
     /**
      * 获取稀有度颜色（从配置读取）
      */
@@ -1404,14 +1708,30 @@ public class GuiManager {
      * 根据稀有度获取对应材质
      */
     private Material getRarityMaterial(String rarity) {
-        return switch (rarity.toLowerCase()) {
+        return switch (rarity.toLowerCase(Locale.ROOT)) {
             case "common" -> Material.COAL;
             case "uncommon" -> Material.IRON_INGOT;
             case "rare" -> Material.GOLD_INGOT;
             case "epic" -> Material.DIAMOND;
             case "legendary" -> Material.NETHER_STAR;
             case "mythic" -> Material.END_CRYSTAL;
-            default -> Material.PAPER;
+            default -> {
+                List<Material> fallbackMaterials = List.of(
+                        Material.COAL,
+                        Material.IRON_INGOT,
+                        Material.GOLD_INGOT,
+                        Material.DIAMOND,
+                        Material.NETHER_STAR,
+                        Material.END_CRYSTAL,
+                        Material.DRAGON_BREATH,
+                        Material.TOTEM_OF_UNDYING
+                );
+                int rarityIndex = plugin.getConfigManager().getRarityIndex(rarity);
+                if (rarityIndex < 0) {
+                    yield Material.PAPER;
+                }
+                yield fallbackMaterials.get(Math.min(rarityIndex, fallbackMaterials.size() - 1));
+            }
         };
     }
 

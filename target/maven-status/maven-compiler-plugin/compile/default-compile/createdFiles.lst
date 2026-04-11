@@ -1,4 +1,5 @@
 gg\fotia\crates\command\subcommand\ReloadCommand.class
+gg\fotia\crates\reward\PendingRewardManager$1.class
 gg\fotia\crates\key\KeyType.class
 gg\fotia\crates\listener\BlockListener.class
 gg\fotia\crates\database\SQLiteDatabase.class
@@ -10,6 +11,8 @@ gg\fotia\crates\command\subcommand\SubCommand.class
 gg\fotia\crates\util\ChestLidUtil.class
 gg\fotia\crates\hologram\HologramManager.class
 gg\fotia\crates\config\ConfigManager$RarityConfig.class
+gg\fotia\crates\crate\CrateOpenService$OpenAttempt.class
+gg\fotia\crates\command\subcommand\ClaimCommand.class
 gg\fotia\crates\animation\Animation.class
 gg\fotia\crates\animation\RouletteAnimation.class
 gg\fotia\crates\lang\LanguageManager.class
@@ -19,11 +22,15 @@ gg\fotia\crates\gui\GuiManager$InputSession.class
 gg\fotia\crates\command\subcommand\KeyCommand.class
 gg\fotia\crates\util\MessageUtil.class
 gg\fotia\crates\command\subcommand\HistoryCommand.class
+gg\fotia\crates\crate\CrateOpenService$OpenFailureReason.class
 gg\fotia\crates\gui\GuiManager$InputCallback.class
 gg\fotia\crates\gui\GuiItem.class
+gg\fotia\crates\hook\SweetMailHook.class
 gg\fotia\crates\animation\AnimationType.class
+gg\fotia\crates\reward\RewardItemDeliveryService.class
 gg\fotia\crates\listener\EntityInteractPacketListener.class
 gg\fotia\crates\reward\CommandReward.class
+gg\fotia\crates\util\LegacyColorConverter.class
 gg\fotia\crates\reward\MoneyReward.class
 gg\fotia\crates\animation\PhysicalAnimation$1.class
 gg\fotia\crates\crate\Crate$PityTier.class
@@ -33,7 +40,6 @@ gg\fotia\crates\reward\RewardType.class
 gg\fotia\crates\reward\Reward.class
 gg\fotia\crates\animation\AnimationManager.class
 gg\fotia\crates\command\subcommand\HelpCommand.class
-gg\fotia\crates\config\MessageConfig.class
 gg\fotia\crates\gui\GuiConfig.class
 gg\fotia\crates\crate\CrateLocation.class
 gg\fotia\crates\gui\GuiType.class
@@ -60,9 +66,13 @@ gg\fotia\crates\command\subcommand\PreviewCommand.class
 gg\fotia\crates\command\subcommand\EditorCommand.class
 gg\fotia\crates\reward\AbstractReward.class
 gg\fotia\crates\animation\AnimationManager$1.class
+gg\fotia\crates\reward\PermissionAction.class
 gg\fotia\crates\listener\EntityInteractPacketListener$1.class
+gg\fotia\crates\crate\CrateOpenService.class
 gg\fotia\crates\listener\PlayerListener.class
 gg\fotia\crates\gui\GuiManager.class
 gg\fotia\crates\reward\PendingRewardManager$PendingReward.class
 gg\fotia\crates\animation\PhysicalAnimation.class
+gg\fotia\crates\reward\PendingRewardManager$ClaimSummary.class
 gg\fotia\crates\database\MySQLDatabase.class
+gg\fotia\crates\crate\RewardResult.class

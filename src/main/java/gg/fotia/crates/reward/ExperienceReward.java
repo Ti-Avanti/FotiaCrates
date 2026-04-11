@@ -10,7 +10,16 @@ public class ExperienceReward extends AbstractReward {
 
     public ExperienceReward(String id, String displayName, String rarity, double chance, boolean broadcast,
                             ItemStack displayItem, int amount, boolean levels) {
-        super(id, displayName, rarity, chance, broadcast, displayItem);
+        this(id, displayName, rarity, chance, broadcast, displayItem, amount, levels,
+                false, null, PermissionAction.SKIP, null);
+    }
+
+    public ExperienceReward(String id, String displayName, String rarity, double chance, boolean broadcast,
+                            ItemStack displayItem, int amount, boolean levels,
+                            boolean permissionCheckEnabled, String checkPermission,
+                            PermissionAction permissionAction, String alternativeRewardId) {
+        super(id, displayName, rarity, chance, broadcast, displayItem,
+                permissionCheckEnabled, checkPermission, permissionAction, alternativeRewardId);
         this.amount = amount;
         this.levels = levels;
     }

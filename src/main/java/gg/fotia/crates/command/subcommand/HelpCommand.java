@@ -15,49 +15,53 @@ public class HelpCommand extends AbstractSubCommand {
     @Override
     public void execute(CommandSender sender, String[] args) {
         if (sender instanceof Player p) {
-            plugin.getMessageConfig().send(p, "help-header");
+            plugin.getLanguageManager().send(p, "help-header");
 
             if (p.hasPermission("fotiacrates.use")) {
-                plugin.getMessageConfig().send(p, "help-open");
+                plugin.getLanguageManager().send(p, "help-open");
+            }
+            if (p.hasPermission("fotiacrates.claim")) {
+                plugin.getLanguageManager().send(p, "help-claim");
             }
             if (p.hasPermission("fotiacrates.preview")) {
-                plugin.getMessageConfig().send(p, "help-preview");
+                plugin.getLanguageManager().send(p, "help-preview");
             }
             if (p.hasPermission("fotiacrates.history")) {
-                plugin.getMessageConfig().send(p, "help-history");
+                plugin.getLanguageManager().send(p, "help-history");
             }
             if (p.hasPermission("fotiacrates.admin.key")) {
-                plugin.getMessageConfig().send(p, "help-key");
+                plugin.getLanguageManager().send(p, "help-key");
+            }
+            if (p.hasPermission("fotiacrates.admin.give")) {
+                plugin.getLanguageManager().send(p, "help-give");
             }
             if (p.hasPermission("fotiacrates.admin.set")) {
-                plugin.getMessageConfig().send(p, "help-set");
+                plugin.getLanguageManager().send(p, "help-set");
             }
             if (p.hasPermission("fotiacrates.admin.remove")) {
-                plugin.getMessageConfig().send(p, "help-remove");
+                plugin.getLanguageManager().send(p, "help-remove");
             }
             if (p.hasPermission("fotiacrates.admin.reload")) {
-                plugin.getMessageConfig().send(p, "help-reload");
-            }
-            if (p.hasPermission("fotiacrates.admin.reward")) {
-                plugin.getMessageConfig().send(p, "help-reward");
+                plugin.getLanguageManager().send(p, "help-reload");
             }
             if (p.hasPermission("fotiacrates.admin.editor")) {
-                plugin.getMessageConfig().send(p, "help-editor");
+                plugin.getLanguageManager().send(p, "help-editor");
             }
 
-            plugin.getMessageConfig().send(p, "help-footer");
+            plugin.getLanguageManager().send(p, "help-footer");
         } else {
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-header"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-open"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-preview"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-history"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-key"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-set"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-remove"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-reload"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-reward"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-editor"));
-            sender.sendMessage(plugin.getMessageConfig().getMessage("help-footer"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-header"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-open"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-claim"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-preview"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-history"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-key"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-give"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-set"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-remove"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-reload"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-editor"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("help-footer"));
         }
     }
 

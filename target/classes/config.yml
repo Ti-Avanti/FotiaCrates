@@ -5,7 +5,7 @@ database:
   # 数据库类型: sqlite 或 mysql
   type: sqlite
 
-  # MySQL 设置 (仅当 type 为 mysql 时使用)
+  # MySQL 设置，仅当 type 为 mysql 时生效
   mysql:
     host: localhost
     port: 3306
@@ -13,13 +13,12 @@ database:
     username: root
     password: ""
 
-  # SQLite 设置 (仅当 type 为 sqlite 时使用)
+  # SQLite 设置，仅当 type 为 sqlite 时生效
   sqlite:
     file: data.db
 
 # 稀有度配置
-# 可以自定义稀有度的ID、显示名称和颜色
-# display-name 用于显示，支持MiniMessage格式，可用于设置贴图字符
+# display-name 用于显示，支持 MiniMessage
 rarities:
   common:
     display-name: "<!i><gray>普通"
@@ -44,12 +43,12 @@ rarities:
 hologram:
   # 是否启用全息显示
   enabled: true
-  # 全息显示高度偏移（相对于宝箱方块）
+  # 全息显示高度偏移，相对于宝箱方块
   height-offset: 1.5
   # 全息显示缩放
   scale: 1.0
-  # 全息显示内容（支持MiniMessage格式）
-  # 可用占位符: {crate_name} 宝箱名称, {crate_id} 宝箱ID, {keys} 玩家钥匙数量
+  # 全息显示内容
+  # 可用占位符: {crate_name} {crate_id} {keys}
   lines:
     - "<!i><gold>{crate_name}"
     - "<!i><gray>钥匙: <yellow>{keys}"
@@ -57,13 +56,37 @@ hologram:
 
 # 全局设置
 settings:
-  # 默认语言 (对应 lang/ 文件夹中的文件名，不含.yml)
+  # 默认语言，对应 lang/ 文件名，不带 .yml
   default-language: zh_CN
   # 默认启用动画
   default-animation: true
-  # 全服广播稀有奖励
+  # 是否全服广播稀有奖励
   broadcast-rare-rewards: true
-  # 保存抽奖历史
+  # 是否保存抽奖历史
   save-history: true
-  # 每个玩家最大历史记录数 (0 = 无限制)
+  # 每个玩家最大历史记录数，0 表示不限制
   max-history-entries: 100
+
+# 背包溢出邮件补发
+overflow-mail:
+  # 是否启用 SweetMail 溢出邮件补发
+  enabled: true
+  # SweetMail 邮件图标
+  # 示例:
+  # "CHEST"
+  # "PAPER#1001"
+  # "itemsadder-example_item"
+  # "mythic-example_item"
+  # "head-base64-xxxx"
+  # "craftengine-namespace:item_id"
+  # "neigeitems-item_id;1"
+  icon: "CHEST"
+  # 系统邮件发件人显示名
+  sender-display: "<!i><gold>FotiaCrates"
+  # 邮件标题
+  title: "<!i><yellow>抽奖奖励补发"
+  # 邮件正文
+  content:
+    - "<!i><gray>你的背包空间不足。"
+    - "<!i><gray>多余的奖励物品已发送到邮箱。"
+    - "<!i><yellow>请输入 /mail inbox 查收。"

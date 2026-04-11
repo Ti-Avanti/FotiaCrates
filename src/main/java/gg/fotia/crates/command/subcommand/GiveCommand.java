@@ -1,7 +1,7 @@
 package gg.fotia.crates.command.subcommand;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.config.MessageConfig;
+import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.crate.Crate;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -26,7 +26,7 @@ public class GiveCommand extends AbstractSubCommand {
     public void execute(CommandSender sender, String[] args) {
         if (args.length < 2) {
             sendMessage(sender, "usage",
-                    MessageConfig.placeholders("usage", "/crate give <玩家> <宝箱> [数量]"));
+                    LanguageManager.placeholders("usage", "/crate give <玩家> <宝箱> [数量]"));
             return;
         }
 
@@ -63,36 +63,36 @@ public class GiveCommand extends AbstractSubCommand {
             for (ItemStack item : leftover.values()) {
                 target.getWorld().dropItemNaturally(target.getLocation(), item);
             }
-            plugin.getMessageConfig().send(target, "inventory-full");
+            plugin.getLanguageManager().send(target, "inventory-full");
         }
 
         // 发送消息给目标玩家
-        plugin.getMessageConfig().send(target, "crate-block-received",
-                MessageConfig.placeholders("amount", String.valueOf(amount), "crate", crate.getName()));
+        plugin.getLanguageManager().send(target, "crate-block-received",
+                LanguageManager.placeholders("amount", String.valueOf(amount), "crate", crate.getName()));
 
         // 发送消息给执行者
         if (sender instanceof Player p && !p.equals(target)) {
-            plugin.getMessageConfig().send(p, "crate-block-given",
-                    MessageConfig.placeholders("player", target.getName(), "amount", String.valueOf(amount), "crate", crate.getName()));
+            plugin.getLanguageManager().send(p, "crate-block-given",
+                    LanguageManager.placeholders("player", target.getName(), "amount", String.valueOf(amount), "crate", crate.getName()));
         } else if (!(sender instanceof Player)) {
-            sender.sendMessage(plugin.getMessageConfig().getMessage("crate-block-given",
-                    MessageConfig.placeholders("player", target.getName(), "amount", String.valueOf(amount), "crate", crate.getName())));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("crate-block-given",
+                    LanguageManager.placeholders("player", target.getName(), "amount", String.valueOf(amount), "crate", crate.getName())));
         }
     }
 
     private void sendMessage(CommandSender sender, String key) {
         if (sender instanceof Player p) {
-            plugin.getMessageConfig().send(p, key);
+            plugin.getLanguageManager().send(p, key);
         } else {
-            sender.sendMessage(plugin.getMessageConfig().getMessage(key));
+            sender.sendMessage(plugin.getLanguageManager().getMessage(key));
         }
     }
 
     private void sendMessage(CommandSender sender, String key, Map<String, String> placeholders) {
         if (sender instanceof Player p) {
-            plugin.getMessageConfig().send(p, key, placeholders);
+            plugin.getLanguageManager().send(p, key, placeholders);
         } else {
-            sender.sendMessage(plugin.getMessageConfig().getMessage(key, placeholders));
+            sender.sendMessage(plugin.getLanguageManager().getMessage(key, placeholders));
         }
     }
 

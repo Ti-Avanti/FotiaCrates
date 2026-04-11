@@ -4,17 +4,18 @@ main: gg.fotia.crates.FotiaCrates
 api-version: '1.20'
 authors:
   - Fotia
-description: 功能丰富的Minecraft抽奖箱插件
+description: Feature-rich Minecraft crate plugin
 softdepend:
   - Vault
   - PlaceholderAPI
   - ModelEngine
   - CraftEngine
   - ProtocolLib
+  - SweetMail
 
 commands:
   crate:
-    description: FotiaCrates主命令
+    description: FotiaCrates main command
     usage: /<command> [args]
     aliases:
       - crates
@@ -22,22 +23,25 @@ commands:
 
 permissions:
   fotiacrates.use:
-    description: 使用抽奖箱系统
+    description: Use crate commands
     default: true
   fotiacrates.preview:
-    description: 预览抽奖箱奖励
+    description: Preview crate rewards
+    default: true
+  fotiacrates.claim:
+    description: Claim pending rewards
     default: true
   fotiacrates.history:
-    description: 查看自己的抽奖历史
+    description: View your crate history
     default: true
   fotiacrates.history.others:
-    description: 查看其他玩家的抽奖历史
+    description: View other players' crate history
     default: op
   fotiacrates.open.*:
-    description: 打开所有抽奖箱
+    description: Open all crates
     default: op
   fotiacrates.admin.*:
-    description: 所有管理员权限
+    description: All admin permissions
     default: op
     children:
       fotiacrates.admin.key: true
@@ -46,21 +50,25 @@ permissions:
       fotiacrates.admin.set: true
       fotiacrates.admin.remove: true
       fotiacrates.admin.reload: true
+      fotiacrates.admin.editor: true
   fotiacrates.admin.key:
-    description: 管理钥匙
+    description: Manage keys
     default: op
   fotiacrates.admin.give:
-    description: 给予宝箱方块
+    description: Give crate blocks
     default: op
   fotiacrates.admin.place:
-    description: 放置宝箱方块
+    description: Place crate blocks
     default: op
   fotiacrates.admin.set:
-    description: 设置抽奖箱位置
+    description: Set crate locations
     default: op
   fotiacrates.admin.remove:
-    description: 移除抽奖箱位置
+    description: Remove crate locations
     default: op
   fotiacrates.admin.reload:
-    description: 重载插件配置
+    description: Reload plugin configuration
+    default: op
+  fotiacrates.admin.editor:
+    description: Open admin editor GUI
     default: op

@@ -94,7 +94,7 @@ public class EntityInteractPacketListener {
                 Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
                 if (crate != null) {
                     if (!player.hasPermission("fotiacrates.preview")) {
-                        plugin.getMessageConfig().send(player, "no-permission");
+                        plugin.getLanguageManager().send(player, "no-permission");
                         return;
                     }
                     plugin.getGuiManager().openPreview(player, crate);
@@ -112,7 +112,7 @@ public class EntityInteractPacketListener {
         if (crate == null) return;
 
         if (!player.hasPermission("fotiacrates.preview")) {
-            plugin.getMessageConfig().send(player, "no-permission");
+            plugin.getLanguageManager().send(player, "no-permission");
             return;
         }
 

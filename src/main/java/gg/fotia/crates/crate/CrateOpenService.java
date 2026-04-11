@@ -1,0 +1,180 @@
+package gg.fotia.crates.crate;
+
+import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.key.KeyType;
+import gg.fotia.crates.lang.LanguageManager;
+import gg.fotia.crates.reward.Reward;
+import org.bukkit.entity.Player;
+
+import java.util.UUID;
+
+public class CrateOpenService {
+
+    private final FotiaCrates plugin;
+
+    public CrateOpenService(FotiaCrates plugin) {
+        this.plugin = plugin;
+    }
+
+    public boolean hasOpenPermission(Player player, Crate crate) {
+        if (player.hasPermission("fotiacrates.open.*")) {
+            return true;
+        }
+
+        String customPermission = crate.getPermission();
+        if (customPermission == null || customPermission.isBlank()) {
+            return true;
+        }
+
+        return player.hasPermission(customPermission);
+    }
+
+    public OpenAttempt prepareOpen(Player player, Crate crate) {
+        RewardResult rewardResult = resolveRewardResult(player, crate);
+        if (rewardResult == null) {
+            return OpenAttempt.failure(OpenFailureReason.NO_AVAILABLE_REWARD);
+        }
+
+        if (!plugin.getKeyManager().consumeKeyForCrate(player, crate.getId(), KeyType.ALL)) {
+            return OpenAttempt.failure(OpenFailureReason.NO_KEY);
+        }
+
+        updatePityCounter(player, crate);
+        return OpenAttempt.success(rewardResult);
+    }
+
+    public void sendOpenFailure(Player player, OpenFailureReason reason) {
+        if (reason == OpenFailureReason.NO_AVAILABLE_REWARD) {
+            plugin.getLanguageManager().send(player, "no-available-reward");
+            return;
+        }
+
+        plugin.getLanguageManager().send(player, "no-key");
+    }
+
+    public void deliverReward(Player player, Crate crate, RewardResult rewardResult) {
+        Reward displayReward = rewardResult.getDisplayReward();
+        Reward actualReward = rewardResult.getActualReward();
+
+        actualReward.give(player);
+
+        if (rewardResult.wasReplaced()) {
+            plugin.getLanguageManager().send(player, "reward-replaced",
+                    LanguageManager.placeholders(
+                            "original", displayReward.getDisplayName(),
+                            "actual", actualReward.getDisplayName()
+                    ));
+        } else {
+            plugin.getLanguageManager().send(player, "reward-received",
+                    LanguageManager.placeholders("reward", actualReward.getDisplayName()));
+        }
+
+        if (displayReward.shouldBroadcast() && plugin.getConfigManager().isBroadcastRareRewards()) {
+            var message = plugin.getLanguageManager().getMessage(player, "broadcast-rare",
+                    LanguageManager.placeholders(
+                            "player", player.getName(),
+                            "crate", crate.getName(),
+                            "reward", displayReward.getDisplayName()
+                    ));
+            plugin.getServer().broadcast(message);
+        }
+
+        plugin.getHistoryManager().addHistory(
+                player.getUniqueId(),
+                player.getName(),
+                crate.getId(),
+                displayReward.getId(),
+                displayReward.getDisplayName()
+        );
+
+        if (crate.isParticlesEnabled()) {
+            player.getWorld().spawnParticle(crate.getParticleType(),
+                    player.getLocation().add(0, 1, 0),
+                    crate.getParticleCount(), 0.5, 0.5, 0.5, 0.1);
+        }
+
+        if (crate.getWinSound() != null) {
+            player.playSound(player.getLocation(), crate.getWinSound(),
+                    crate.getWinVolume(), crate.getWinPitch());
+        }
+    }
+
+    public void deliverRewardSafely(UUID playerUuid, String playerName, Crate crate, RewardResult rewardResult) {
+        Player player = plugin.getServer().getPlayer(playerUuid);
+        Reward displayReward = rewardResult.getDisplayReward();
+        Reward actualReward = rewardResult.getActualReward();
+
+        if (player == null || !player.isOnline()) {
+            plugin.getPendingRewardManager().addPendingReward(playerUuid, crate.getId(), actualReward);
+            plugin.getLogger().info("Player " + playerName + " is offline, reward stored for later claim.");
+
+            plugin.getHistoryManager().addHistory(
+                    playerUuid,
+                    playerName,
+                    crate.getId(),
+                    displayReward.getId(),
+                    displayReward.getDisplayName()
+            );
+
+            if (displayReward.shouldBroadcast() && plugin.getConfigManager().isBroadcastRareRewards()) {
+                var message = plugin.getLanguageManager().getMessage("broadcast-rare",
+                        LanguageManager.placeholders(
+                                "player", playerName,
+                                "crate", crate.getName(),
+                                "reward", displayReward.getDisplayName()
+                        ));
+                plugin.getServer().broadcast(message);
+            }
+            return;
+        }
+
+        deliverReward(player, crate, rewardResult);
+    }
+
+    private RewardResult resolveRewardResult(Player player, Crate crate) {
+        if (crate.isPityEnabled() && !crate.getPityTiers().isEmpty()) {
+            int currentCount = plugin.getPityManager().getPityCount(player.getUniqueId(), crate.getId()) + 1;
+            Crate.PityTier triggeredTier = crate.getTriggeredPityTier(currentCount);
+            if (triggeredTier != null) {
+                return crate.rollPityRewardWithPermissionCheckResult(player, triggeredTier.getRarity());
+            }
+        }
+
+        return crate.rollRewardWithPermissionCheckResult(player);
+    }
+
+    private void updatePityCounter(Player player, Crate crate) {
+        if (!crate.isPityEnabled() || crate.getPityTiers().isEmpty()) {
+            return;
+        }
+
+        int currentCount = plugin.getPityManager().getPityCount(player.getUniqueId(), crate.getId()) + 1;
+        int maxPityCount = crate.getMaxPityCount();
+        if (maxPityCount > 0 && currentCount >= maxPityCount) {
+            plugin.getPityManager().resetPityCount(player.getUniqueId(), crate.getId());
+            return;
+        }
+
+        plugin.getPityManager().incrementPityCount(player.getUniqueId(), crate.getId());
+    }
+
+    public enum OpenFailureReason {
+        NO_KEY,
+        NO_AVAILABLE_REWARD
+    }
+
+    public record OpenAttempt(RewardResult rewardResult, OpenFailureReason failureReason) {
+
+        public static OpenAttempt success(RewardResult rewardResult) {
+            return new OpenAttempt(rewardResult, null);
+        }
+
+        public static OpenAttempt failure(OpenFailureReason failureReason) {
+            return new OpenAttempt(null, failureReason);
+        }
+
+        public boolean isSuccess() {
+            return rewardResult != null;
+        }
+    }
+}

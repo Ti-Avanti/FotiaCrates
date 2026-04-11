@@ -11,7 +11,16 @@ public class MoneyReward extends AbstractReward {
 
     public MoneyReward(String id, String displayName, String rarity, double chance, boolean broadcast,
                        ItemStack displayItem, double amount) {
-        super(id, displayName, rarity, chance, broadcast, displayItem);
+        this(id, displayName, rarity, chance, broadcast, displayItem, amount,
+                false, null, PermissionAction.SKIP, null);
+    }
+
+    public MoneyReward(String id, String displayName, String rarity, double chance, boolean broadcast,
+                       ItemStack displayItem, double amount,
+                       boolean permissionCheckEnabled, String checkPermission,
+                       PermissionAction permissionAction, String alternativeRewardId) {
+        super(id, displayName, rarity, chance, broadcast, displayItem,
+                permissionCheckEnabled, checkPermission, permissionAction, alternativeRewardId);
         this.amount = amount;
     }
 

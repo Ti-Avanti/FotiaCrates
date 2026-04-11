@@ -3,6 +3,7 @@ package gg.fotia.crates.listener;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.crate.Crate;
+import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.gui.CrateGuiHolder;
 import gg.fotia.crates.gui.GuiConfig;
 import gg.fotia.crates.gui.GuiItem;
@@ -20,14 +21,26 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 public class GuiListener implements Listener {
 
     private final FotiaCrates plugin;
+    private final CrateOpenService crateOpenService;
+    // 防止重复开箱的冷却集合
+    private final Set<UUID> openingPlayers = new HashSet<>();
+    // 防止短时间内重复触发的冷却时间戳（毫秒）
+    private final Map<UUID, Long> interactCooldown = new HashMap<>();
+    private static final long INTERACT_COOLDOWN_MS = 500; // 500毫秒冷却
 
     public GuiListener(FotiaCrates plugin) {
         this.plugin = plugin;
+        this.crateOpenService = new CrateOpenService(plugin);
     }
 
     @EventHandler
@@ -367,16 +380,7 @@ public class GuiListener implements Listener {
                                 plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
                             } else if (event.isRightClick()) {
                                 // 切换稀有度
-                                String[] rarities = {"common", "uncommon", "rare", "epic", "legendary"};
-                                String current = tier.getRarity().toLowerCase();
-                                int index = 0;
-                                for (int j = 0; j < rarities.length; j++) {
-                                    if (rarities[j].equals(current)) {
-                                        index = j;
-                                        break;
-                                    }
-                                }
-                                String newRarity = rarities[(index + 1) % rarities.length];
+                                String newRarity = plugin.getConfigManager().getNextRarity(tier.getRarity());
                                 plugin.getCrateManager().updatePityTier(crate.getId(), i, tier.getCount(), newRarity);
                                 plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
                             } else if (event.isLeftClick()) {
@@ -405,7 +409,8 @@ public class GuiListener implements Listener {
                         } else if (i == tiers.size()) {
                             // 添加新等级
                             int defaultCount = tiers.isEmpty() ? 25 : tiers.get(tiers.size() - 1).getCount() + 25;
-                            plugin.getCrateManager().addPityTier(crate.getId(), defaultCount, "rare");
+                            plugin.getCrateManager().addPityTier(crate.getId(), defaultCount,
+                                    plugin.getConfigManager().getDefaultPityRarityId());
                             plugin.getLanguageManager().send(player, "admin-pity-tier-added");
                             plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
                         }
@@ -557,6 +562,13 @@ public class GuiListener implements Listener {
             return;
         }
 
+        // 检查是否是替代奖励选择界面
+        Boolean isAlternativeSelect = holder.getData("alternative_select");
+        if (isAlternativeSelect != null && isAlternativeSelect) {
+            handleAlternativeRewardSelectClick(event, player, holder);
+            return;
+        }
+
         String rewardId = holder.getData("reward_id");
 
         if (crate == null || rewardId == null) {
@@ -648,6 +660,38 @@ public class GuiListener implements Listener {
                     refreshRewardEditGui(p, ids[0], ids[1]);
                 });
             }
+            // ===== 权限检测配置 =====
+            case 37 -> { // 权限检测开关
+                plugin.getCrateManager().toggleRewardPermissionCheck(crate.getId(), rewardId);
+                String status = reward.isPermissionCheckEnabled() ? "关闭" : "开启";
+                plugin.getLanguageManager().send(player, "admin-permission-check-toggled",
+                        LanguageManager.placeholders("status", status));
+                refreshRewardEditGui(player, crate.getId(), rewardId);
+            }
+            case 39 -> { // 权限节点设置
+                plugin.getLanguageManager().send(player, "admin-input-permission");
+                plugin.getGuiManager().startInputSession(player, "reward_permission",
+                        new String[]{crate.getId(), rewardId}, (p, input, data) -> {
+                    String[] ids = (String[]) data;
+                    plugin.getCrateManager().updateRewardCheckPermission(ids[0], ids[1], input);
+                    plugin.getLanguageManager().send(p, "admin-permission-updated");
+                    refreshRewardEditGui(p, ids[0], ids[1]);
+                });
+            }
+            case 41 -> { // 行为选择
+                gg.fotia.crates.reward.PermissionAction currentAction = reward.getPermissionAction();
+                gg.fotia.crates.reward.PermissionAction newAction = currentAction == gg.fotia.crates.reward.PermissionAction.SKIP
+                        ? gg.fotia.crates.reward.PermissionAction.ALTERNATIVE
+                        : gg.fotia.crates.reward.PermissionAction.SKIP;
+                plugin.getCrateManager().updateRewardPermissionAction(crate.getId(), rewardId, newAction);
+                String actionName = newAction == gg.fotia.crates.reward.PermissionAction.SKIP ? "跳过" : "替代";
+                plugin.getLanguageManager().send(player, "admin-permission-action-updated",
+                        LanguageManager.placeholders("action", actionName));
+                refreshRewardEditGui(player, crate.getId(), rewardId);
+            }
+            case 43 -> { // 替代奖励选择
+                plugin.getGuiManager().openAlternativeRewardSelectGui(player, crate, rewardId);
+            }
             case 47 -> { // 复制奖励
                 String newRewardId = plugin.getCrateManager().copyReward(crate.getId(), rewardId);
                 if (newRewardId != null) {
@@ -675,6 +719,56 @@ public class GuiListener implements Listener {
                 plugin.getCrateManager().saveCrate(crate.getId());
                 plugin.getLanguageManager().send(player, "admin-crate-saved");
                 plugin.getGuiManager().openCrateEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            }
+        }
+    }
+
+    /**
+     * 处理替代奖励选择界面点击
+     */
+    private void handleAlternativeRewardSelectClick(InventoryClickEvent event, Player player, CrateGuiHolder holder) {
+        int slot = event.getSlot();
+        Crate crate = holder.getCrate();
+        String sourceRewardId = holder.getData("source_reward_id");
+
+        if (crate == null || sourceRewardId == null) {
+            plugin.getGuiManager().openAdminGui(player);
+            return;
+        }
+
+        // 奖励槽位
+        List<Integer> rewardSlots = List.of(
+                10, 11, 12, 13, 14, 15, 16,
+                19, 20, 21, 22, 23, 24, 25,
+                28, 29, 30, 31, 32, 33, 34,
+                37, 38, 39, 40, 41, 42, 43
+        );
+
+        int slotIndex = rewardSlots.indexOf(slot);
+        if (slotIndex >= 0) {
+            // 获取排除自己后的奖励列表
+            List<Reward> rewards = crate.getRewards().stream()
+                    .filter(r -> !r.getId().equals(sourceRewardId))
+                    .toList();
+
+            if (slotIndex < rewards.size()) {
+                Reward selectedReward = rewards.get(slotIndex);
+                plugin.getCrateManager().updateRewardAlternativeReward(crate.getId(), sourceRewardId, selectedReward.getId());
+                plugin.getLanguageManager().send(player, "admin-alternative-reward-set",
+                        LanguageManager.placeholders("reward", selectedReward.getDisplayName()));
+                refreshRewardEditGui(player, crate.getId(), sourceRewardId);
+            }
+            return;
+        }
+
+        switch (slot) {
+            case 45 -> { // 返回
+                refreshRewardEditGui(player, crate.getId(), sourceRewardId);
+            }
+            case 49 -> { // 清除替代奖励
+                plugin.getCrateManager().updateRewardAlternativeReward(crate.getId(), sourceRewardId, null);
+                plugin.getLanguageManager().send(player, "admin-alternative-reward-cleared");
+                refreshRewardEditGui(player, crate.getId(), sourceRewardId);
             }
         }
     }
@@ -1160,6 +1254,60 @@ public class GuiListener implements Listener {
                     openCrate(player, holder.getCrate());
                 }
             }
+            case "open_history" -> {
+                if (!player.hasPermission("fotiacrates.history")) {
+                    plugin.getLanguageManager().send(player, "no-permission");
+                    return;
+                }
+
+                Crate crate = holder.getCrate();
+                if (crate != null) {
+                    plugin.getGuiManager().openHistoryGui(
+                            player,
+                            player.getUniqueId(),
+                            player.getName(),
+                            crate.getId(),
+                            0
+                    );
+                }
+            }
+            case "clear_history" -> {
+                if (!player.hasPermission("fotiacrates.history")) {
+                    plugin.getLanguageManager().send(player, "no-permission");
+                    return;
+                }
+
+                UUID targetUuid = holder.getData("target_uuid");
+                String targetName = holder.getData("target_name");
+                String crateId = holder.getData("crate_id");
+                if (targetUuid == null || targetName == null) {
+                    return;
+                }
+
+                if (!player.getUniqueId().equals(targetUuid) && !player.hasPermission("fotiacrates.history.others")) {
+                    plugin.getLanguageManager().send(player, "no-permission");
+                    return;
+                }
+
+                int cleared = crateId != null && !crateId.isBlank()
+                        ? plugin.getHistoryManager().clearHistory(targetUuid, crateId)
+                        : plugin.getHistoryManager().clearHistory(targetUuid);
+
+                if (cleared > 0) {
+                    plugin.getLanguageManager().send(player, "history-cleared",
+                            LanguageManager.placeholders("count", String.valueOf(cleared)));
+                } else {
+                    plugin.getLanguageManager().send(player, "no-history");
+                }
+
+                plugin.getGuiManager().openHistoryGui(
+                        player,
+                        targetUuid,
+                        targetName,
+                        crateId,
+                        holder.getCurrentPage()
+                );
+            }
             case "create_key" -> {
                 plugin.getLanguageManager().send(player, "admin-input-name");
                 plugin.getGuiManager().startInputSession(player, "create_key", null, (p, input, data) -> {
@@ -1200,7 +1348,10 @@ public class GuiListener implements Listener {
                     plugin.getGuiManager().openHistoryGui(player,
                             holder.getData("target_uuid"),
                             holder.getData("target_name"),
+                            holder.getData("crate_id"),
                             page);
+                } else if (holder.getGuiType() == GuiType.PREVIEW && holder.getCrate() != null) {
+                    plugin.getGuiManager().openPreview(player, holder.getCrate(), page);
                 }
             }
             case "next_page" -> {
@@ -1209,7 +1360,13 @@ public class GuiListener implements Listener {
                     plugin.getGuiManager().openHistoryGui(player,
                             holder.getData("target_uuid"),
                             holder.getData("target_name"),
+                            holder.getData("crate_id"),
                             page);
+                } else if (holder.getGuiType() == GuiType.PREVIEW && holder.getCrate() != null) {
+                    int totalPages = holder.getData("total_pages") != null ? (int) holder.getData("total_pages") : 1;
+                    if (page < totalPages) {
+                        plugin.getGuiManager().openPreview(player, holder.getCrate(), page);
+                    }
                 }
             }
             case "reload" -> {
@@ -1227,31 +1384,53 @@ public class GuiListener implements Listener {
     }
 
     private void openCrate(Player player, Crate crate) {
-        if (!player.hasPermission("fotiacrates.open." + crate.getId()) &&
-                !player.hasPermission("fotiacrates.open.*")) {
+        // 防止重复开箱
+        if (openingPlayers.contains(player.getUniqueId())) {
+            return;
+        }
+
+        // 检查交互冷却（防止短时间内多次触发）
+        long now = System.currentTimeMillis();
+        Long lastInteract = interactCooldown.get(player.getUniqueId());
+        if (lastInteract != null && now - lastInteract < INTERACT_COOLDOWN_MS) {
+            return;
+        }
+        interactCooldown.put(player.getUniqueId(), now);
+
+        openingPlayers.add(player.getUniqueId());
+
+        if (!crateOpenService.hasOpenPermission(player, crate)) {
+            openingPlayers.remove(player.getUniqueId());
             plugin.getLanguageManager().send(player, "no-permission");
             return;
         }
 
         if (!plugin.getKeyManager().hasKeyForCrate(player, crate.getId())) {
+            openingPlayers.remove(player.getUniqueId());
             plugin.getLanguageManager().send(player, "no-key");
             return;
         }
 
-        if (!plugin.getKeyManager().consumeKeyForCrate(player, crate.getId(), KeyType.ALL)) {
-            plugin.getLanguageManager().send(player, "no-key");
-            return;
-        }
-
+        // 先检查是否有可用奖励（在消耗钥匙之前）
         boolean isPity = false;
         if (crate.isPityEnabled()) {
             isPity = plugin.getPityManager().shouldTriggerPity(
                     player.getUniqueId(), crate.getId(), crate.getPityCount());
         }
 
-        Reward reward = isPity ? crate.rollPityReward() : crate.rollReward();
+        Reward reward = isPity ? crate.rollPityRewardWithPermissionCheck(player, crate.getPityRarity())
+                : crate.rollRewardWithPermissionCheck(player);
         if (reward == null) {
-            plugin.getLogger().warning("No reward found for crate: " + crate.getId());
+            // 没有可用奖励，不消耗钥匙
+            openingPlayers.remove(player.getUniqueId());
+            plugin.getLanguageManager().send(player, "no-available-reward");
+            return;
+        }
+
+        // 有可用奖励，消耗钥匙
+        if (!plugin.getKeyManager().consumeKeyForCrate(player, crate.getId(), KeyType.ALL)) {
+            openingPlayers.remove(player.getUniqueId());
+            plugin.getLanguageManager().send(player, "no-key");
             return;
         }
 
@@ -1267,9 +1446,11 @@ public class GuiListener implements Listener {
             AnimationManager animationManager = new AnimationManager(plugin);
             animationManager.playAnimation(player, crate, reward, player.getLocation(), () -> {
                 giveReward(player, crate, reward);
+                openingPlayers.remove(player.getUniqueId());
             });
         } else {
             giveReward(player, crate, reward);
+            openingPlayers.remove(player.getUniqueId());
         }
     }
 

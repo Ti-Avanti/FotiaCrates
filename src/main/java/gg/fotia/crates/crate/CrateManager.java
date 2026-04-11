@@ -107,28 +107,29 @@ public class CrateManager {
 
         // 加载多级保底配置
         List<Crate.PityTier> pityTiers = new ArrayList<>();
+        boolean hasPityTiersNode = config.contains("pity.tiers");
         ConfigurationSection pityTiersSection = config.getConfigurationSection("pity.tiers");
         if (pityTiersSection != null) {
             for (String tierKey : pityTiersSection.getKeys(false)) {
                 ConfigurationSection tierSection = pityTiersSection.getConfigurationSection(tierKey);
                 if (tierSection != null) {
                     int count = tierSection.getInt("count", 50);
-                    String rarity = tierSection.getString("rarity", "rare");
+                    String rarity = tierSection.getString("rarity", plugin.getConfigManager().getDefaultPityRarityId());
                     pityTiers.add(new Crate.PityTier(count, rarity));
                 }
             }
         }
         // 兼容旧版单级保底配置
-        if (pityTiers.isEmpty() && pityEnabled) {
+        if (!hasPityTiersNode && pityTiers.isEmpty() && pityEnabled) {
             int pityCount = config.getInt("pity.count", 50);
-            String pityRarity = config.getString("pity.rarity", "rare");
+            String pityRarity = config.getString("pity.rarity", plugin.getConfigManager().getDefaultPityRarityId());
             pityTiers.add(new Crate.PityTier(pityCount, pityRarity));
         }
 
         boolean multiOpenEnabled = config.getBoolean("multi-open.enabled", true);
         int multiOpenMax = config.getInt("multi-open.max", 10);
 
-        // 权限节点，默认为空（使用默认权限 fotiacrates.open.<id>）
+        // 权限节点，默认为空（留空则不检测开箱权限）
         String permission = config.getString("permission", "");
 
         List<Reward> rewards = loadRewards(config.getConfigurationSection("rewards"));
@@ -147,7 +148,8 @@ public class CrateManager {
                 spinSound, spinVolume, spinPitch,
                 winSound, winVolume, winPitch,
                 pityEnabled, pityTiers,
-                multiOpenEnabled, multiOpenMax, permission);
+                multiOpenEnabled, multiOpenMax, permission,
+                plugin.getConfigManager().getRarityIds());
     }
 
     private List<Reward> loadRewards(ConfigurationSection section) {
@@ -169,18 +171,30 @@ public class CrateManager {
 
     private Reward loadReward(String id, ConfigurationSection section) {
         String displayName = section.getString("display-name", id);
-        String rarity = section.getString("rarity", "common");
+        String rarity = section.getString("rarity", plugin.getConfigManager().getDefaultRarityId());
         double chance = section.getDouble("chance", 10.0);
         boolean broadcast = section.getBoolean("broadcast", false);
         String type = section.getString("type", "item");
 
         ItemStack displayItem = loadDisplayItem(section, displayName);
 
+        // 加载权限检测配置
+        boolean permCheckEnabled = section.getBoolean("permission-check.enabled", false);
+        String checkPermission = section.getString("permission-check.permission", null);
+        String actionStr = section.getString("permission-check.action", "skip");
+        PermissionAction permAction = actionStr.equalsIgnoreCase("alternative")
+                ? PermissionAction.ALTERNATIVE : PermissionAction.SKIP;
+        String alternativeRewardId = section.getString("permission-check.alternative-reward", null);
+
         return switch (type.toLowerCase()) {
-            case "item" -> loadItemReward(id, displayName, rarity, chance, broadcast, displayItem, section);
-            case "command" -> loadCommandReward(id, displayName, rarity, chance, broadcast, displayItem, section);
-            case "money" -> loadMoneyReward(id, displayName, rarity, chance, broadcast, displayItem, section);
-            case "experience" -> loadExperienceReward(id, displayName, rarity, chance, broadcast, displayItem, section);
+            case "item" -> loadItemReward(id, displayName, rarity, chance, broadcast, displayItem, section,
+                    permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+            case "command" -> loadCommandReward(id, displayName, rarity, chance, broadcast, displayItem, section,
+                    permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+            case "money" -> loadMoneyReward(id, displayName, rarity, chance, broadcast, displayItem, section,
+                    permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+            case "experience" -> loadExperienceReward(id, displayName, rarity, chance, broadcast, displayItem, section,
+                    permCheckEnabled, checkPermission, permAction, alternativeRewardId);
             default -> null;
         };
     }
@@ -225,11 +239,15 @@ public class CrateManager {
         String name = section.getString("name", defaultName);
         List<String> lore = section.getStringList("lore");
         int amount = section.getInt("amount", 1);
+        int customModelData = section.getInt("custom-model-data", 0);
+        boolean glow = section.getBoolean("glow", false);
 
         ItemBuilder builder = new ItemBuilder(material)
                 .name(name)
                 .lore(lore)
-                .amount(amount);
+                .amount(amount)
+                .customModelData(customModelData)
+                .glow(glow);
 
         ConfigurationSection enchantSection = section.getConfigurationSection("enchantments");
         if (enchantSection != null) {
@@ -243,9 +261,51 @@ public class CrateManager {
         return builder.build();
     }
 
+    private ItemStack loadOptionalRewardItem(ConfigurationSection section, String defaultName) {
+        Object itemObj = section.get("item");
+        if (itemObj instanceof ItemStack itemStack) {
+            return itemStack;
+        }
+
+        ConfigurationSection itemSection = section.getConfigurationSection("item");
+        if (itemSection == null) {
+            return null;
+        }
+
+        if (itemSection.contains("==") || itemSection.contains("type") || itemSection.contains("v")) {
+            return section.getItemStack("item");
+        }
+
+        return loadItemFromSection(itemSection, defaultName);
+    }
+
+    private List<ItemStack> loadExtraItems(ConfigurationSection section) {
+        List<ItemStack> extraItems = new ArrayList<>();
+        List<?> extraList = section.getList("extra-items");
+        if (extraList == null) {
+            return extraItems;
+        }
+
+        for (Object obj : extraList) {
+            if (obj instanceof ItemStack itemStack) {
+                extraItems.add(itemStack);
+            } else if (obj instanceof Map<?, ?> extraMap && extraMap.containsKey("material")) {
+                try {
+                    Material material = Material.valueOf((String) extraMap.get("material"));
+                    extraItems.add(new ItemStack(material));
+                } catch (Exception ignored) {
+                }
+            }
+        }
+
+        return extraItems;
+    }
+
     private ItemReward loadItemReward(String id, String displayName, String rarity, double chance,
-                                      boolean broadcast, ItemStack displayItem, ConfigurationSection section) {
-        ItemStack item;
+                                      boolean broadcast, ItemStack displayItem, ConfigurationSection section,
+                                      boolean permCheckEnabled, String checkPermission,
+                                      PermissionAction permAction, String alternativeRewardId) {
+        ItemStack item = loadOptionalRewardItem(section, displayName);
 
         // 首先尝试直接获取序列化的ItemStack
         Object itemObj = section.get("item");
@@ -287,27 +347,43 @@ public class CrateManager {
             }
         }
 
-        return new ItemReward(id, displayName, rarity, chance, broadcast, displayItem, item, extraItems);
+        item = loadOptionalRewardItem(section, displayName);
+        extraItems = loadExtraItems(section);
+        List<String> commands = section.getStringList("commands");
+
+        return new ItemReward(id, displayName, rarity, chance, broadcast, displayItem, item, extraItems, commands,
+                permCheckEnabled, checkPermission, permAction, alternativeRewardId);
     }
 
     private CommandReward loadCommandReward(String id, String displayName, String rarity, double chance,
-                                            boolean broadcast, ItemStack displayItem, ConfigurationSection section) {
+                                            boolean broadcast, ItemStack displayItem, ConfigurationSection section,
+                                            boolean permCheckEnabled, String checkPermission,
+                                            PermissionAction permAction, String alternativeRewardId) {
         List<String> commands = section.getStringList("commands");
-        return new CommandReward(id, displayName, rarity, chance, broadcast, displayItem, commands);
+        ItemStack item = loadOptionalRewardItem(section, displayName);
+        List<ItemStack> extraItems = loadExtraItems(section);
+        return new CommandReward(id, displayName, rarity, chance, broadcast, displayItem, commands, item, extraItems,
+                permCheckEnabled, checkPermission, permAction, alternativeRewardId);
     }
 
     private MoneyReward loadMoneyReward(String id, String displayName, String rarity, double chance,
-                                        boolean broadcast, ItemStack displayItem, ConfigurationSection section) {
+                                        boolean broadcast, ItemStack displayItem, ConfigurationSection section,
+                                        boolean permCheckEnabled, String checkPermission,
+                                        PermissionAction permAction, String alternativeRewardId) {
         double amount = section.getDouble("amount", 100);
-        return new MoneyReward(id, displayName, rarity, chance, broadcast, displayItem, amount);
+        return new MoneyReward(id, displayName, rarity, chance, broadcast, displayItem, amount,
+                permCheckEnabled, checkPermission, permAction, alternativeRewardId);
     }
 
     private ExperienceReward loadExperienceReward(String id, String displayName, String rarity, double chance,
-                                                  boolean broadcast, ItemStack displayItem, ConfigurationSection section) {
+                                                  boolean broadcast, ItemStack displayItem, ConfigurationSection section,
+                                                  boolean permCheckEnabled, String checkPermission,
+                                                  PermissionAction permAction, String alternativeRewardId) {
         ConfigurationSection expSection = section.getConfigurationSection("experience");
         int amount = expSection != null ? expSection.getInt("amount", 100) : 100;
         boolean levels = expSection != null && expSection.getString("type", "points").equalsIgnoreCase("levels");
-        return new ExperienceReward(id, displayName, rarity, chance, broadcast, displayItem, amount, levels);
+        return new ExperienceReward(id, displayName, rarity, chance, broadcast, displayItem, amount, levels,
+                permCheckEnabled, checkPermission, permAction, alternativeRewardId);
     }
 
     public void loadLocations() {
@@ -322,7 +398,8 @@ public class CrateManager {
                 int y = rs.getInt("y");
                 int z = rs.getInt("z");
                 String crateId = rs.getString("crate_id");
-                crateLocations.add(new CrateLocation(world, x, y, z, crateId));
+                float yaw = rs.getFloat("yaw");
+                crateLocations.add(new CrateLocation(world, x, y, z, crateId, yaw));
             }
 
             plugin.getLogger().info("Loaded " + crateLocations.size() + " crate locations.");
@@ -334,8 +411,8 @@ public class CrateManager {
     public void addLocation(CrateLocation location) {
         crateLocations.add(location);
         String sql = plugin.getConfigManager().getDatabaseType().equalsIgnoreCase("mysql")
-                ? "INSERT INTO crate_locations (world, x, y, z, crate_id) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE crate_id = VALUES(crate_id)"
-                : "INSERT OR REPLACE INTO crate_locations (world, x, y, z, crate_id) VALUES (?, ?, ?, ?, ?)";
+                ? "INSERT INTO crate_locations (world, x, y, z, crate_id, yaw) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE crate_id = VALUES(crate_id), yaw = VALUES(yaw)"
+                : "INSERT OR REPLACE INTO crate_locations (world, x, y, z, crate_id, yaw) VALUES (?, ?, ?, ?, ?, ?)";
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, location.getWorld());
@@ -343,6 +420,7 @@ public class CrateManager {
             stmt.setInt(3, location.getY());
             stmt.setInt(4, location.getZ());
             stmt.setString(5, location.getCrateId());
+            stmt.setFloat(6, location.getYaw());
             stmt.executeUpdate();
         } catch (SQLException e) {
             plugin.getLogger().severe("Failed to save crate location: " + e.getMessage());
@@ -383,12 +461,17 @@ public class CrateManager {
     public List<CrateLocation> getCrateLocations() { return new ArrayList<>(crateLocations); }
 
     public void setCrateLocation(String crateId, Location location) {
+        setCrateLocation(crateId, location, 0f);
+    }
+
+    public void setCrateLocation(String crateId, Location location, float yaw) {
         CrateLocation crateLocation = new CrateLocation(
                 location.getWorld().getName(),
                 location.getBlockX(),
                 location.getBlockY(),
                 location.getBlockZ(),
-                crateId
+                crateId,
+                yaw
         );
         addLocation(crateLocation);
     }
@@ -879,7 +962,7 @@ public class CrateManager {
             config.set("sounds.win.pitch", 1.0);
             config.set("pity.enabled", false);
             config.set("pity.count", 50);
-            config.set("pity.rarity", "rare");
+            config.set("pity.rarity", plugin.getConfigManager().getDefaultPityRarityId());
             config.set("multi-open.enabled", true);
             config.set("multi-open.max", 10);
             config.save(file);
@@ -1266,7 +1349,7 @@ public class CrateManager {
 
             config.set(path + ".type", "ITEM");
             config.set(path + ".chance", 10.0);
-            config.set(path + ".rarity", "common");
+            config.set(path + ".rarity", plugin.getConfigManager().getDefaultRarityId());
             config.set(path + ".broadcast", false);
             config.set(path + ".display-name", "新奖励");
 
@@ -1360,5 +1443,121 @@ public class CrateManager {
             }
         }
         return result.toString().trim();
+    }
+
+    // ==================== 权限检测配置管理 ====================
+
+    /**
+     * 切换奖励权限检测开关
+     */
+    public void toggleRewardPermissionCheck(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("rewards." + rewardId + ".permission-check.enabled", false);
+            config.set("rewards." + rewardId + ".permission-check.enabled", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle reward permission check: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取奖励权限检测开关状态
+     */
+    public boolean getRewardPermissionCheckEnabled(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return false;
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        return config.getBoolean("rewards." + rewardId + ".permission-check.enabled", false);
+    }
+
+    /**
+     * 更新奖励权限检测的权限节点
+     */
+    public void updateRewardCheckPermission(String crateId, String rewardId, String permission) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId + ".permission-check.permission", permission);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward check permission: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取奖励权限检测的权限节点
+     */
+    public String getRewardCheckPermission(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return null;
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        return config.getString("rewards." + rewardId + ".permission-check.permission", null);
+    }
+
+    /**
+     * 更新奖励权限检测的行为
+     */
+    public void updateRewardPermissionAction(String crateId, String rewardId, PermissionAction action) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId + ".permission-check.action", action.name().toLowerCase());
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward permission action: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取奖励权限检测的行为
+     */
+    public PermissionAction getRewardPermissionAction(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return PermissionAction.SKIP;
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        String action = config.getString("rewards." + rewardId + ".permission-check.action", "skip");
+        return action.equalsIgnoreCase("alternative") ? PermissionAction.ALTERNATIVE : PermissionAction.SKIP;
+    }
+
+    /**
+     * 更新奖励权限检测的替代奖励ID
+     */
+    public void updateRewardAlternativeReward(String crateId, String rewardId, String alternativeRewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("rewards." + rewardId + ".permission-check.alternative-reward", alternativeRewardId);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update reward alternative reward: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 获取奖励权限检测的替代奖励ID
+     */
+    public String getRewardAlternativeReward(String crateId, String rewardId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return null;
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        return config.getString("rewards." + rewardId + ".permission-check.alternative-reward", null);
     }
 }

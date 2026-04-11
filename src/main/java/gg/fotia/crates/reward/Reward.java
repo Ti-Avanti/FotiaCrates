@@ -15,19 +15,31 @@ public interface Reward {
     ItemStack getDisplayItem();
     void give(Player player);
 
-    /**
-     * 获取实际给予玩家的物品
-     * @return 奖励物品，如果没有单独设置则返回null
-     */
     default ItemStack getItem() {
         return null;
     }
 
-    /**
-     * 获取奖励关联的命令列表
-     * @return 命令列表，如果没有则返回空列表
-     */
+    default List<ItemStack> getExtraItems() {
+        return List.of();
+    }
+
     default List<String> getCommands() {
         return List.of();
+    }
+
+    default boolean isPermissionCheckEnabled() {
+        return false;
+    }
+
+    default String getCheckPermission() {
+        return null;
+    }
+
+    default PermissionAction getPermissionAction() {
+        return PermissionAction.SKIP;
+    }
+
+    default String getAlternativeRewardId() {
+        return null;
     }
 }

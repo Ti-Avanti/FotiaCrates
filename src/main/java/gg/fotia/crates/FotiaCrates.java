@@ -2,7 +2,6 @@ package gg.fotia.crates;
 
 import gg.fotia.crates.command.CrateCommand;
 import gg.fotia.crates.config.ConfigManager;
-import gg.fotia.crates.config.MessageConfig;
 import gg.fotia.crates.crate.CrateManager;
 import gg.fotia.crates.database.DatabaseManager;
 import gg.fotia.crates.gui.GuiManager;
@@ -18,6 +17,7 @@ import gg.fotia.crates.listener.PlayerListener;
 import gg.fotia.crates.modelengine.ModelEngineManager;
 import gg.fotia.crates.pity.PityManager;
 import gg.fotia.crates.reward.PendingRewardManager;
+import gg.fotia.crates.reward.RewardItemDeliveryService;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -26,7 +26,6 @@ public class FotiaCrates extends JavaPlugin {
 
     private static FotiaCrates instance;
     private ConfigManager configManager;
-    private MessageConfig messageConfig;
     private LanguageManager languageManager;
     private DatabaseManager databaseManager;
     private CrateManager crateManager;
@@ -36,6 +35,7 @@ public class FotiaCrates extends JavaPlugin {
     private PityManager pityManager;
     private ModelEngineManager modelEngineManager;
     private PendingRewardManager pendingRewardManager;
+    private RewardItemDeliveryService rewardItemDeliveryService;
     private HologramManager hologramManager;
     private EntityInteractPacketListener entityInteractPacketListener;
     private Economy economy;
@@ -47,9 +47,6 @@ public class FotiaCrates extends JavaPlugin {
         // 加载配置
         configManager = new ConfigManager(this);
         configManager.loadConfigs();
-
-        // 加载消息配置
-        messageConfig = new MessageConfig(this);
 
         // 加载多语言系统
         languageManager = new LanguageManager(this);
@@ -70,6 +67,7 @@ public class FotiaCrates extends JavaPlugin {
         pityManager = new PityManager(this);
         modelEngineManager = new ModelEngineManager(this);
         pendingRewardManager = new PendingRewardManager(this);
+        rewardItemDeliveryService = new RewardItemDeliveryService(this);
         hologramManager = new HologramManager(this);
 
         // 加载抽奖箱
@@ -146,7 +144,6 @@ public class FotiaCrates extends JavaPlugin {
 
     public void reload() {
         configManager.loadConfigs();
-        messageConfig.reload();
         languageManager.reload();
         keyManager.reload();
         crateManager.loadCrates();
@@ -178,8 +175,8 @@ public class FotiaCrates extends JavaPlugin {
             // 检查是否已有模型
             if (modelEngineManager.hasModel(loc)) continue;
 
-            // 生成模型
-            modelEngineManager.spawnCrateModel(crate, loc, null);
+            // 生成模型（使用保存的yaw朝向）
+            modelEngineManager.spawnCrateModel(crate, loc, crateLocation.getYaw());
         }
     }
 
@@ -189,10 +186,6 @@ public class FotiaCrates extends JavaPlugin {
 
     public ConfigManager getConfigManager() {
         return configManager;
-    }
-
-    public MessageConfig getMessageConfig() {
-        return messageConfig;
     }
 
     public LanguageManager getLanguageManager() {
@@ -229,6 +222,10 @@ public class FotiaCrates extends JavaPlugin {
 
     public PendingRewardManager getPendingRewardManager() {
         return pendingRewardManager;
+    }
+
+    public RewardItemDeliveryService getRewardItemDeliveryService() {
+        return rewardItemDeliveryService;
     }
 
     public HologramManager getHologramManager() {

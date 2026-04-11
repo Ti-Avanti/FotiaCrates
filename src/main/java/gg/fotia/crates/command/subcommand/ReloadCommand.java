@@ -17,9 +17,9 @@ public class ReloadCommand extends AbstractSubCommand {
         plugin.reload();
 
         if (sender instanceof Player p) {
-            plugin.getMessageConfig().send(p, "reload-success");
+            plugin.getLanguageManager().send(p, "reload-success");
         } else {
-            sender.sendMessage(plugin.getMessageConfig().getMessage("reload-success"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("reload-success"));
         }
     }
 

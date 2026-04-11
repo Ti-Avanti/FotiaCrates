@@ -23,6 +23,7 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
 
     private void registerSubCommands() {
         subCommands.put("open", new OpenCommand(plugin));
+        subCommands.put("claim", new ClaimCommand(plugin));
         subCommands.put("preview", new PreviewCommand(plugin));
         subCommands.put("key", new KeyCommand(plugin));
         subCommands.put("give", new GiveCommand(plugin));

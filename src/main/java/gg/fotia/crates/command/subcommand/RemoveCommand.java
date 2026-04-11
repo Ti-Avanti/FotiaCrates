@@ -1,7 +1,7 @@
 package gg.fotia.crates.command.subcommand;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.config.MessageConfig;
+import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.crate.Crate;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
@@ -18,28 +18,29 @@ public class RemoveCommand extends AbstractSubCommand {
     @Override
     public void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(plugin.getMessageConfig().getMessage("must-be-player"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("must-be-player"));
             return;
         }
 
         Block targetBlock = player.getTargetBlockExact(5);
         if (targetBlock == null || targetBlock.getType().isAir()) {
-            plugin.getMessageConfig().send(player, "no-block");
+            plugin.getLanguageManager().send(player, "no-block");
             return;
         }
 
         Crate crate = plugin.getCrateManager().getCrateAtLocation(targetBlock.getLocation());
         if (crate == null) {
-            plugin.getMessageConfig().send(player, "not-crate-location");
+            plugin.getLanguageManager().send(player, "not-crate-location");
             return;
         }
 
         // 移除ModelEngine模型
+        plugin.getHologramManager().removeHologram(targetBlock.getLocation());
         plugin.getModelEngineManager().removeCrateModel(targetBlock.getLocation());
         plugin.getCrateManager().removeCrateLocation(targetBlock.getLocation());
 
-        plugin.getMessageConfig().send(player, "crate-removed",
-                MessageConfig.placeholders("crate", crate.getName()));
+        plugin.getLanguageManager().send(player, "crate-removed",
+                LanguageManager.placeholders("crate", crate.getName()));
     }
 
     @Override

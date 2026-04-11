@@ -105,9 +105,17 @@ public class SQLiteDatabase implements Database {
                     y INTEGER NOT NULL,
                     z INTEGER NOT NULL,
                     crate_id VARCHAR(64) NOT NULL,
+                    yaw REAL DEFAULT 0,
                     UNIQUE(world, x, y, z)
                 )
             """);
+
+            // 为旧表添加yaw列（如果不存在）
+            try {
+                stmt.executeUpdate("ALTER TABLE crate_locations ADD COLUMN yaw REAL DEFAULT 0");
+            } catch (SQLException ignored) {
+                // 列已存在，忽略错误
+            }
 
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_uuid ON crate_history(uuid)");
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_timestamp ON crate_history(timestamp)");

@@ -128,10 +128,30 @@ public class LanguageManager {
     }
 
     /**
+     * 获取消息（带前缀，无玩家参数，使用默认语言）
+     */
+    public Component getMessage(String key) {
+        FileConfiguration config = getLanguageConfig(defaultLanguage);
+        String message = config.getString("messages." + key, key);
+        String langPrefix = config.getString("prefix", prefix);
+        return MessageUtil.parse(langPrefix + message);
+    }
+
+    /**
      * 获取消息（带前缀和占位符）
      */
     public Component getMessage(Player player, String key, Map<String, String> placeholders) {
         FileConfiguration config = getPlayerConfig(player);
+        String message = config.getString("messages." + key, key);
+        String langPrefix = config.getString("prefix", prefix);
+        return MessageUtil.parse(langPrefix + message, placeholders);
+    }
+
+    /**
+     * 获取消息（带前缀和占位符，无玩家参数，使用默认语言）
+     */
+    public Component getMessage(String key, Map<String, String> placeholders) {
+        FileConfiguration config = getLanguageConfig(defaultLanguage);
         String message = config.getString("messages." + key, key);
         String langPrefix = config.getString("prefix", prefix);
         return MessageUtil.parse(langPrefix + message, placeholders);

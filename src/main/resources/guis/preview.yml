@@ -1,7 +1,7 @@
 # 预览GUI配置
 # 使用Layout布局方式
 
-title: "<!i><dark_gray>{crate} 预览"
+title: "<!i><dark_gray>{crate} 预览 ({page}/{total_pages})"
 
 layout:
   - '####I####'
@@ -9,7 +9,7 @@ layout:
   - '#CCCCCCC#'
   - '#CCCCCCC#'
   - '#CCCCCCC#'
-  - '<###O###>'
+  - '<##HO###>'
 
 icons:
   '#':
@@ -28,22 +28,23 @@ icons:
         - '<!i><gray>查看此抽奖箱的所有奖励'
         - ''
         - '<!i><yellow>奖励数量: <!i><white>{reward_count}'
+        - '<!i><yellow>当前页: <!i><white>{page}/{total_pages}'
 
   '<':
     display:
-      material: barrier
-      name: '<!i><red>关闭'
+      material: arrow
+      name: '<!i><yellow>上一页'
       lore:
-        - '<!i><gray>关闭菜单'
-    action: close
+        - '<!i><gray>点击查看上一页'
+    action: prev_page
 
   '>':
     display:
-      material: barrier
-      name: '<!i><red>关闭'
+      material: arrow
+      name: '<!i><yellow>下一页'
       lore:
-        - '<!i><gray>关闭菜单'
-    action: close
+        - '<!i><gray>点击查看下一页'
+    action: next_page
 
   'O':
     display:
@@ -54,3 +55,13 @@ icons:
         - ''
         - '<!i><yellow>你拥有 {keys} 把钥匙'
     action: open_crate
+
+  'H':
+    display:
+      material: book
+      name: '<!i><aqua>抽奖历史'
+      lore:
+        - '<!i><gray>查看你在此抽奖箱的抽奖记录'
+        - ''
+        - '<!i><yellow>点击打开'
+    action: open_history

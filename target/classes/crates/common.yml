@@ -3,7 +3,7 @@
 # 抽奖箱显示名称
 name: "<!i><green>普通宝箱"
 
-# 开箱权限（留空则使用默认权限 fotiacrates.open.<宝箱ID>）
+# 开箱权限（留空则不检测开箱权限）
 # 示例: "vip.crate.common" 或留空
 permission: ""
 

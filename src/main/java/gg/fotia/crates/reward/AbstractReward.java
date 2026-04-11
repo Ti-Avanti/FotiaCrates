@@ -11,13 +11,28 @@ public abstract class AbstractReward implements Reward {
     protected final boolean broadcast;
     protected final ItemStack displayItem;
 
+    // 权限检测相关字段
+    protected final boolean permissionCheckEnabled;
+    protected final String checkPermission;
+    protected final PermissionAction permissionAction;
+    protected final String alternativeRewardId;
+
     public AbstractReward(String id, String displayName, String rarity, double chance, boolean broadcast, ItemStack displayItem) {
+        this(id, displayName, rarity, chance, broadcast, displayItem, false, null, PermissionAction.SKIP, null);
+    }
+
+    public AbstractReward(String id, String displayName, String rarity, double chance, boolean broadcast, ItemStack displayItem,
+                          boolean permissionCheckEnabled, String checkPermission, PermissionAction permissionAction, String alternativeRewardId) {
         this.id = id;
         this.displayName = displayName;
         this.rarity = rarity;
         this.chance = chance;
         this.broadcast = broadcast;
         this.displayItem = displayItem;
+        this.permissionCheckEnabled = permissionCheckEnabled;
+        this.checkPermission = checkPermission;
+        this.permissionAction = permissionAction != null ? permissionAction : PermissionAction.SKIP;
+        this.alternativeRewardId = alternativeRewardId;
     }
 
     @Override
@@ -37,4 +52,16 @@ public abstract class AbstractReward implements Reward {
 
     @Override
     public ItemStack getDisplayItem() { return displayItem.clone(); }
+
+    @Override
+    public boolean isPermissionCheckEnabled() { return permissionCheckEnabled; }
+
+    @Override
+    public String getCheckPermission() { return checkPermission; }
+
+    @Override
+    public PermissionAction getPermissionAction() { return permissionAction; }
+
+    @Override
+    public String getAlternativeRewardId() { return alternativeRewardId; }
 }

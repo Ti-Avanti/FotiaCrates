@@ -16,8 +16,7 @@ public class EditorCommand extends AbstractSubCommand {
     @Override
     public void execute(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            plugin.getMessageConfig().send(null, "must-be-player");
-            sender.sendMessage(plugin.getMessageConfig().getMessage("must-be-player"));
+            sender.sendMessage(plugin.getLanguageManager().getMessage("must-be-player"));
             return;
         }
 
