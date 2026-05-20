@@ -216,23 +216,33 @@ public class KeyManager {
      * 创建物理钥匙物品
      */
     public ItemStack createPhysicalKey(Key key, int amount) {
-        ItemStack item = new ItemBuilder(key.getMaterial())
-                .name(key.getDisplayName())
-                .lore(key.getLore())
-                .customModelData(key.getCustomModelData())
-                .glow(key.isGlow())
-                .build();
+        ItemStack customItem = key.getCustomItem();
+        ItemStack item = customItem != null && !customItem.getType().isAir()
+                ? new ItemBuilder(customItem)
+                        .name(key.getDisplayName())
+                        .lore(key.getLore())
+                        .glow(key.isGlow())
+                        .build()
+                : new ItemBuilder(key.getMaterial())
+                        .name(key.getDisplayName())
+                        .lore(key.getLore())
+                        .customModelData(key.getCustomModelData())
+                        .glow(key.isGlow())
+                        .build();
 
         item.setAmount(amount);
+        applyKeyIdentifier(item, key);
 
+        return item;
+    }
+
+    private void applyKeyIdentifier(ItemStack item, Key key) {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             PersistentDataContainer pdc = meta.getPersistentDataContainer();
             pdc.set(keyIdentifier, PersistentDataType.STRING, key.getId());
             item.setItemMeta(meta);
         }
-
-        return item;
     }
 
     /**

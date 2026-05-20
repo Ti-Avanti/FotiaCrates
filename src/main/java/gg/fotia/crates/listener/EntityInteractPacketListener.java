@@ -1,12 +1,13 @@
 package gg.fotia.crates.listener;
 
-import com.comphenix.protocol.PacketType;
-import com.comphenix.protocol.ProtocolLibrary;
-import com.comphenix.protocol.ProtocolManager;
-import com.comphenix.protocol.events.ListenerPriority;
-import com.comphenix.protocol.events.PacketAdapter;
-import com.comphenix.protocol.events.PacketEvent;
-import com.comphenix.protocol.wrappers.EnumWrappers;
+import com.github.retrooper.packetevents.PacketEvents;
+import com.github.retrooper.packetevents.event.PacketListenerCommon;
+import com.github.retrooper.packetevents.event.PacketListenerPriority;
+import com.github.retrooper.packetevents.event.SimplePacketListenerAbstract;
+import com.github.retrooper.packetevents.event.simple.PacketPlayReceiveEvent;
+import com.github.retrooper.packetevents.protocol.packettype.PacketType;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientAttack;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientInteractEntity;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateLocation;
@@ -16,13 +17,13 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 
 /**
- * 使用ProtocolLib监听玩家左键点击实体的数据包
+ * 使用PacketEvents监听玩家左键点击实体的数据包
  * 用于处理ModelEngine模型的左键预览
  */
 public class EntityInteractPacketListener {
 
     private final FotiaCrates plugin;
-    private PacketAdapter packetAdapter;
+    private PacketListenerCommon packetListener;
 
     public EntityInteractPacketListener(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -32,46 +33,50 @@ public class EntityInteractPacketListener {
      * 注册数据包监听器
      */
     public void register() {
-        if (!isProtocolLibAvailable()) {
-            plugin.getLogger().warning("ProtocolLib not available, ModelEngine left-click preview may not work properly.");
+        if (!isPacketEventsAvailable()) {
+            plugin.getLogger().warning("PacketEvents not available, ModelEngine left-click preview may not work properly.");
             return;
         }
 
-        ProtocolManager protocolManager = ProtocolLibrary.getProtocolManager();
-
-        packetAdapter = new PacketAdapter(plugin, ListenerPriority.HIGH, PacketType.Play.Client.USE_ENTITY) {
+        packetListener = new SimplePacketListenerAbstract(PacketListenerPriority.HIGH) {
             @Override
-            public void onPacketReceiving(PacketEvent event) {
+            public void onPacketPlayReceive(PacketPlayReceiveEvent event) {
                 if (event.isCancelled()) return;
 
-                Player player = event.getPlayer();
+                Player player = event.<Player>getPlayer();
+                if (player == null) return;
 
                 try {
-                    // 获取实体ID
-                    int entityId = event.getPacket().getIntegers().read(0);
+                    Integer entityId = readAttackEntityId(event);
+                    if (entityId == null) return;
 
-                    // 获取交互类型
-                    var useActions = event.getPacket().getEnumEntityUseActions();
-                    if (useActions.size() > 0) {
-                        var useAction = useActions.read(0);
-                        EnumWrappers.EntityUseAction action = useAction.getAction();
-
-                        // 只处理攻击（左键）
-                        if (action == EnumWrappers.EntityUseAction.ATTACK) {
-                            // 在主线程中处理
-                            Bukkit.getScheduler().runTask(plugin, () -> {
-                                handleLeftClickEntity(player, entityId);
-                            });
-                        }
-                    }
+                    Bukkit.getScheduler().runTask(plugin, () -> handleLeftClickEntity(player, entityId));
                 } catch (Exception e) {
                     // 忽略解析错误
                 }
             }
         };
 
-        protocolManager.addPacketListener(packetAdapter);
+        PacketEvents.getAPI().getEventManager().registerListener(packetListener);
         plugin.getLogger().info("EntityInteractPacketListener registered.");
+    }
+
+    /**
+     * 读取左键攻击的实体ID
+     */
+    private Integer readAttackEntityId(PacketPlayReceiveEvent event) {
+        if (event.getPacketType() == PacketType.Play.Client.ATTACK) {
+            return new WrapperPlayClientAttack(event).getEntityId();
+        }
+
+        if (event.getPacketType() == PacketType.Play.Client.INTERACT_ENTITY) {
+            WrapperPlayClientInteractEntity interaction = new WrapperPlayClientInteractEntity(event);
+            if (interaction.getAction() == WrapperPlayClientInteractEntity.InteractAction.ATTACK) {
+                return interaction.getEntityId();
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -188,21 +193,16 @@ public class EntityInteractPacketListener {
      * 注销数据包监听器
      */
     public void unregister() {
-        if (packetAdapter != null && isProtocolLibAvailable()) {
-            ProtocolLibrary.getProtocolManager().removePacketListener(packetAdapter);
-            packetAdapter = null;
+        if (packetListener != null && isPacketEventsAvailable()) {
+            PacketEvents.getAPI().getEventManager().unregisterListener(packetListener);
+            packetListener = null;
         }
     }
 
     /**
-     * 检查ProtocolLib是否可用
+     * 检查PacketEvents是否可用
      */
-    private boolean isProtocolLibAvailable() {
-        try {
-            Class.forName("com.comphenix.protocol.ProtocolLibrary");
-            return Bukkit.getPluginManager().isPluginEnabled("ProtocolLib");
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+    private boolean isPacketEventsAvailable() {
+        return Bukkit.getPluginManager().isPluginEnabled("packetevents");
     }
 }

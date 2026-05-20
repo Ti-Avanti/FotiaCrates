@@ -395,7 +395,7 @@ public class PhysicalAnimation implements Animation {
      */
     private void openChestLid(Player player, Location location) {
         if (location == null || player == null) return;
-        if (ChestLidUtil.isProtocolLibAvailable()) {
+        if (ChestLidUtil.isPacketEventsAvailable()) {
             ChestLidUtil.openChestLid(player, location);
         }
     }
@@ -405,7 +405,7 @@ public class PhysicalAnimation implements Animation {
      */
     private void closeChestLid(Player player, Location location) {
         if (location == null || player == null) return;
-        if (ChestLidUtil.isProtocolLibAvailable()) {
+        if (ChestLidUtil.isPacketEventsAvailable()) {
             ChestLidUtil.closeChestLid(player, location);
         }
     }

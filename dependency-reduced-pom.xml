@@ -4,7 +4,7 @@
   <groupId>gg.fotia</groupId>
   <artifactId>FotiaCrates</artifactId>
   <name>FotiaCrates</name>
-  <version>1.0.9</version>
+  <version>1.0.11</version>
   <description>功能丰富的Minecraft抽奖箱插件</description>
   <build>
     <resources>
@@ -75,6 +75,10 @@
       <id>irepo-space</id>
       <url>https://r.irepo.space/maven/</url>
     </repository>
+    <repository>
+      <id>codemc-releases</id>
+      <url>https://repo.codemc.io/repository/maven-releases/</url>
+    </repository>
   </repositories>
   <dependencies>
     <dependency>
@@ -96,9 +100,9 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>com.comphenix.protocol</groupId>
-      <artifactId>ProtocolLib</artifactId>
-      <version>5.3.0</version>
+      <groupId>com.github.retrooper</groupId>
+      <artifactId>packetevents-spigot</artifactId>
+      <version>2.12.1</version>
       <scope>provided</scope>
     </dependency>
     <dependency>

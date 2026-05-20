@@ -5,12 +5,13 @@ api-version: '1.20'
 authors:
   - Fotia
 description: Feature-rich Minecraft crate plugin
+depend:
+  - packetevents
 softdepend:
   - Vault
   - PlaceholderAPI
   - ModelEngine
   - CraftEngine
-  - ProtocolLib
   - SweetMail
 
 commands:

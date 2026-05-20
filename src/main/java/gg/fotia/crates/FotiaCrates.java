@@ -97,7 +97,7 @@ public class FotiaCrates extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
         getServer().getPluginManager().registerEvents(new GuiListener(this), this);
 
-        // 注册ProtocolLib数据包监听器（用于ModelEngine左键预览）
+        // 注册PacketEvents数据包监听器（用于ModelEngine左键预览）
         entityInteractPacketListener = new EntityInteractPacketListener(this);
         entityInteractPacketListener.register();
 

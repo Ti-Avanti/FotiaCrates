@@ -6,7 +6,7 @@
 
     <groupId>gg.fotia</groupId>
     <artifactId>FotiaCrates</artifactId>
-    <version>1.0.9</version>
+    <version>1.0.11</version>
     <packaging>jar</packaging>
 
     <name>FotiaCrates</name>
@@ -37,6 +37,10 @@
         <repository>
             <id>irepo-space</id>
             <url>https://r.irepo.space/maven/</url>
+        </repository>
+        <repository>
+            <id>codemc-releases</id>
+            <url>https://repo.codemc.io/repository/maven-releases/</url>
         </repository>
     </repositories>
 
@@ -72,9 +76,9 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>com.comphenix.protocol</groupId>
-            <artifactId>ProtocolLib</artifactId>
-            <version>5.3.0</version>
+            <groupId>com.github.retrooper</groupId>
+            <artifactId>packetevents-spigot</artifactId>
+            <version>2.12.1</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
