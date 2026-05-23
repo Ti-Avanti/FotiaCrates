@@ -69,13 +69,19 @@ public class CrateManager {
         String blockItemName = config.getString("block.item.name", name);
         List<String> blockItemLore = config.getStringList("block.item.lore");
 
-        // ModelEngine设置
-        boolean modelEngineEnabled = config.getBoolean("block.modelengine.enabled", false);
-        String modelEngineId = config.getString("block.modelengine.model-id", "");
-        String modelEngineIdleAnimation = config.getString("block.modelengine.idle-animation", "idle");
-        String modelEngineOpenAnimation = config.getString("block.modelengine.open-animation", "open");
-        int modelEngineOpenDelay = config.getInt("block.modelengine.open-delay", 20); // 默认1秒(20tick)
-        int modelEngineViewRange = config.getInt("block.modelengine.view-range", 48); // 默认48格
+        // 模型设置，优先读取新版 block.model，兼容旧版 block.modelengine 和 block.bettermodel
+        boolean betterModelLegacyEnabled = config.getBoolean("block.bettermodel.enabled", false);
+        String modelProvider = config.getString("block.model.provider",
+                betterModelLegacyEnabled ? "bettermodel" : "modelengine");
+        boolean modelEngineEnabled = config.getBoolean("block.model.enabled",
+                betterModelLegacyEnabled || config.getBoolean("block.modelengine.enabled", false));
+        String modelBasePath = "block.model";
+        String legacyBasePath = betterModelLegacyEnabled ? "block.bettermodel" : "block.modelengine";
+        String modelEngineId = getModelString(config, modelBasePath, legacyBasePath, "model-id", "");
+        String modelEngineIdleAnimation = getModelString(config, modelBasePath, legacyBasePath, "idle-animation", "idle");
+        String modelEngineOpenAnimation = getModelString(config, modelBasePath, legacyBasePath, "open-animation", "open");
+        int modelEngineOpenDelay = getModelInt(config, modelBasePath, legacyBasePath, "open-delay", 20);
+        int modelEngineViewRange = getModelInt(config, modelBasePath, legacyBasePath, "view-range", 48);
 
         boolean previewEnabled = config.getBoolean("preview.enabled", true);
         boolean showChance = config.getBoolean("preview.show-chance", true);
@@ -136,7 +142,7 @@ public class CrateManager {
 
         return new Crate(id, name, blockMaterial,
                 blockItemName, blockItemLore,
-                modelEngineEnabled, modelEngineId,
+                modelProvider, modelEngineEnabled, modelEngineId,
                 modelEngineIdleAnimation, modelEngineOpenAnimation,
                 modelEngineOpenDelay, modelEngineViewRange, physicalAnimationHeight,
                 hologramHeight, hologramLines,
@@ -150,6 +156,22 @@ public class CrateManager {
                 pityEnabled, pityTiers,
                 multiOpenEnabled, multiOpenMax, permission,
                 plugin.getConfigManager().getRarityIds());
+    }
+
+    private String getModelString(YamlConfiguration config, String newBasePath, String legacyBasePath, String key, String def) {
+        String newPath = newBasePath + "." + key;
+        if (config.contains(newPath)) {
+            return config.getString(newPath, def);
+        }
+        return config.getString(legacyBasePath + "." + key, def);
+    }
+
+    private int getModelInt(YamlConfiguration config, String newBasePath, String legacyBasePath, String key, int def) {
+        String newPath = newBasePath + "." + key;
+        if (config.contains(newPath)) {
+            return config.getInt(newPath, def);
+        }
+        return config.getInt(legacyBasePath + "." + key, def);
     }
 
     private List<Reward> loadRewards(ConfigurationSection section) {

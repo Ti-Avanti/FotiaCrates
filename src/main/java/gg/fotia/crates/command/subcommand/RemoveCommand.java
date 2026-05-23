@@ -34,7 +34,7 @@ public class RemoveCommand extends AbstractSubCommand {
             return;
         }
 
-        // 移除ModelEngine模型
+        // 移除模型
         plugin.getHologramManager().removeHologram(targetBlock.getLocation());
         plugin.getModelEngineManager().removeCrateModel(targetBlock.getLocation());
         plugin.getCrateManager().removeCrateLocation(targetBlock.getLocation());

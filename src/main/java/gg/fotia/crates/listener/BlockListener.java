@@ -78,7 +78,7 @@ public class BlockListener implements Listener {
         }
 
         float yaw = 0f;
-        if (crate.isModelEngineEnabled()) {
+        if (crate.isModelEnabled()) {
             Location spawnLoc = location.clone().add(0.5, 0, 0.5);
             Location playerLoc = player.getLocation();
             double dx = playerLoc.getX() - spawnLoc.getX();
@@ -90,7 +90,7 @@ public class BlockListener implements Listener {
         plugin.getLanguageManager().send(player, "crate-block-placed",
                 LanguageManager.placeholders("crate", crate.getName()));
 
-        if (crate.isModelEngineEnabled()) {
+        if (crate.isModelEnabled()) {
             plugin.getModelEngineManager().spawnCrateModel(crate, location, player);
         }
 
@@ -183,8 +183,8 @@ public class BlockListener implements Listener {
         RewardResult rewardResult = openAttempt.rewardResult();
         plugin.getHologramManager().hideHologram(crateLocation);
 
-        boolean hasModelEngine = crate.isModelEngineEnabled() && plugin.getModelEngineManager().hasModel(crateLocation);
-        if (hasModelEngine) {
+        boolean hasModel = crate.isModelEnabled() && plugin.getModelEngineManager().hasModel(crateLocation);
+        if (hasModel) {
             plugin.getModelEngineManager().playOpenAnimation(crate, crateLocation, player);
             int delay = crate.getModelEngineOpenDelay();
             plugin.getServer().getScheduler().runTaskLater(plugin,
@@ -207,7 +207,7 @@ public class BlockListener implements Listener {
                 return;
             }
 
-            if (crate.isModelEngineEnabled() && plugin.getModelEngineManager().hasModel(crateLocation)) {
+            if (crate.isModelEnabled() && plugin.getModelEngineManager().hasModel(crateLocation)) {
                 plugin.getModelEngineManager().playIdleAnimation(crate, crateLocation);
             }
 

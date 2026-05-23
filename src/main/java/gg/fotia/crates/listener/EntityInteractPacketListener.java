@@ -18,7 +18,7 @@ import org.bukkit.entity.Player;
 
 /**
  * 使用PacketEvents监听玩家左键点击实体的数据包
- * 用于处理ModelEngine模型的左键预览
+ * 用于处理模型的左键预览
  */
 public class EntityInteractPacketListener {
 
@@ -34,7 +34,7 @@ public class EntityInteractPacketListener {
      */
     public void register() {
         if (!isPacketEventsAvailable()) {
-            plugin.getLogger().warning("PacketEvents not available, ModelEngine left-click preview may not work properly.");
+            plugin.getLogger().warning("PacketEvents not available, model left-click preview may not work properly.");
             return;
         }
 
@@ -92,7 +92,7 @@ public class EntityInteractPacketListener {
             }
         }
 
-        // 如果没找到实体（ModelEngine虚拟实体），通过玩家视线找宝箱
+        // 如果没找到实体（虚拟模型实体），通过玩家视线找宝箱
         if (entity == null) {
             CrateLocation crateLocation = findCrateByPlayerLook(player);
             if (crateLocation != null) {
@@ -110,7 +110,7 @@ public class EntityInteractPacketListener {
 
         // 获取实体位置对应的宝箱
         Location entityLoc = entity.getLocation().getBlock().getLocation();
-        CrateLocation crateLocation = findNearbyModelEngineCrate(entityLoc);
+        CrateLocation crateLocation = findNearbyModelCrate(entityLoc);
         if (crateLocation == null) return;
 
         Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
@@ -138,7 +138,7 @@ public class EntityInteractPacketListener {
             if (!crateLocation.getWorld().equals(player.getWorld().getName())) continue;
 
             Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
-            if (crate == null || !crate.isModelEngineEnabled()) continue;
+            if (crate == null || !crate.isModelEnabled()) continue;
 
             Location crateLoc = crateLocation.toLocation(player.getWorld());
             if (crateLoc == null) continue;
@@ -169,9 +169,9 @@ public class EntityInteractPacketListener {
     }
 
     /**
-     * 查找实体位置附近的ModelEngine宝箱
+     * 查找实体位置附近的模型宝箱
      */
-    private CrateLocation findNearbyModelEngineCrate(Location entityLoc) {
+    private CrateLocation findNearbyModelCrate(Location entityLoc) {
         for (int x = -1; x <= 1; x++) {
             for (int y = -2; y <= 2; y++) {
                 for (int z = -1; z <= 1; z++) {
@@ -179,7 +179,7 @@ public class EntityInteractPacketListener {
                     CrateLocation crateLocation = plugin.getCrateManager().getLocationAt(testLoc);
                     if (crateLocation != null) {
                         Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
-                        if (crate != null && crate.isModelEngineEnabled()) {
+                        if (crate != null && crate.isModelEnabled()) {
                             return crateLocation;
                         }
                     }

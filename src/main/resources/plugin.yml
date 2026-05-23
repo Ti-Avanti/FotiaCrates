@@ -11,6 +11,7 @@ softdepend:
   - Vault
   - PlaceholderAPI
   - ModelEngine
+  - BetterModel
   - CraftEngine
   - SweetMail
 

@@ -4,7 +4,7 @@
   <groupId>gg.fotia</groupId>
   <artifactId>FotiaCrates</artifactId>
   <name>FotiaCrates</name>
-  <version>1.0.11</version>
+  <version>1.0.12</version>
   <description>功能丰富的Minecraft抽奖箱插件</description>
   <build>
     <resources>
@@ -56,6 +56,10 @@
   </build>
   <repositories>
     <repository>
+      <id>central</id>
+      <url>https://repo.maven.apache.org/maven2</url>
+    </repository>
+    <repository>
       <id>papermc</id>
       <url>https://repo.papermc.io/repository/maven-public/</url>
     </repository>
@@ -106,6 +110,12 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
+      <groupId>io.github.toxicity188</groupId>
+      <artifactId>bettermodel-bukkit-api</artifactId>
+      <version>3.0.2</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
       <groupId>me.clip</groupId>
       <artifactId>placeholderapi</artifactId>
       <version>2.11.6</version>
@@ -119,7 +129,7 @@
     </dependency>
   </dependencies>
   <properties>
-    <java.version>17</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <java.version>17</java.version>
   </properties>
 </project>

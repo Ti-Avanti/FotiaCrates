@@ -17,6 +17,7 @@ public class Crate {
     private final Material blockMaterial;
     private final String blockItemName;
     private final List<String> blockItemLore;
+    private final String modelProvider;
     private final boolean modelEngineEnabled;
     private final String modelEngineId;
     private final String modelEngineIdleAnimation;
@@ -70,7 +71,7 @@ public class Crate {
 
     public Crate(String id, String name, Material blockMaterial,
                  String blockItemName, List<String> blockItemLore,
-                 boolean modelEngineEnabled, String modelEngineId,
+                 String modelProvider, boolean modelEngineEnabled, String modelEngineId,
                  String modelEngineIdleAnimation, String modelEngineOpenAnimation,
                  int modelEngineOpenDelay, int modelEngineViewRange, double physicalAnimationHeight,
                  double hologramHeight, List<String> hologramLines,
@@ -88,6 +89,7 @@ public class Crate {
         this.blockMaterial = blockMaterial;
         this.blockItemName = blockItemName;
         this.blockItemLore = blockItemLore != null ? blockItemLore : new ArrayList<>();
+        this.modelProvider = normalizeModelProvider(modelProvider);
         this.modelEngineEnabled = modelEngineEnabled;
         this.modelEngineId = modelEngineId;
         this.modelEngineIdleAnimation = modelEngineIdleAnimation;
@@ -121,6 +123,14 @@ public class Crate {
         this.multiOpenMax = multiOpenMax;
         this.permission = permission;
         this.rarityOrder = rarityOrder != null ? new ArrayList<>(rarityOrder) : new ArrayList<>();
+    }
+
+    private String normalizeModelProvider(String provider) {
+        if (provider == null || provider.isBlank()) {
+            return "modelengine";
+        }
+        String normalized = provider.trim().toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
+        return normalized.equals("bettermodel") ? "bettermodel" : "modelengine";
     }
 
     public Reward rollReward() {
@@ -493,6 +503,10 @@ public class Crate {
     public String getBlockItemName() { return blockItemName; }
     public List<String> getBlockItemLore() { return new ArrayList<>(blockItemLore); }
     public boolean isModelEngineEnabled() { return modelEngineEnabled; }
+    public boolean isModelEnabled() { return modelEngineEnabled; }
+    public String getModelProvider() { return modelProvider; }
+    public boolean isBetterModelEnabled() { return modelEngineEnabled && "bettermodel".equals(modelProvider); }
+    public boolean usesModelEngineProvider() { return modelEngineEnabled && "modelengine".equals(modelProvider); }
     public String getModelEngineId() { return modelEngineId; }
     public String getModelEngineIdleAnimation() { return modelEngineIdleAnimation; }
     public String getModelEngineOpenAnimation() { return modelEngineOpenAnimation; }

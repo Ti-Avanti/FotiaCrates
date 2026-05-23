@@ -90,9 +90,9 @@ public class HologramManager {
             Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
             if (crate == null) continue;
 
-            // 使用宝箱配置的可视距离，如果启用了ModelEngine则使用ModelEngine的可视距离
+            // 使用宝箱配置的可视距离，如果启用了模型则使用模型的可视距离
             double viewRadius = updateRadius;
-            if (crate.isModelEngineEnabled() && crate.getModelEngineViewRange() > 0) {
+            if (crate.isModelEnabled() && crate.getModelEngineViewRange() > 0) {
                 viewRadius = crate.getModelEngineViewRange();
             }
 
@@ -170,7 +170,7 @@ public class HologramManager {
 
         // 使用宝箱配置的可视距离
         float viewRange = 32;
-        if (crate.isModelEngineEnabled() && crate.getModelEngineViewRange() > 0) {
+        if (crate.isModelEnabled() && crate.getModelEngineViewRange() > 0) {
             viewRange = crate.getModelEngineViewRange();
         }
         final float finalViewRange = viewRange;
@@ -213,7 +213,7 @@ public class HologramManager {
 
         // 使用宝箱配置的可视距离
         float viewRange = 32;
-        if (crate.isModelEngineEnabled() && crate.getModelEngineViewRange() > 0) {
+        if (crate.isModelEnabled() && crate.getModelEngineViewRange() > 0) {
             viewRange = crate.getModelEngineViewRange();
         }
         final float finalViewRange = viewRange;

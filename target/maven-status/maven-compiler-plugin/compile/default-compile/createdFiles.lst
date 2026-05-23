@@ -8,6 +8,7 @@ gg\fotia\crates\database\DatabaseManager.class
 gg\fotia\crates\command\subcommand\RemoveCommand.class
 gg\fotia\crates\database\Database.class
 gg\fotia\crates\command\subcommand\SubCommand.class
+gg\fotia\crates\modelengine\BetterModelManager.class
 gg\fotia\crates\util\ChestLidUtil.class
 gg\fotia\crates\hologram\HologramManager.class
 gg\fotia\crates\config\ConfigManager$RarityConfig.class

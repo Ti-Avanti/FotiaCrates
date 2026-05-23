@@ -22,8 +22,12 @@ import java.util.UUID;
  */
 public class ModelEngineManager {
 
+    private static final String MODEL_ENGINE_BASE_TAG = "fotiacrates_modelengine";
+    private static final String BETTER_MODEL_BASE_TAG = "fotiacrates_bettermodel";
+
     private final FotiaCrates plugin;
     private final Map<Location, UUID> crateModels = new HashMap<>();
+    private BetterModelManager betterModelManager;
     private boolean modelEngineAvailable = false;
 
     private Object modelEngineAPI;
@@ -34,6 +38,24 @@ public class ModelEngineManager {
     public ModelEngineManager(FotiaCrates plugin) {
         this.plugin = plugin;
         initializeReflection();
+        initializeBetterModel();
+    }
+
+    private void initializeBetterModel() {
+        if (!plugin.getServer().getPluginManager().isPluginEnabled("BetterModel")) {
+            plugin.getLogger().info("BetterModel not found, BetterModel model features disabled.");
+            return;
+        }
+
+        try {
+            betterModelManager = new BetterModelManager(plugin);
+            if (!betterModelManager.isAvailable()) {
+                betterModelManager = null;
+            }
+        } catch (LinkageError e) {
+            betterModelManager = null;
+            plugin.getLogger().warning("BetterModel API class not found. BetterModel model features disabled.");
+        }
     }
 
     private void initializeReflection() {
@@ -92,10 +114,19 @@ public class ModelEngineManager {
     }
 
     public boolean isAvailable() {
-        return modelEngineAvailable;
+        return modelEngineAvailable || isBetterModelAvailable();
+    }
+
+    private boolean isBetterModelAvailable() {
+        return betterModelManager != null && betterModelManager.isAvailable();
     }
 
     public void spawnCrateModel(Crate crate, Location location, Player placer) {
+        if (crate.isBetterModelEnabled() && isBetterModelAvailable()) {
+            betterModelManager.spawnCrateModel(crate, location, placer);
+            return;
+        }
+
         float yaw = 0f;
         if (placer != null) {
             Location spawnLoc = location.clone().add(0.5, 0, 0.5);
@@ -108,7 +139,15 @@ public class ModelEngineManager {
     }
 
     public void spawnCrateModel(Crate crate, Location location, float yaw) {
-        if (!modelEngineAvailable || !crate.isModelEngineEnabled()) {
+        if (crate.isBetterModelEnabled()) {
+            if (isBetterModelAvailable()) {
+                removeCrateModelInternal(location.getBlock().getLocation(), false);
+                betterModelManager.spawnCrateModel(crate, location, yaw);
+            }
+            return;
+        }
+
+        if (!modelEngineAvailable || !crate.usesModelEngineProvider()) {
             return;
         }
 
@@ -138,6 +177,9 @@ public class ModelEngineManager {
             }
 
             // Clear any stale model entity before spawning a new one at the same location.
+            if (isBetterModelAvailable()) {
+                betterModelManager.removeCrateModel(blockLoc);
+            }
             removeCrateModelInternal(blockLoc, false);
 
             blockLoc.getBlock().setType(Material.BARRIER);
@@ -151,6 +193,7 @@ public class ModelEngineManager {
                 armorStand.setInvulnerable(true);
                 armorStand.setMarker(true);
                 armorStand.setPersistent(true);
+                armorStand.addScoreboardTag(MODEL_ENGINE_BASE_TAG);
             });
 
             Object modeledEntity = createModeledEntityMethod.invoke(null, baseEntity);
@@ -170,6 +213,9 @@ public class ModelEngineManager {
     }
 
     public void removeCrateModel(Location location) {
+        if (isBetterModelAvailable()) {
+            betterModelManager.removeCrateModel(location);
+        }
         removeCrateModelInternal(location.getBlock().getLocation(), true);
     }
 
@@ -203,7 +249,14 @@ public class ModelEngineManager {
     }
 
     public void playOpenAnimation(Crate crate, Location location, Player openingPlayer) {
-        if (!modelEngineAvailable || !crate.isModelEngineEnabled()) {
+        if (crate.isBetterModelEnabled()) {
+            if (isBetterModelAvailable()) {
+                betterModelManager.playOpenAnimation(crate, location, openingPlayer);
+            }
+            return;
+        }
+
+        if (!modelEngineAvailable || !crate.usesModelEngineProvider()) {
             return;
         }
 
@@ -239,7 +292,14 @@ public class ModelEngineManager {
     }
 
     public void playIdleAnimation(Crate crate, Location location) {
-        if (!modelEngineAvailable || !crate.isModelEngineEnabled()) {
+        if (crate.isBetterModelEnabled()) {
+            if (isBetterModelAvailable()) {
+                betterModelManager.playIdleAnimation(crate, location);
+            }
+            return;
+        }
+
+        if (!modelEngineAvailable || !crate.usesModelEngineProvider()) {
             return;
         }
 
@@ -384,7 +444,17 @@ public class ModelEngineManager {
         }
 
         Location entityBlockLoc = armorStand.getLocation().getBlock().getLocation();
-        return entityBlockLoc.equals(blockLoc);
+        if (!entityBlockLoc.equals(blockLoc)) {
+            return false;
+        }
+
+        Set<String> tags = armorStand.getScoreboardTags();
+        if (tags.contains(BETTER_MODEL_BASE_TAG)) {
+            return false;
+        }
+
+        // Keep supporting legacy entities spawned before base tags were added.
+        return tags.contains(MODEL_ENGINE_BASE_TAG) || !tags.contains(BETTER_MODEL_BASE_TAG);
     }
 
     private List<Entity> findNearbyModelBaseEntities(Location blockLoc) {
@@ -446,10 +516,15 @@ public class ModelEngineManager {
     }
 
     public boolean hasModel(Location location) {
-        return resolveModelEntity(location.getBlock().getLocation(), true) != null;
+        return resolveModelEntity(location.getBlock().getLocation(), true) != null
+                || (isBetterModelAvailable() && betterModelManager.hasModel(location));
     }
 
     public void cleanup() {
+        if (isBetterModelAvailable()) {
+            betterModelManager.cleanup();
+        }
+
         Set<Location> locationsToCleanup = new HashSet<>(crateModels.keySet());
 
         if (plugin.getCrateManager() != null) {

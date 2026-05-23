@@ -76,9 +76,9 @@ public class FotiaCrates extends JavaPlugin {
         // 加载抽奖箱位置
         crateManager.loadLocations();
 
-        // 延迟生成 ModelEngine 模型和全息显示（等待世界加载完成）
+        // 延迟生成模型和全息显示（等待世界加载完成）
         getServer().getScheduler().runTaskLater(this, () -> {
-            // 为已放置的宝箱生成 ModelEngine 模型
+            // 为已放置的宝箱生成模型
             spawnAllCrateModels();
             // 创建全息显示
             hologramManager.createAllHolograms();
@@ -97,7 +97,7 @@ public class FotiaCrates extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
         getServer().getPluginManager().registerEvents(new GuiListener(this), this);
 
-        // 注册PacketEvents数据包监听器（用于ModelEngine左键预览）
+        // 注册PacketEvents数据包监听器（用于模型左键预览）
         entityInteractPacketListener = new EntityInteractPacketListener(this);
         entityInteractPacketListener.register();
 
@@ -150,12 +150,12 @@ public class FotiaCrates extends JavaPlugin {
         crateManager.loadLocations();
         guiManager.reload();
         hologramManager.reload();
-        // 重新生成 ModelEngine 模型
+        // 重新生成模型
         spawnAllCrateModels();
     }
 
     /**
-     * 为所有已放置的宝箱生成 ModelEngine 模型
+     * 为所有已放置的宝箱生成模型
      */
     private void spawnAllCrateModels() {
         if (!modelEngineManager.isAvailable()) {
@@ -170,7 +170,7 @@ public class FotiaCrates extends JavaPlugin {
             if (loc == null) continue;
 
             var crate = crateManager.getCrate(crateLocation.getCrateId());
-            if (crate == null || !crate.isModelEngineEnabled()) continue;
+            if (crate == null || !crate.isModelEnabled()) continue;
 
             // 检查是否已有模型
             if (modelEngineManager.hasModel(loc)) continue;

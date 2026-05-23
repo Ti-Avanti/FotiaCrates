@@ -17,13 +17,16 @@ block:
       - "<!i><gray>放置此方块创建抽奖箱"
       - ""
       - "<!i><yellow>右键放置"
-  # ModelEngine模型设置（可选）
-  modelengine:
+  # 模型设置（可选）
+  # provider 可选: modelengine, bettermodel
+  # 旧版 block.modelengine 配置仍兼容，但推荐使用此通用配置。
+  model:
     enabled: false
+    provider: modelengine
     model-id: "common_crate"
-    # 待机动画（bbmodel中定义的动画名称）
+    # 待机动画（模型中定义的动画名称）
     idle-animation: "idle"
-    # 开启动画（bbmodel中定义的动画名称）
+    # 开启动画（模型中定义的动画名称）
     open-animation: "open"
     # 开启动画延迟（tick，20tick=1秒）
     # 播放开启动画后等待多久开始滚动抽奖
