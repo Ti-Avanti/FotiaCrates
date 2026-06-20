@@ -4,7 +4,7 @@
   <groupId>gg.fotia</groupId>
   <artifactId>FotiaCrates</artifactId>
   <name>FotiaCrates</name>
-  <version>1.0.12</version>
+  <version>1.0.13</version>
   <description>功能丰富的Minecraft抽奖箱插件</description>
   <build>
     <resources>

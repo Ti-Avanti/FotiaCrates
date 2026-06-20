@@ -6,6 +6,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -53,6 +54,15 @@ public class CrateCommand implements CommandExecutor, TabCompleter {
         }
 
         String[] subArgs = Arrays.copyOfRange(args, 1, args.length);
+        if (!subCommand.hasPermission(sender)) {
+            if (sender instanceof Player player) {
+                plugin.getLanguageManager().send(player, "no-permission");
+            } else {
+                sender.sendMessage(plugin.getLanguageManager().getMessage("no-permission"));
+            }
+            return true;
+        }
+
         subCommand.execute(sender, subArgs);
         return true;
     }
