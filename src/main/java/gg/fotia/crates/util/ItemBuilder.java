@@ -1,6 +1,7 @@
 package gg.fotia.crates.util;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Material;
 import org.bukkit.Registry;
 import org.bukkit.enchantments.Enchantment;
@@ -17,6 +18,8 @@ public class ItemBuilder {
 
     private final ItemStack itemStack;
     private final ItemMeta itemMeta;
+    private String fallbackName;
+    private List<String> fallbackLore;
 
     public ItemBuilder(Material material) {
         this.itemStack = new ItemStack(material);
@@ -31,6 +34,7 @@ public class ItemBuilder {
     public ItemBuilder name(String name) {
         if (name != null && itemMeta != null) {
             itemMeta.displayName(MessageUtil.parse(name));
+            fallbackName = MessageUtil.stripColor(name);
         }
         return this;
     }
@@ -38,6 +42,7 @@ public class ItemBuilder {
     public ItemBuilder name(Component name) {
         if (name != null && itemMeta != null) {
             itemMeta.displayName(name);
+            fallbackName = PlainTextComponentSerializer.plainText().serialize(name);
         }
         return this;
     }
@@ -45,10 +50,13 @@ public class ItemBuilder {
     public ItemBuilder lore(List<String> lore) {
         if (lore != null && itemMeta != null) {
             List<Component> components = new ArrayList<>();
+            List<String> plainLore = new ArrayList<>();
             for (String line : lore) {
                 components.add(MessageUtil.parse(line));
+                plainLore.add(MessageUtil.stripColor(line));
             }
             itemMeta.lore(components);
+            fallbackLore = plainLore;
         }
         return this;
     }
@@ -63,6 +71,10 @@ public class ItemBuilder {
             }
             currentLore.add(MessageUtil.parse(line));
             itemMeta.lore(currentLore);
+            if (fallbackLore == null) {
+                fallbackLore = new ArrayList<>();
+            }
+            fallbackLore.add(MessageUtil.stripColor(line));
         }
         return this;
     }
@@ -70,6 +82,9 @@ public class ItemBuilder {
     public ItemBuilder loreComponents(List<Component> lore) {
         if (lore != null && itemMeta != null) {
             itemMeta.lore(lore);
+            fallbackLore = lore.stream()
+                    .map(component -> PlainTextComponentSerializer.plainText().serialize(component))
+                    .toList();
         }
         return this;
     }
@@ -132,8 +147,34 @@ public class ItemBuilder {
 
     public ItemStack build() {
         if (itemMeta != null) {
-            itemStack.setItemMeta(itemMeta);
+            try {
+                itemStack.setItemMeta(itemMeta);
+            } catch (RuntimeException | LinkageError e) {
+                applyPlainTextFallback();
+            }
         }
         return itemStack;
+    }
+
+    private void applyPlainTextFallback() {
+        ItemMeta fallbackMeta = itemStack.getItemMeta();
+        if (fallbackMeta == null) {
+            return;
+        }
+
+        if (fallbackName != null) {
+            fallbackMeta.displayName(Component.text(fallbackName));
+        }
+        if (fallbackLore != null) {
+            fallbackMeta.lore(fallbackLore.stream()
+                    .map(Component::text)
+                    .toList());
+        }
+
+        try {
+            itemStack.setItemMeta(fallbackMeta);
+        } catch (RuntimeException | LinkageError ignored) {
+            // Leave the base item usable even if this server rejects all text metadata.
+        }
     }
 }
