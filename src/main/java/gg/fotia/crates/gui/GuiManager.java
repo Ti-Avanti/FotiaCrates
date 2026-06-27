@@ -4,6 +4,8 @@ import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.history.HistoryManager;
 import gg.fotia.crates.key.Key;
+import gg.fotia.crates.particle.CrateParticleEffect;
+import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.reward.Reward;
 import gg.fotia.crates.util.ItemBuilder;
 import gg.fotia.crates.util.MessageUtil;
@@ -174,7 +176,7 @@ public class GuiManager {
         placeholders.put("{animation_type}", crate.getAnimationType().name());
         placeholders.put("{animation_duration}", String.valueOf(crate.getAnimationDuration()));
         placeholders.put("{particles_enabled}", crate.isParticlesEnabled() ? "是" : "否");
-        placeholders.put("{particle_type}", crate.getParticleType().name());
+        placeholders.put("{particle_type}", crate.getParticleEffect(ParticleStage.REWARD).getParticle());
         placeholders.put("{pity_enabled}", crate.isPityEnabled() ? "是" : "否");
         placeholders.put("{pity_count}", String.valueOf(crate.getPityCount()));
         placeholders.put("{pity_rarity}", crate.getPityRarity());
@@ -184,6 +186,9 @@ public class GuiManager {
         placeholders.put("{multi_open_max}", String.valueOf(crate.getMultiOpenMax()));
 
         placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        if (!hasConfiguredAction(config, "edit_particles") && config.getSize() > 3) {
+            inventory.setItem(3, createParticleShortcutItem(crate));
+        }
 
         // 放置奖励列表
         List<Integer> contentSlots = config.getContentSlots();
@@ -571,6 +576,24 @@ public class GuiManager {
         return new ItemBuilder(crate.getBlockMaterial())
                 .name(crate.getName())
                 .lore(lore)
+                .build();
+    }
+
+    private boolean hasConfiguredAction(GuiConfig config, String action) {
+        return config.getItems().values().stream()
+                .anyMatch(item -> action.equalsIgnoreCase(item.getAction()));
+    }
+
+    private ItemStack createParticleShortcutItem(Crate crate) {
+        return new ItemBuilder(Material.BLAZE_POWDER)
+                .name("<!i><gold>粒子特效设置")
+                .lore(List.of(
+                        "<!i><gray>配置待机、开箱、奖励三阶段粒子",
+                        "",
+                        "<!i><yellow>启用: " + (crate.isParticlesEnabled() ? "是" : "否"),
+                        "<!i><yellow>奖励粒子: " + crate.getParticleEffect(ParticleStage.REWARD).getParticle(),
+                        "<!i><yellow>左键点击编辑"
+                ))
                 .build();
     }
 
@@ -1793,6 +1816,179 @@ public class GuiManager {
         inventory.setItem(45, back);
 
         player.openInventory(inventory);
+    }
+
+    public void openParticleEditGui(Player player, Crate crate) {
+        Inventory inventory = Bukkit.createInventory(
+                new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate),
+                54,
+                MessageUtil.parse("<!i><dark_gray>粒子特效设置")
+        );
+
+        CrateGuiHolder holder = (CrateGuiHolder) inventory.getHolder();
+        holder.setData("edit_particles", true);
+
+        ItemStack fill = new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
+        for (int i = 0; i < 54; i++) {
+            inventory.setItem(i, fill);
+        }
+
+        inventory.setItem(4, new ItemBuilder(crate.isParticlesEnabled() ? Material.LIME_DYE : Material.GRAY_DYE)
+                .name(crate.isParticlesEnabled() ? "<!i><green>粒子总开关: 开启" : "<!i><red>粒子总开关: 关闭")
+                .lore(List.of(
+                        "<!i><gray>控制该抽奖箱的所有粒子阶段",
+                        "",
+                        "<!i><yellow>点击切换"
+                ))
+                .build());
+
+        inventory.setItem(20, createParticleStageItem(crate, ParticleStage.IDLE, Material.BLAZE_POWDER));
+        inventory.setItem(22, createParticleStageItem(crate, ParticleStage.OPEN, Material.FIREWORK_STAR));
+        inventory.setItem(24, createParticleStageItem(crate, ParticleStage.REWARD, Material.EMERALD));
+
+        inventory.setItem(45, new ItemBuilder(Material.ARROW)
+                .name("<!i><red>返回")
+                .lore(List.of("<!i><gray>返回抽奖箱编辑界面"))
+                .build());
+
+        inventory.setItem(49, new ItemBuilder(Material.ENDER_EYE)
+                .name("<!i><aqua>预览全部阶段")
+                .lore(List.of(
+                        "<!i><gray>在当前位置播放已启用的粒子阶段",
+                        "",
+                        "<!i><yellow>点击预览"
+                ))
+                .build());
+
+        player.openInventory(inventory);
+    }
+
+    public void openParticleStageEditGui(Player player, Crate crate, ParticleStage stage) {
+        CrateParticleEffect effect = crate.getParticleEffect(stage);
+        Inventory inventory = Bukkit.createInventory(
+                new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate),
+                54,
+                MessageUtil.parse("<!i><dark_gray>粒子阶段: " + stage.displayName())
+        );
+
+        CrateGuiHolder holder = (CrateGuiHolder) inventory.getHolder();
+        holder.setData("edit_particles", true);
+        holder.setData("particle_stage", stage.name());
+
+        ItemStack fill = new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
+        for (int i = 0; i < 54; i++) {
+            inventory.setItem(i, fill);
+        }
+
+        inventory.setItem(4, new ItemBuilder(effect.isEnabled() ? Material.LIME_DYE : Material.GRAY_DYE)
+                .name(effect.isEnabled() ? "<!i><green>" + stage.displayName() + "阶段: 开启"
+                        : "<!i><red>" + stage.displayName() + "阶段: 关闭")
+                .lore(List.of("<!i><yellow>点击切换"))
+                .build());
+
+        inventory.setItem(10, new ItemBuilder(Material.NETHER_STAR)
+                .name("<!i><yellow>粒子类型: <!i><white>" + effect.getParticle())
+                .lore(List.of(
+                        "<!i><gray>支持当前服务端存在的 Particle 名称",
+                        "<!i><gray>示例: FLAME, END_ROD, DUST, HAPPY_VILLAGER",
+                        "",
+                        "<!i><yellow>点击后在聊天输入"
+                ))
+                .build());
+
+        inventory.setItem(12, new ItemBuilder(Material.COMPASS)
+                .name("<!i><aqua>特效模式: <!i><white>" + effect.getMode().name())
+                .lore(List.of(
+                        "<!i><gray>显示: <!i><white>" + effect.getMode().displayName(),
+                        "",
+                        "<!i><yellow>左键下一个",
+                        "<!i><yellow>右键上一个"
+                ))
+                .build());
+
+        inventory.setItem(14, new ItemBuilder(Material.TARGET)
+                .name("<!i><green>播放目标: <!i><white>" + effect.getTarget().name())
+                .lore(List.of(
+                        "<!i><gray>显示: <!i><white>" + effect.getTarget().displayName(),
+                        "",
+                        "<!i><yellow>左键下一个",
+                        "<!i><yellow>右键上一个"
+                ))
+                .build());
+
+        inventory.setItem(16, new ItemBuilder(Material.ENDER_EYE)
+                .name("<!i><aqua>预览当前阶段")
+                .lore(List.of("<!i><yellow>点击预览"))
+                .build());
+
+        inventory.setItem(19, numberItem(Material.GUNPOWDER, "数量", String.valueOf(effect.getCount()), "左键+1 右键-1 Shift=5"));
+        inventory.setItem(21, numberItem(Material.SLIME_BALL, "半径", String.valueOf(effect.getRadius()), "左键+0.1 右键-0.1 Shift=0.5"));
+        inventory.setItem(23, numberItem(Material.SCAFFOLDING, "高度", String.valueOf(effect.getHeight()), "左键+0.1 右键-0.1 Shift=0.5"));
+        inventory.setItem(25, numberItem(Material.SUGAR, "速度", String.valueOf(effect.getSpeed()), "左键+0.01 右键-0.01 Shift=0.05"));
+        inventory.setItem(28, numberItem(Material.CLOCK, "间隔", effect.getInterval() + " tick", "左键+1 右键-1 Shift=5"));
+        inventory.setItem(30, numberItem(Material.REPEATER, "持续时间", effect.getDuration() + " tick", "左键+5 右键-5 Shift=20"));
+        inventory.setItem(32, new ItemBuilder(Material.RED_DYE)
+                .name("<!i><red>主颜色: <!i><white>" + effect.getColor())
+                .lore(List.of("<!i><gray>DUST/REDSTONE 粒子使用", "", "<!i><yellow>点击后输入 #RRGGBB"))
+                .build());
+        inventory.setItem(34, new ItemBuilder(Material.PURPLE_DYE)
+                .name("<!i><light_purple>过渡颜色: <!i><white>" + effect.getToColor())
+                .lore(List.of("<!i><gray>DUST_COLOR_TRANSITION 粒子使用", "", "<!i><yellow>点击后输入 #RRGGBB"))
+                .build());
+
+        inventory.setItem(37, new ItemBuilder(effect.getBlockMaterial())
+                .name("<!i><gold>方块粒子材质: <!i><white>" + effect.getBlockMaterial().name())
+                .lore(List.of(
+                        "<!i><gray>BLOCK/BLOCK_CRACK 粒子使用",
+                        "",
+                        "<!i><yellow>手持方块点击设置"
+                ))
+                .build());
+
+        inventory.setItem(39, new ItemBuilder(effect.getItemMaterial())
+                .name("<!i><gold>物品粒子材质: <!i><white>" + effect.getItemMaterial().name())
+                .lore(List.of(
+                        "<!i><gray>ITEM/ITEM_CRACK 粒子使用",
+                        "",
+                        "<!i><yellow>手持物品点击设置"
+                ))
+                .build());
+
+        inventory.setItem(40, numberItem(Material.GLOWSTONE_DUST, "粒子大小", String.valueOf(effect.getSize()), "左键+0.1 右键-0.1 Shift=0.5"));
+
+        inventory.setItem(45, new ItemBuilder(Material.ARROW)
+                .name("<!i><red>返回")
+                .lore(List.of("<!i><gray>返回粒子特效设置"))
+                .build());
+
+        player.openInventory(inventory);
+    }
+
+    private ItemStack createParticleStageItem(Crate crate, ParticleStage stage, Material material) {
+        CrateParticleEffect effect = crate.getParticleEffect(stage);
+        return new ItemBuilder(material)
+                .name((effect.isEnabled() ? "<!i><green>" : "<!i><red>") + stage.displayName() + "阶段")
+                .lore(List.of(
+                        "<!i><gray>启用: <!i><white>" + (effect.isEnabled() ? "是" : "否"),
+                        "<!i><gray>粒子: <!i><white>" + effect.getParticle(),
+                        "<!i><gray>模式: <!i><white>" + effect.getMode().name() + " (" + effect.getMode().displayName() + ")",
+                        "<!i><gray>目标: <!i><white>" + effect.getTarget().displayName(),
+                        "<!i><gray>数量: <!i><white>" + effect.getCount(),
+                        "",
+                        "<!i><yellow>左键编辑"
+                ))
+                .build();
+    }
+
+    private ItemStack numberItem(Material material, String name, String value, String help) {
+        return new ItemBuilder(material)
+                .name("<!i><yellow>" + name + ": <!i><white>" + value)
+                .lore(List.of(
+                        "<!i><gray>" + help,
+                        "",
+                        "<!i><yellow>点击调整"
+                ))
+                .build();
     }
 
     /**

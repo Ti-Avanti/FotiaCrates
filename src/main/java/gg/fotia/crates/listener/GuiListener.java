@@ -10,6 +10,11 @@ import gg.fotia.crates.gui.GuiItem;
 import gg.fotia.crates.gui.GuiType;
 import gg.fotia.crates.key.KeyType;
 import gg.fotia.crates.lang.LanguageManager;
+import gg.fotia.crates.particle.CrateParticleEffect;
+import gg.fotia.crates.particle.ParticleCompat;
+import gg.fotia.crates.particle.ParticleEffectMode;
+import gg.fotia.crates.particle.ParticleStage;
+import gg.fotia.crates.particle.ParticleTarget;
 import gg.fotia.crates.reward.Reward;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -247,7 +252,17 @@ public class GuiListener implements Listener {
             return;
         }
 
+        Boolean editParticles = holder.getData("edit_particles");
+        if (editParticles != null && editParticles) {
+            handleParticleEditClick(event, player, crate, holder, slot);
+            return;
+        }
+
         GuiConfig config = plugin.getGuiManager().getConfigManager().getGuiConfig("admin_crate_edit");
+        if (slot == 3 && config != null && !hasConfiguredAction(config, "edit_particles")) {
+            plugin.getGuiManager().openParticleEditGui(player, crate);
+            return;
+        }
         if (config != null) {
             GuiItem guiItem = config.getItem(slot);
             if (guiItem != null && guiItem.getAction() != null) {
@@ -482,6 +497,184 @@ public class GuiListener implements Listener {
         }
     }
 
+    private void handleParticleEditClick(InventoryClickEvent event, Player player, Crate crate, CrateGuiHolder holder, int slot) {
+        String stageName = holder.getData("particle_stage");
+        if (stageName == null) {
+            handleParticleMainClick(player, crate, slot);
+            return;
+        }
+
+        ParticleStage stage = ParticleStage.fromPath(stageName);
+        CrateParticleEffect effect = crate.getParticleEffect(stage);
+
+        switch (slot) {
+            case 45 -> plugin.getGuiManager().openParticleEditGui(player, crate);
+            case 4 -> {
+                plugin.getCrateManager().toggleParticleStage(crate.getId(), stage);
+                sendParticleUpdated(player, stage.displayName() + "阶段开关");
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 10 -> startParticleTypeInput(player, crate, stage);
+            case 12 -> {
+                ParticleEffectMode mode = event.isRightClick() ? effect.getMode().previous() : effect.getMode().next();
+                plugin.getCrateManager().updateParticleMode(crate.getId(), stage, mode);
+                sendParticleUpdated(player, "特效模式");
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 14 -> {
+                ParticleTarget target = event.isRightClick() ? effect.getTarget().previous() : effect.getTarget().next();
+                plugin.getCrateManager().updateParticleTarget(crate.getId(), stage, target);
+                sendParticleUpdated(player, "播放目标");
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 16 -> {
+                plugin.getParticleManager().previewStage(player, crate, stage);
+                plugin.getLanguageManager().send(player, "admin-particles-preview");
+            }
+            case 19 -> {
+                int delta = signedDelta(event, event.isShiftClick() ? 5 : 1);
+                plugin.getCrateManager().updateParticleInt(crate.getId(), stage, "count", effect.getCount() + delta, 1, 500);
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 21 -> {
+                double delta = signedDelta(event, event.isShiftClick() ? 0.5 : 0.1);
+                plugin.getCrateManager().updateParticleDouble(crate.getId(), stage, "radius", effect.getRadius() + delta, 0.0, 8.0);
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 23 -> {
+                double delta = signedDelta(event, event.isShiftClick() ? 0.5 : 0.1);
+                plugin.getCrateManager().updateParticleDouble(crate.getId(), stage, "height", effect.getHeight() + delta, 0.0, 8.0);
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 25 -> {
+                double delta = signedDelta(event, event.isShiftClick() ? 0.05 : 0.01);
+                plugin.getCrateManager().updateParticleDouble(crate.getId(), stage, "speed", effect.getSpeed() + delta, 0.0, 2.0);
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 28 -> {
+                int delta = signedDelta(event, event.isShiftClick() ? 5 : 1);
+                plugin.getCrateManager().updateParticleInt(crate.getId(), stage, "interval", effect.getInterval() + delta, 1, 200);
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 30 -> {
+                int delta = signedDelta(event, event.isShiftClick() ? 20 : 5);
+                plugin.getCrateManager().updateParticleInt(crate.getId(), stage, "duration", effect.getDuration() + delta, 1, 400);
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 32 -> startParticleColorInput(player, crate, stage, "color");
+            case 34 -> startParticleColorInput(player, crate, stage, "to-color");
+            case 37 -> {
+                org.bukkit.inventory.ItemStack held = player.getInventory().getItemInMainHand();
+                if (held.getType().isAir() || !held.getType().isBlock()) {
+                    plugin.getLanguageManager().send(player, "admin-hold-block");
+                    return;
+                }
+                plugin.getCrateManager().updateParticleMaterial(crate.getId(), stage, "block", held.getType());
+                sendParticleUpdated(player, "方块粒子材质");
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 39 -> {
+                org.bukkit.inventory.ItemStack held = player.getInventory().getItemInMainHand();
+                if (held.getType().isAir()) {
+                    plugin.getLanguageManager().send(player, "reward-hold-item");
+                    return;
+                }
+                plugin.getCrateManager().updateParticleMaterial(crate.getId(), stage, "item", held.getType());
+                sendParticleUpdated(player, "物品粒子材质");
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case 40 -> {
+                double delta = signedDelta(event, event.isShiftClick() ? 0.5 : 0.1);
+                plugin.getCrateManager().updateParticleDouble(crate.getId(), stage, "size", effect.getSize() + delta, 0.1, 5.0);
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+        }
+    }
+
+    private void handleParticleMainClick(Player player, Crate crate, int slot) {
+        switch (slot) {
+            case 4 -> {
+                plugin.getCrateManager().toggleParticles(crate.getId());
+                sendParticleUpdated(player, "粒子总开关");
+                plugin.getGuiManager().openParticleEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            }
+            case 20 -> plugin.getGuiManager().openParticleStageEditGui(player, crate, ParticleStage.IDLE);
+            case 22 -> plugin.getGuiManager().openParticleStageEditGui(player, crate, ParticleStage.OPEN);
+            case 24 -> plugin.getGuiManager().openParticleStageEditGui(player, crate, ParticleStage.REWARD);
+            case 45 -> plugin.getGuiManager().openCrateEditGui(player, crate);
+            case 49 -> {
+                plugin.getParticleManager().previewAll(player, crate);
+                plugin.getLanguageManager().send(player, "admin-particles-preview");
+            }
+        }
+    }
+
+    private int signedDelta(InventoryClickEvent event, int amount) {
+        return event.isRightClick() ? -amount : amount;
+    }
+
+    private double signedDelta(InventoryClickEvent event, double amount) {
+        return event.isRightClick() ? -amount : amount;
+    }
+
+    private void startParticleTypeInput(Player player, Crate crate, ParticleStage stage) {
+        plugin.getLanguageManager().send(player, "admin-input-particle-type");
+        plugin.getGuiManager().startInputSession(player, "particle_type", new String[]{crate.getId(), stage.name()}, (p, input, data) -> {
+            String[] params = (String[]) data;
+            String crateId = params[0];
+            ParticleStage selectedStage = ParticleStage.fromPath(params[1]);
+            if (!ParticleCompat.isValidParticle(input)) {
+                plugin.getLanguageManager().send(p, "invalid-particle");
+                reopenParticleStage(p, crateId, selectedStage);
+                return;
+            }
+            plugin.getCrateManager().updateParticleType(crateId, selectedStage, input);
+            sendParticleUpdated(p, "粒子类型");
+            reopenParticleStage(p, crateId, selectedStage);
+        });
+    }
+
+    private void startParticleColorInput(Player player, Crate crate, ParticleStage stage, String key) {
+        plugin.getLanguageManager().send(player, "admin-input-particle-color");
+        plugin.getGuiManager().startInputSession(player, "particle_color", new String[]{crate.getId(), stage.name(), key}, (p, input, data) -> {
+            String[] params = (String[]) data;
+            String crateId = params[0];
+            ParticleStage selectedStage = ParticleStage.fromPath(params[1]);
+            String colorKey = params[2];
+            String normalized = input.trim();
+            if (!normalized.startsWith("#")) {
+                normalized = "#" + normalized;
+            }
+            if (!normalized.matches("#[0-9a-fA-F]{6}")) {
+                plugin.getLanguageManager().send(p, "invalid-color");
+                reopenParticleStage(p, crateId, selectedStage);
+                return;
+            }
+            plugin.getCrateManager().updateParticleColor(crateId, selectedStage, colorKey, normalized);
+            sendParticleUpdated(p, "粒子颜色");
+            reopenParticleStage(p, crateId, selectedStage);
+        });
+    }
+
+    private void reopenParticleStage(Player player, String crateId, ParticleStage stage) {
+        Crate updated = plugin.getCrateManager().getCrate(crateId);
+        if (updated == null) {
+            plugin.getGuiManager().openAdminGui(player);
+            return;
+        }
+        plugin.getGuiManager().openParticleStageEditGui(player, updated, stage);
+    }
+
+    private void sendParticleUpdated(Player player, String field) {
+        plugin.getLanguageManager().send(player, "admin-particles-updated",
+                LanguageManager.placeholders("field", field));
+    }
+
+    private boolean hasConfiguredAction(GuiConfig config, String action) {
+        return config.getItems().values().stream()
+                .anyMatch(item -> action.equalsIgnoreCase(item.getAction()));
+    }
+
     private void handleCrateEditAction(Player player, String action, Crate crate, CrateGuiHolder holder, boolean isShiftClick) {
         switch (action.toLowerCase()) {
             case "edit_basic" -> {
@@ -494,9 +687,7 @@ public class GuiListener implements Listener {
                 plugin.getLanguageManager().send(player, "admin-feature-coming-soon");
             }
             case "edit_particles" -> {
-                plugin.getCrateManager().toggleParticles(crate.getId());
-                Crate updatedCrate = plugin.getCrateManager().getCrate(crate.getId());
-                plugin.getGuiManager().openCrateEditGui(player, updatedCrate);
+                plugin.getGuiManager().openParticleEditGui(player, crate);
             }
             case "edit_pity" -> {
                 plugin.getGuiManager().openPityEditGui(player, crate);
@@ -1442,6 +1633,8 @@ public class GuiListener implements Listener {
             }
         }
 
+        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, player.getLocation());
+
         if (crate.isAnimationEnabled()) {
             AnimationManager animationManager = new AnimationManager(plugin);
             animationManager.playAnimation(player, crate, reward, player.getLocation(), () -> {
@@ -1478,11 +1671,7 @@ public class GuiListener implements Listener {
                 reward.getDisplayName()
         );
 
-        if (crate.isParticlesEnabled()) {
-            player.getWorld().spawnParticle(crate.getParticleType(),
-                    player.getLocation().add(0, 1, 0),
-                    crate.getParticleCount(), 0.5, 0.5, 0.5, 0.1);
-        }
+        plugin.getParticleManager().playStage(ParticleStage.REWARD, player, crate, player.getLocation());
 
         if (crate.getWinSound() != null) {
             player.playSound(player.getLocation(), crate.getWinSound(),

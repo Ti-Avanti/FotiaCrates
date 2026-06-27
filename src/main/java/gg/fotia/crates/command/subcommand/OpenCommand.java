@@ -6,6 +6,7 @@ import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.lang.LanguageManager;
+import gg.fotia.crates.particle.ParticleStage;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -83,6 +84,7 @@ public class OpenCommand extends AbstractSubCommand {
         }
 
         RewardResult rewardResult = openAttempt.rewardResult();
+        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, player.getLocation());
         if (crate.isAnimationEnabled()) {
             AnimationManager animationManager = new AnimationManager(plugin);
             animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), player.getLocation(),
@@ -96,6 +98,7 @@ public class OpenCommand extends AbstractSubCommand {
     private void openMultiple(Player player, Crate crate, int amount) {
         plugin.getLanguageManager().send(player, "multi-open-start",
                 LanguageManager.placeholders("amount", String.valueOf(amount)));
+        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, player.getLocation());
 
         for (int i = 0; i < amount; i++) {
             CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);

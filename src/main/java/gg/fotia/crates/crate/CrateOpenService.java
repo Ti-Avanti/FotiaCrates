@@ -3,6 +3,7 @@ package gg.fotia.crates.crate;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.key.KeyType;
 import gg.fotia.crates.lang.LanguageManager;
+import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.reward.Reward;
 import org.bukkit.entity.Player;
 
@@ -87,11 +88,7 @@ public class CrateOpenService {
                 displayReward.getDisplayName()
         );
 
-        if (crate.isParticlesEnabled()) {
-            player.getWorld().spawnParticle(crate.getParticleType(),
-                    player.getLocation().add(0, 1, 0),
-                    crate.getParticleCount(), 0.5, 0.5, 0.5, 0.1);
-        }
+        plugin.getParticleManager().playStage(ParticleStage.REWARD, player, crate, player.getLocation());
 
         if (crate.getWinSound() != null) {
             player.playSound(player.getLocation(), crate.getWinSound(),

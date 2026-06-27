@@ -201,12 +201,6 @@ public class RouletteAnimation implements Animation {
                         crate.getWinVolume(), crate.getWinPitch());
             }
 
-            if (crate.isParticlesEnabled()) {
-                player.getWorld().spawnParticle(crate.getParticleType(),
-                        player.getLocation().add(0, 1, 0),
-                        crate.getParticleCount(), 0.5, 0.5, 0.5, 0.1);
-            }
-
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 player.closeInventory();
                 onComplete.run();

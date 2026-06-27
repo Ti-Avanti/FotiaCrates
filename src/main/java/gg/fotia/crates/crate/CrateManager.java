@@ -2,6 +2,11 @@ package gg.fotia.crates.crate;
 
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.animation.AnimationType;
+import gg.fotia.crates.particle.CrateParticleEffect;
+import gg.fotia.crates.particle.ParticleCompat;
+import gg.fotia.crates.particle.ParticleEffectMode;
+import gg.fotia.crates.particle.ParticleStage;
+import gg.fotia.crates.particle.ParticleTarget;
 import gg.fotia.crates.reward.*;
 import gg.fotia.crates.util.ItemBuilder;
 import org.bukkit.Material;
@@ -21,6 +26,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.function.Consumer;
 
 public class CrateManager {
 
@@ -99,8 +105,11 @@ public class CrateManager {
         List<String> hologramLines = config.getStringList("hologram.lines");
 
         boolean particlesEnabled = config.getBoolean("particles.enabled", true);
-        Particle particleType = Particle.valueOf(config.getString("particles.type", "FLAME"));
+        String legacyParticleName = config.getString("particles.type", "FLAME");
+        Particle particleType = ParticleCompat.resolveParticle(legacyParticleName, Particle.FLAME);
         int particleCount = config.getInt("particles.count", 10);
+        Map<ParticleStage, CrateParticleEffect> particleEffects = CrateParticleEffect.loadAll(
+                config.getConfigurationSection("particles"), legacyParticleName, particleCount);
 
         Sound spinSound = Sound.valueOf(config.getString("sounds.spin.sound", "BLOCK_NOTE_BLOCK_PLING"));
         float spinVolume = (float) config.getDouble("sounds.spin.volume", 1.0);
@@ -150,7 +159,7 @@ public class CrateManager {
                 previewEnabled, showChance, previewTitle,
                 animationEnabled, animationType, animationDuration,
                 animationTitle, physicalAnimationEnabled,
-                particlesEnabled, particleType, particleCount,
+                particlesEnabled, particleType, particleCount, particleEffects,
                 spinSound, spinVolume, spinPitch,
                 winSound, winVolume, winPitch,
                 pityEnabled, pityTiers,
@@ -636,6 +645,102 @@ public class CrateManager {
         }
     }
 
+    public void toggleParticleStage(String crateId, ParticleStage stage) {
+        updateParticleConfig(crateId, config -> {
+            ConfigurationSection section = ensureParticleStageSection(config, crateId, stage);
+            boolean current = section.getBoolean("enabled", true);
+            section.set("enabled", !current);
+        }, "toggle particle stage");
+    }
+
+    public void updateParticleType(String crateId, ParticleStage stage, String particleName) {
+        updateParticleConfig(crateId, config -> {
+            ConfigurationSection section = ensureParticleStageSection(config, crateId, stage);
+            section.set("type", particleName.toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_'));
+        }, "update particle type");
+    }
+
+    public void updateParticleMode(String crateId, ParticleStage stage, ParticleEffectMode mode) {
+        updateParticleConfig(crateId, config -> {
+            ConfigurationSection section = ensureParticleStageSection(config, crateId, stage);
+            section.set("mode", mode.name());
+        }, "update particle mode");
+    }
+
+    public void updateParticleTarget(String crateId, ParticleStage stage, ParticleTarget target) {
+        updateParticleConfig(crateId, config -> {
+            ConfigurationSection section = ensureParticleStageSection(config, crateId, stage);
+            section.set("target", target.name());
+        }, "update particle target");
+    }
+
+    public void updateParticleInt(String crateId, ParticleStage stage, String key, int value, int min, int max) {
+        int clamped = Math.max(min, Math.min(max, value));
+        updateParticleConfig(crateId, config -> {
+            ConfigurationSection section = ensureParticleStageSection(config, crateId, stage);
+            section.set(key, clamped);
+        }, "update particle " + key);
+    }
+
+    public void updateParticleDouble(String crateId, ParticleStage stage, String key, double value, double min, double max) {
+        double clamped = Math.max(min, Math.min(max, value));
+        clamped = Math.round(clamped * 100.0) / 100.0;
+        double finalClamped = clamped;
+        updateParticleConfig(crateId, config -> {
+            ConfigurationSection section = ensureParticleStageSection(config, crateId, stage);
+            section.set(key, finalClamped);
+        }, "update particle " + key);
+    }
+
+    public void updateParticleColor(String crateId, ParticleStage stage, String key, String color) {
+        String normalized = color == null ? "" : color.trim();
+        if (!normalized.startsWith("#")) {
+            normalized = "#" + normalized;
+        }
+        String finalColor = normalized.toUpperCase(Locale.ROOT);
+        updateParticleConfig(crateId, config -> {
+            ConfigurationSection section = ensureParticleStageSection(config, crateId, stage);
+            section.set(key, finalColor);
+        }, "update particle color");
+    }
+
+    public void updateParticleMaterial(String crateId, ParticleStage stage, String key, Material material) {
+        updateParticleConfig(crateId, config -> {
+            ConfigurationSection section = ensureParticleStageSection(config, crateId, stage);
+            section.set(key, material.name());
+        }, "update particle material");
+    }
+
+    private void updateParticleConfig(String crateId, Consumer<YamlConfiguration> updater, String actionName) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            updater.accept(config);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to " + actionName + ": " + e.getMessage());
+        }
+    }
+
+    private ConfigurationSection ensureParticleStageSection(YamlConfiguration config, String crateId, ParticleStage stage) {
+        ConfigurationSection root = config.getConfigurationSection("particles");
+        if (root == null) {
+            root = config.createSection("particles");
+        }
+
+        ConfigurationSection section = root.getConfigurationSection(stage.path());
+        if (section == null) {
+            section = root.createSection(stage.path());
+            Crate crate = getCrate(crateId);
+            CrateParticleEffect effect = crate != null ? crate.getParticleEffect(stage) : CrateParticleEffect.defaultFor(stage);
+            effect.writeTo(section);
+        }
+        return section;
+    }
+
     /**
      * 切换预览功能
      */
@@ -976,6 +1081,9 @@ public class CrateManager {
             config.set("particles.enabled", true);
             config.set("particles.type", "FLAME");
             config.set("particles.count", 10);
+            writeDefaultParticleEffect(config, ParticleStage.IDLE);
+            writeDefaultParticleEffect(config, ParticleStage.OPEN);
+            writeDefaultParticleEffect(config, ParticleStage.REWARD);
             config.set("sounds.spin.sound", "BLOCK_NOTE_BLOCK_PLING");
             config.set("sounds.spin.volume", 1.0);
             config.set("sounds.spin.pitch", 1.0);
@@ -992,6 +1100,11 @@ public class CrateManager {
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to create crate: " + e.getMessage());
         }
+    }
+
+    private void writeDefaultParticleEffect(YamlConfiguration config, ParticleStage stage) {
+        ConfigurationSection section = config.createSection("particles." + stage.path());
+        CrateParticleEffect.defaultFor(stage).writeTo(section);
     }
 
     /**

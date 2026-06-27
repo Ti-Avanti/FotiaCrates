@@ -1,6 +1,8 @@
 package gg.fotia.crates.crate;
 
 import gg.fotia.crates.animation.AnimationType;
+import gg.fotia.crates.particle.CrateParticleEffect;
+import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.reward.PermissionAction;
 import gg.fotia.crates.reward.Reward;
 import org.bukkit.Material;
@@ -39,6 +41,7 @@ public class Crate {
     private final boolean particlesEnabled;
     private final Particle particleType;
     private final int particleCount;
+    private final Map<ParticleStage, CrateParticleEffect> particleEffects;
     private final Sound spinSound;
     private final float spinVolume;
     private final float spinPitch;
@@ -79,6 +82,7 @@ public class Crate {
                  boolean animationEnabled, AnimationType animationType, int animationDuration,
                  String animationTitle, boolean physicalAnimationEnabled,
                  boolean particlesEnabled, Particle particleType, int particleCount,
+                 Map<ParticleStage, CrateParticleEffect> particleEffects,
                  Sound spinSound, float spinVolume, float spinPitch,
                  Sound winSound, float winVolume, float winPitch,
                  boolean pityEnabled, List<PityTier> pityTiers,
@@ -111,6 +115,7 @@ public class Crate {
         this.particlesEnabled = particlesEnabled;
         this.particleType = particleType;
         this.particleCount = particleCount;
+        this.particleEffects = particleEffects != null ? new EnumMap<>(particleEffects) : new EnumMap<>(ParticleStage.class);
         this.spinSound = spinSound;
         this.spinVolume = spinVolume;
         this.spinPitch = spinPitch;
@@ -527,6 +532,11 @@ public class Crate {
     public boolean isParticlesEnabled() { return particlesEnabled; }
     public Particle getParticleType() { return particleType; }
     public int getParticleCount() { return particleCount; }
+    public Map<ParticleStage, CrateParticleEffect> getParticleEffects() { return new EnumMap<>(particleEffects); }
+    public CrateParticleEffect getParticleEffect(ParticleStage stage) {
+        CrateParticleEffect effect = particleEffects.get(stage);
+        return effect != null ? effect : CrateParticleEffect.defaultFor(stage);
+    }
     public Sound getSpinSound() { return spinSound; }
     public float getSpinVolume() { return spinVolume; }
     public float getSpinPitch() { return spinPitch; }

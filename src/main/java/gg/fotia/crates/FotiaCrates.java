@@ -15,6 +15,7 @@ import gg.fotia.crates.listener.EntityInteractPacketListener;
 import gg.fotia.crates.listener.GuiListener;
 import gg.fotia.crates.listener.PlayerListener;
 import gg.fotia.crates.modelengine.ModelEngineManager;
+import gg.fotia.crates.particle.ParticleManager;
 import gg.fotia.crates.pity.PityManager;
 import gg.fotia.crates.reward.PendingRewardManager;
 import gg.fotia.crates.reward.RewardItemDeliveryService;
@@ -37,6 +38,7 @@ public class FotiaCrates extends JavaPlugin {
     private PendingRewardManager pendingRewardManager;
     private RewardItemDeliveryService rewardItemDeliveryService;
     private HologramManager hologramManager;
+    private ParticleManager particleManager;
     private EntityInteractPacketListener entityInteractPacketListener;
     private Economy economy;
 
@@ -69,12 +71,14 @@ public class FotiaCrates extends JavaPlugin {
         pendingRewardManager = new PendingRewardManager(this);
         rewardItemDeliveryService = new RewardItemDeliveryService(this);
         hologramManager = new HologramManager(this);
+        particleManager = new ParticleManager(this);
 
         // 加载抽奖箱
         crateManager.loadCrates();
 
         // 加载抽奖箱位置
         crateManager.loadLocations();
+        particleManager.start();
 
         // 延迟生成模型和全息显示（等待世界加载完成）
         getServer().getScheduler().runTaskLater(this, () -> {
@@ -118,6 +122,9 @@ public class FotiaCrates extends JavaPlugin {
         if (hologramManager != null) {
             hologramManager.cleanup();
         }
+        if (particleManager != null) {
+            particleManager.cancel();
+        }
         if (modelEngineManager != null) {
             modelEngineManager.cleanup();
         }
@@ -150,6 +157,7 @@ public class FotiaCrates extends JavaPlugin {
         crateManager.loadLocations();
         guiManager.reload();
         hologramManager.reload();
+        particleManager.restart();
         // 重新生成模型
         spawnAllCrateModels();
     }
@@ -230,6 +238,10 @@ public class FotiaCrates extends JavaPlugin {
 
     public HologramManager getHologramManager() {
         return hologramManager;
+    }
+
+    public ParticleManager getParticleManager() {
+        return particleManager;
     }
 
     public Economy getEconomy() {

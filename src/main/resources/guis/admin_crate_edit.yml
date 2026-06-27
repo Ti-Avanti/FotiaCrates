@@ -10,12 +10,12 @@ title: "<!i><dark_gray>编辑: {crate}"
 # 'C' = 内容槽位（奖励列表）
 # 其他字符 = 自定义图标
 layout:
-  - 'BAS#I#RMX'
+  - 'BAP#I#RMX'
   - '#CCCCCCC#'
   - '#CCCCCCC#'
   - '#CCCCCCC#'
   - '#CCCCCCC#'
-  - '<#Q#V#D#>'
+  - '<#QSV#D#>'
 
 # 图标配置
 icons:
@@ -49,7 +49,7 @@ icons:
       material: name_tag
       name: '<!i><yellow>基本设置'
       lore:
-        - '<!i><gray>编辑抽奖箱名称、方块、粒子'
+        - '<!i><gray>编辑抽奖箱名称、方块'
         - ''
         - '<!i><yellow>左键点击编辑'
     action: edit_basic
@@ -74,6 +74,18 @@ icons:
         - ''
         - '<!i><yellow>左键点击编辑'
     action: edit_sounds
+
+  'P':
+    display:
+      material: blaze_powder
+      name: '<!i><gold>粒子特效设置'
+      lore:
+        - '<!i><gray>配置待机、开箱、奖励三阶段粒子'
+        - ''
+        - '<!i><yellow>启用: {particles_enabled}'
+        - '<!i><yellow>奖励粒子: {particle_type}'
+        - '<!i><yellow>左键点击编辑'
+    action: edit_particles
 
   'I':
     display:

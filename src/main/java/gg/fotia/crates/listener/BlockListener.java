@@ -7,6 +7,7 @@ import gg.fotia.crates.crate.CrateLocation;
 import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.lang.LanguageManager;
+import gg.fotia.crates.particle.ParticleStage;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.ArmorStand;
@@ -181,6 +182,7 @@ public class BlockListener implements Listener {
         }
 
         RewardResult rewardResult = openAttempt.rewardResult();
+        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
         plugin.getHologramManager().hideHologram(crateLocation);
 
         boolean hasModel = crate.isModelEnabled() && plugin.getModelEngineManager().hasModel(crateLocation);
@@ -347,7 +349,7 @@ public class BlockListener implements Listener {
             return;
         }
 
-        openMultiple(player, crate, amount);
+        openMultiple(player, crate, amount, location);
     }
 
     private void removeCrate(Player player, Crate crate, Location location) {
@@ -363,7 +365,7 @@ public class BlockListener implements Listener {
                 LanguageManager.placeholders("crate", crate.getName()));
     }
 
-    private void openMultiple(Player player, Crate crate, int amount) {
+    private void openMultiple(Player player, Crate crate, int amount, Location location) {
         UUID playerUuid = player.getUniqueId();
         if (openingPlayers.contains(playerUuid)) {
             return;
@@ -379,6 +381,7 @@ public class BlockListener implements Listener {
 
         plugin.getLanguageManager().send(player, "multi-open-start",
                 LanguageManager.placeholders("amount", String.valueOf(amount)));
+        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, location);
 
         try {
             for (int i = 0; i < amount; i++) {
