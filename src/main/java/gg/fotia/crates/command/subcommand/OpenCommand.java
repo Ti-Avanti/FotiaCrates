@@ -7,6 +7,7 @@ import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.ParticleStage;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -84,21 +85,23 @@ public class OpenCommand extends AbstractSubCommand {
         }
 
         RewardResult rewardResult = openAttempt.rewardResult();
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, player.getLocation());
+        Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
+        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
         if (crate.isAnimationEnabled()) {
             AnimationManager animationManager = new AnimationManager(plugin);
-            animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), player.getLocation(),
-                    () -> crateOpenService.deliverReward(player, crate, rewardResult));
+            animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation,
+                    () -> crateOpenService.deliverReward(player, crate, rewardResult, crateLocation));
             return;
         }
 
-        crateOpenService.deliverReward(player, crate, rewardResult);
+        crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
     }
 
     private void openMultiple(Player player, Crate crate, int amount) {
         plugin.getLanguageManager().send(player, "multi-open-start",
                 LanguageManager.placeholders("amount", String.valueOf(amount)));
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, player.getLocation());
+        Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
+        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
 
         for (int i = 0; i < amount; i++) {
             CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
@@ -109,7 +112,7 @@ public class OpenCommand extends AbstractSubCommand {
                 continue;
             }
 
-            crateOpenService.deliverReward(player, crate, openAttempt.rewardResult());
+            crateOpenService.deliverReward(player, crate, openAttempt.rewardResult(), crateLocation);
         }
     }
 

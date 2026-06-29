@@ -1,0 +1,40 @@
+title: "<!i><dark_gray>稀有度管理"
+size: 54
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+content-slots:
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+
+items:
+  info:
+    slot: 4
+    material: DIAMOND
+    name: "<!i><light_purple>稀有度管理"
+    lore:
+      - "<!i><gray>左键编辑名称"
+      - "<!i><gray>右键编辑颜色"
+      - "<!i><gray>Shift+右键删除"
+  back:
+    slot: 45
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回管理界面"
+    action: back

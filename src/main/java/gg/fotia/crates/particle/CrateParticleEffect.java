@@ -40,7 +40,7 @@ public class CrateParticleEffect {
         this.enabled = enabled;
         this.particle = normalizeParticleName(particle);
         this.mode = mode;
-        this.target = target;
+        this.target = ParticleTarget.normalizeForStage(stage, target);
         this.count = Math.max(1, count);
         this.interval = Math.max(1, interval);
         this.duration = Math.max(1, duration);
@@ -81,11 +81,11 @@ public class CrateParticleEffect {
                     ParticleTarget.CRATE_TOP, 16, 10, 1, 0.01, 0.8, 1.0,
                     0.2, 0.2, 0.2, "#FF8A00", "#FFD700", 1.0f,
                     Material.GOLD_BLOCK, Material.GOLD_INGOT);
-            case OPEN -> new CrateParticleEffect(stage, true, "END_ROD", ParticleEffectMode.BURST,
+            case OPEN -> new CrateParticleEffect(stage, true, "END_ROD", ParticleEffectMode.VORTEX,
                     ParticleTarget.CRATE_TOP, 40, 2, 20, 0.12, 0.7, 1.2,
                     0.1, 0.1, 0.1, "#FFFFFF", "#99CCFF", 1.0f,
                     Material.GOLD_BLOCK, Material.GOLD_INGOT);
-            case REWARD -> new CrateParticleEffect(stage, true, "HAPPY_VILLAGER", ParticleEffectMode.HELIX,
+            case REWARD -> new CrateParticleEffect(stage, true, "HAPPY_VILLAGER", ParticleEffectMode.DNA_SPIRAL,
                     ParticleTarget.PLAYER, 24, 2, 40, 0.02, 0.6, 1.8,
                     0.2, 0.3, 0.2, "#55FF55", "#FFFF55", 1.0f,
                     Material.GOLD_BLOCK, Material.GOLD_INGOT);

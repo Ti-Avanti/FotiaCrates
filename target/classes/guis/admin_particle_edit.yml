@@ -1,0 +1,60 @@
+title: "<!i><dark_gray>粒子特效设置"
+size: 54
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+items:
+  toggle:
+    slot: 4
+    material: LIME_DYE
+    name: "<!i><green>粒子总开关: {particles_enabled}"
+    lore:
+      - "<!i><yellow>点击切换"
+    action: toggle_particles
+  idle:
+    slot: 20
+    material: BLAZE_POWDER
+    name: "<!i><yellow>待机阶段"
+    lore:
+      - "<!i><gray>启用: {idle_enabled}"
+      - "<!i><gray>粒子: {idle_particle}"
+      - ""
+      - "<!i><yellow>点击编辑"
+    action: edit_idle_stage
+  open:
+    slot: 22
+    material: FIREWORK_STAR
+    name: "<!i><aqua>开箱阶段"
+    lore:
+      - "<!i><gray>启用: {open_enabled}"
+      - "<!i><gray>粒子: {open_particle}"
+      - ""
+      - "<!i><yellow>点击编辑"
+    action: edit_open_stage
+  reward:
+    slot: 24
+    material: EMERALD
+    name: "<!i><green>奖励阶段"
+    lore:
+      - "<!i><gray>启用: {reward_enabled}"
+      - "<!i><gray>粒子: {reward_particle}"
+      - ""
+      - "<!i><yellow>点击编辑"
+    action: edit_reward_stage
+  back:
+    slot: 45
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回宝箱编辑界面"
+    action: back
+  preview:
+    slot: 49
+    material: ENDER_EYE
+    name: "<!i><aqua>预览全部阶段"
+    lore:
+      - "<!i><yellow>点击预览"
+    action: preview_all

@@ -1,0 +1,42 @@
+title: "<!i><dark_gray>基本设置"
+size: 27
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+items:
+  name:
+    slot: 11
+    material: NAME_TAG
+    name: "<!i><yellow>编辑名称"
+    lore:
+      - "<!i><gray>当前: {crate}"
+      - ""
+      - "<!i><yellow>点击修改"
+    action: edit_name
+  block:
+    slot: 13
+    material: CHEST
+    name: "<!i><aqua>编辑方块"
+    lore:
+      - "<!i><gray>当前: {block}"
+      - ""
+      - "<!i><yellow>手持方块点击设置"
+    action: edit_block
+  duration:
+    slot: 15
+    material: CLOCK
+    name: "<!i><gold>动画时长: {animation_duration} 秒"
+    lore:
+      - "<!i><yellow>左键 +1 / 右键 -1"
+      - "<!i><yellow>Shift = 5"
+    action: adjust_animation_duration
+  back:
+    slot: 18
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回宝箱编辑界面"
+    action: back

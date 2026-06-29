@@ -1,0 +1,143 @@
+title: "<!i><dark_gray>粒子阶段: {stage}"
+size: 54
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+items:
+  toggle:
+    slot: 4
+    material: LIME_DYE
+    name: "<!i><green>{stage}阶段: {enabled}"
+    lore:
+      - "<!i><yellow>点击切换"
+    action: toggle_stage
+  particle:
+    slot: 10
+    material: NETHER_STAR
+    name: "<!i><yellow>粒子类型: {particle}"
+    lore:
+      - "<!i><gray>左键下一个，右键上一个"
+      - "<!i><gray>所有可切换类型会在菜单中循环"
+    action: cycle_particle
+  mode:
+    slot: 12
+    material: COMPASS
+    name: "<!i><aqua>特效模式: {mode}"
+    lore:
+      - "<!i><gray>左键下一个，右键上一个"
+      - "<!i><gray>包含环绕、螺旋、星芒、王冠等模式"
+    action: cycle_mode
+  target:
+    slot: 14
+    material: TARGET
+    name: "<!i><green>播放目标: {target}"
+    lore:
+      - "<!i><gray>左键下一个，右键上一个"
+      - "<!i><gray>待机阶段不会出现玩家目标"
+    action: cycle_target
+  preview:
+    slot: 16
+    material: ENDER_EYE
+    name: "<!i><aqua>预览当前阶段"
+    lore:
+      - "<!i><yellow>点击预览"
+    action: preview
+  count:
+    slot: 19
+    material: GUNPOWDER
+    name: "<!i><yellow>数量: {count}"
+    lore:
+      - "<!i><gray>左键+1 右键-1 Shift=5"
+    action: adjust_count
+  radius:
+    slot: 21
+    material: SLIME_BALL
+    name: "<!i><yellow>半径: {radius}"
+    lore:
+      - "<!i><gray>左键+0.1 右键-0.1 Shift=0.5"
+    action: adjust_radius
+  height:
+    slot: 23
+    material: SCAFFOLDING
+    name: "<!i><yellow>高度: {height}"
+    lore:
+      - "<!i><gray>左键+0.1 右键-0.1 Shift=0.5"
+    action: adjust_height
+  speed:
+    slot: 25
+    material: SUGAR
+    name: "<!i><yellow>速度: {speed}"
+    lore:
+      - "<!i><gray>左键+0.01 右键-0.01 Shift=0.05"
+    action: adjust_speed
+  size:
+    slot: 28
+    material: GLOWSTONE_DUST
+    name: "<!i><yellow>粒子大小: {size}"
+    lore:
+      - "<!i><gray>左键+0.1 右键-0.1 Shift=0.5"
+    action: adjust_size
+  interval:
+    slot: 30
+    material: CLOCK
+    name: "<!i><yellow>间隔: {interval} tick"
+    lore:
+      - "<!i><gray>左键+1 右键-1 Shift=5"
+    action: adjust_interval
+  duration:
+    slot: 32
+    material: REPEATER
+    name: "<!i><yellow>持续时间: {duration} tick"
+    lore:
+      - "<!i><gray>左键+5 右键-5 Shift=20"
+    action: adjust_duration
+  color:
+    slot: 34
+    material: RED_DYE
+    name: "<!i><red>主颜色: {color}"
+    lore:
+      - "<!i><gray>DUST/REDSTONE 粒子使用"
+      - "<!i><yellow>点击后输入 #RRGGBB"
+    action: edit_color
+  to_color:
+    slot: 37
+    material: PURPLE_DYE
+    name: "<!i><light_purple>过渡颜色: {to_color}"
+    lore:
+      - "<!i><gray>DUST_COLOR_TRANSITION 粒子使用"
+      - "<!i><yellow>点击后输入 #RRGGBB"
+    action: edit_to_color
+  block:
+    slot: 39
+    material: GOLD_BLOCK
+    name: "<!i><gold>方块粒子材质: {block_material}"
+    lore:
+      - "<!i><gray>BLOCK 类粒子使用"
+      - "<!i><yellow>点击打开选择菜单"
+    action: select_block_material
+  item:
+    slot: 41
+    material: GOLD_INGOT
+    name: "<!i><gold>物品粒子材质: {item_material}"
+    lore:
+      - "<!i><gray>ITEM 类粒子使用"
+      - "<!i><yellow>点击打开选择菜单"
+    action: select_item_material
+  info:
+    slot: 43
+    material: BOOK
+    name: "<!i><aqua>布局说明"
+    lore:
+      - "<!i><gray>第二行: 10/12/14/16"
+      - "<!i><gray>第三行: 19/21/23/25"
+      - "<!i><gray>后续行按同样间隔排列"
+  back:
+    slot: 45
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回粒子特效设置"
+    action: back

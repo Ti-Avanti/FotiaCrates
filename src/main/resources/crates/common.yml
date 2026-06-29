@@ -98,7 +98,7 @@ particles:
   open:
     enabled: true
     type: END_ROD
-    mode: BURST
+    mode: VORTEX
     target: CRATE_TOP
     count: 40
     interval: 2
@@ -118,7 +118,7 @@ particles:
   reward:
     enabled: true
     type: HAPPY_VILLAGER
-    mode: HELIX
+    mode: DNA_SPIRAL
     target: PLAYER
     count: 24
     interval: 2

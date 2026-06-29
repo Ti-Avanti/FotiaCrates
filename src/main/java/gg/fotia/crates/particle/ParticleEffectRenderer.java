@@ -24,9 +24,14 @@ public class ParticleEffectRenderer {
                 renderCircle(effect, origin, -elapsedTicks, effect.getRadius() * 0.75, Math.max(0.3, effect.getHeight() * 0.5));
             }
             case ORBIT -> renderOrbit(effect, origin, elapsedTicks);
+            case TRIPLE_ORBIT -> renderTripleOrbit(effect, origin, elapsedTicks);
+            case ATOM -> renderAtom(effect, origin, elapsedTicks);
             case HALO -> renderCircle(effect, origin, elapsedTicks, effect.getRadius(), Math.max(1.6, effect.getHeight()));
+            case CROWN -> renderCrown(effect, origin, elapsedTicks);
             case HELIX -> renderHelix(effect, origin, elapsedTicks, false);
             case DOUBLE_HELIX -> renderHelix(effect, origin, elapsedTicks, true);
+            case DNA_SPIRAL -> renderDnaSpiral(effect, origin, elapsedTicks);
+            case VORTEX -> renderVortex(effect, origin, elapsedTicks);
             case BURST -> spawn(effect, origin, effect.getCount(), effect.getRadius(), effect.getRadius(), effect.getRadius());
             case RING_EXPAND -> renderCircle(effect, origin, elapsedTicks, expandingRadius(effect, elapsedTicks), 0.0);
             case SPHERE_EXPAND -> renderSphere(effect, origin, elapsedTicks);
@@ -71,6 +76,28 @@ public class ParticleEffectRenderer {
         }
     }
 
+    private void renderTripleOrbit(CrateParticleEffect effect, Location origin, int elapsedTicks) {
+        double height = Math.max(0.4, effect.getHeight());
+        renderCircle(effect, origin, elapsedTicks, effect.getRadius(), 0.0);
+        renderCircle(effect, origin, -elapsedTicks, effect.getRadius() * 0.78, height * 0.42);
+        renderCircle(effect, origin, elapsedTicks * 2, effect.getRadius() * 0.56, height * 0.84);
+    }
+
+    private void renderAtom(CrateParticleEffect effect, Location origin, int elapsedTicks) {
+        int points = Math.max(8, effect.getCount() / 2);
+        double radius = Math.max(0.2, effect.getRadius());
+        double verticalRadius = Math.max(0.2, effect.getHeight() * 0.45);
+        double centerY = Math.max(0.2, effect.getHeight() * 0.5);
+        double rotation = elapsedTicks * 0.1;
+
+        for (int i = 0; i < points; i++) {
+            double angle = (Math.PI * 2 * i / points) + rotation;
+            spawn(effect, origin.clone().add(Math.cos(angle) * radius, centerY, Math.sin(angle) * radius), 1, 0, 0, 0);
+            spawn(effect, origin.clone().add(Math.cos(angle) * radius, centerY + Math.sin(angle) * verticalRadius, 0), 1, 0, 0, 0);
+            spawn(effect, origin.clone().add(0, centerY + Math.sin(angle) * verticalRadius, Math.cos(angle) * radius), 1, 0, 0, 0);
+        }
+    }
+
     private void renderHelix(CrateParticleEffect effect, Location origin, int elapsedTicks, boolean doubleHelix) {
         int points = Math.max(8, effect.getCount());
         double rotation = elapsedTicks * 0.12;
@@ -85,6 +112,40 @@ public class ParticleEffectRenderer {
                         Math.sin(angle + Math.PI) * effect.getRadius());
                 spawn(effect, opposite, 1, 0, 0, 0);
             }
+        }
+    }
+
+    private void renderDnaSpiral(CrateParticleEffect effect, Location origin, int elapsedTicks) {
+        int points = Math.max(12, effect.getCount());
+        double rotation = elapsedTicks * 0.12;
+        double height = Math.max(0.4, effect.getHeight());
+
+        for (int i = 0; i < points; i++) {
+            double progress = (double) i / points;
+            double angle = (Math.PI * 2 * progress * 2.4) + rotation;
+            double y = progress * height;
+            Location first = origin.clone().add(Math.cos(angle) * effect.getRadius(), y, Math.sin(angle) * effect.getRadius());
+            Location second = origin.clone().add(Math.cos(angle + Math.PI) * effect.getRadius(), y,
+                    Math.sin(angle + Math.PI) * effect.getRadius());
+            spawn(effect, first, 1, 0, 0, 0);
+            spawn(effect, second, 1, 0, 0, 0);
+            if (i % Math.max(3, points / 8) == 0) {
+                drawLine(effect, first, second);
+            }
+        }
+    }
+
+    private void renderVortex(CrateParticleEffect effect, Location origin, int elapsedTicks) {
+        int points = Math.max(14, effect.getCount());
+        double height = Math.max(0.5, effect.getHeight());
+        double rotation = elapsedTicks * 0.16;
+
+        for (int i = 0; i < points; i++) {
+            double progress = (double) i / points;
+            double radius = Math.max(0.05, effect.getRadius() * (1.0 - progress * 0.75));
+            double angle = rotation + progress * Math.PI * 7.0;
+            Location point = origin.clone().add(Math.cos(angle) * radius, progress * height, Math.sin(angle) * radius);
+            spawn(effect, point, 1, 0, 0, 0);
         }
     }
 
@@ -141,6 +202,24 @@ public class ParticleEffectRenderer {
         int[] order = {0, 2, 4, 1, 3, 0};
         for (int i = 0; i < order.length - 1; i++) {
             drawLine(effect, vertices[order[i]], vertices[order[i + 1]]);
+        }
+    }
+
+    private void renderCrown(CrateParticleEffect effect, Location origin, int elapsedTicks) {
+        int points = Math.max(8, Math.min(16, effect.getCount() / 2));
+        double rotation = elapsedTicks * 0.08;
+        double radius = Math.max(0.2, effect.getRadius());
+        double baseY = Math.max(0.4, effect.getHeight() * 0.65);
+        double spikeY = Math.max(baseY + 0.25, effect.getHeight());
+
+        for (int i = 0; i < points; i++) {
+            double angle = (Math.PI * 2 * i / points) + rotation;
+            Location base = origin.clone().add(Math.cos(angle) * radius, baseY, Math.sin(angle) * radius);
+            spawn(effect, base, 1, 0, 0, 0);
+            if (i % 2 == 0) {
+                Location peak = origin.clone().add(Math.cos(angle) * radius * 0.72, spikeY, Math.sin(angle) * radius * 0.72);
+                drawLine(effect, base, peak);
+            }
         }
     }
 

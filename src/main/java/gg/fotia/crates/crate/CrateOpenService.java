@@ -5,6 +5,7 @@ import gg.fotia.crates.key.KeyType;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.reward.Reward;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import java.util.UUID;
@@ -54,6 +55,10 @@ public class CrateOpenService {
     }
 
     public void deliverReward(Player player, Crate crate, RewardResult rewardResult) {
+        deliverReward(player, crate, rewardResult, plugin.getParticleManager().resolveCrateLocation(player, crate));
+    }
+
+    public void deliverReward(Player player, Crate crate, RewardResult rewardResult, Location crateLocation) {
         Reward displayReward = rewardResult.getDisplayReward();
         Reward actualReward = rewardResult.getActualReward();
 
@@ -88,7 +93,7 @@ public class CrateOpenService {
                 displayReward.getDisplayName()
         );
 
-        plugin.getParticleManager().playStage(ParticleStage.REWARD, player, crate, player.getLocation());
+        plugin.getParticleManager().playStage(ParticleStage.REWARD, player, crate, crateLocation);
 
         if (crate.getWinSound() != null) {
             player.playSound(player.getLocation(), crate.getWinSound(),
@@ -97,6 +102,11 @@ public class CrateOpenService {
     }
 
     public void deliverRewardSafely(UUID playerUuid, String playerName, Crate crate, RewardResult rewardResult) {
+        deliverRewardSafely(playerUuid, playerName, crate, rewardResult, null);
+    }
+
+    public void deliverRewardSafely(UUID playerUuid, String playerName, Crate crate,
+                                    RewardResult rewardResult, Location crateLocation) {
         Player player = plugin.getServer().getPlayer(playerUuid);
         Reward displayReward = rewardResult.getDisplayReward();
         Reward actualReward = rewardResult.getActualReward();
@@ -125,7 +135,9 @@ public class CrateOpenService {
             return;
         }
 
-        deliverReward(player, crate, rewardResult);
+        Location resolvedCrateLocation = crateLocation != null ? crateLocation
+                : plugin.getParticleManager().resolveCrateLocation(player, crate);
+        deliverReward(player, crate, rewardResult, resolvedCrateLocation);
     }
 
     private RewardResult resolveRewardResult(Player player, Crate crate) {

@@ -40,6 +40,31 @@ public final class ParticleCompat {
             Map.entry("TOTEM", List.of("TOTEM", "TOTEM_OF_UNDYING"))
     );
 
+    private static final List<String> SELECTABLE_PARTICLES = List.of(
+            "FLAME",
+            "SOUL_FIRE_FLAME",
+            "END_ROD",
+            "FIREWORK",
+            "HAPPY_VILLAGER",
+            "ANGRY_VILLAGER",
+            "WITCH",
+            "ENCHANT",
+            "ENCHANTED_HIT",
+            "CRIT",
+            "TOTEM_OF_UNDYING",
+            "PORTAL",
+            "REVERSE_PORTAL",
+            "CLOUD",
+            "SMOKE",
+            "LARGE_SMOKE",
+            "ELECTRIC_SPARK",
+            "GLOW",
+            "DUST",
+            "DUST_COLOR_TRANSITION",
+            "BLOCK",
+            "ITEM"
+    );
+
     private ParticleCompat() {
     }
 
@@ -55,6 +80,36 @@ public final class ParticleCompat {
 
     public static boolean isValidParticle(String configuredName) {
         return resolveParticle(configuredName, null) != null;
+    }
+
+    public static List<String> selectableParticleNames() {
+        return SELECTABLE_PARTICLES.stream()
+                .filter(ParticleCompat::isValidParticle)
+                .toList();
+    }
+
+    public static String nextSelectableParticle(String current, boolean backwards) {
+        List<String> options = selectableParticleNames();
+        if (options.isEmpty()) {
+            return "FLAME";
+        }
+
+        int currentIndex = 0;
+        for (int i = 0; i < options.size(); i++) {
+            if (isSameParticle(current, options.get(i))) {
+                currentIndex = i;
+                break;
+            }
+        }
+
+        int delta = backwards ? -1 : 1;
+        return options.get((currentIndex + delta + options.size()) % options.size());
+    }
+
+    public static boolean isSameParticle(String first, String second) {
+        Particle firstParticle = resolveParticle(first, null);
+        Particle secondParticle = resolveParticle(second, null);
+        return firstParticle != null && firstParticle == secondParticle;
     }
 
     public static Object createData(Particle particle, CrateParticleEffect effect) {

@@ -1,0 +1,85 @@
+title: "<!i><dark_gray>奖励管理: {crate}"
+size: 54
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+content-slots:
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 28
+  - 29
+  - 30
+  - 31
+  - 32
+  - 33
+  - 34
+  - 37
+  - 38
+  - 39
+  - 40
+  - 41
+  - 42
+  - 43
+
+items:
+  back:
+    slot: 45
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回宝箱编辑界面"
+    action: back
+  previous:
+    slot: 48
+    material: ARROW
+    name: "<!i><yellow>上一页"
+    lore:
+      - "<!i><gray>{page}/{max_page}"
+    action: previous_page
+  info:
+    slot: 49
+    material: BOOK
+    name: "<!i><gold>奖励统计"
+    lore:
+      - "<!i><gray>奖励数量: <!i><white>{reward_count}"
+      - "<!i><gray>总概率: <!i><white>{total_chance}%"
+  next:
+    slot: 50
+    material: ARROW
+    name: "<!i><yellow>下一页"
+    lore:
+      - "<!i><gray>{page}/{max_page}"
+    action: next_page
+  balance:
+    slot: 52
+    material: GOLDEN_APPLE
+    name: "<!i><gold>概率平衡"
+    lore:
+      - "<!i><gray>自动调整所有奖励概率到 100%"
+      - ""
+      - "<!i><yellow>点击执行"
+    action: balance_chances
+  add:
+    slot: 53
+    material: EMERALD
+    name: "<!i><green>添加新奖励"
+    lore:
+      - "<!i><gray>创建一个新的奖励"
+      - ""
+      - "<!i><yellow>点击添加"
+    action: add_reward

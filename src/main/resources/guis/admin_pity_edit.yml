@@ -1,0 +1,63 @@
+title: "<!i><dark_gray>多级保底设置"
+size: 54
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+content-slots:
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 28
+  - 29
+  - 30
+  - 31
+  - 32
+  - 33
+  - 34
+  - 37
+  - 38
+  - 39
+  - 40
+  - 41
+  - 42
+  - 43
+
+items:
+  toggle:
+    slot: 4
+    material: LIME_DYE
+    name: "<!i><green>保底开关: {pity_enabled}"
+    lore:
+      - "<!i><gray>当前档位数: {pity_tier_count}"
+      - ""
+      - "<!i><yellow>点击切换"
+    action: toggle_pity
+  back:
+    slot: 45
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回宝箱编辑界面"
+    action: back
+  info:
+    slot: 49
+    material: BOOK
+    name: "<!i><gold>保底说明"
+    lore:
+      - "<!i><gray>左键编辑次数"
+      - "<!i><gray>右键切换稀有度"
+      - "<!i><gray>Shift+右键删除"
+  save:
+    slot: 53
+    material: WRITABLE_BOOK
+    name: "<!i><green>保存并返回"
+    lore:
+      - "<!i><gray>保存宝箱配置"
+    action: save

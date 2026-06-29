@@ -9,10 +9,14 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class ParticleManager {
 
     private final FotiaCrates plugin;
     private final ParticleEffectRenderer renderer = new ParticleEffectRenderer();
+    private final Map<String, Long> idleSuppressedUntil = new HashMap<>();
     private BukkitTask idleTask;
     private long tickCounter;
 
@@ -46,6 +50,10 @@ public class ParticleManager {
             return;
         }
 
+        if (stage != ParticleStage.IDLE) {
+            suppressIdle(crateLocation, Math.max(effect.getDuration(), effect.getInterval()) + 20L);
+        }
+
         Location origin = resolveOrigin(effect, player, crateLocation);
         if (origin == null || origin.getWorld() == null) {
             return;
@@ -75,7 +83,7 @@ public class ParticleManager {
     }
 
     public void previewStage(Player player, Crate crate, ParticleStage stage) {
-        playStage(stage, player, crate, player.getLocation());
+        playStage(stage, player, crate, resolveCrateLocation(player, crate));
     }
 
     public void previewAll(Player player, Crate crate) {
@@ -103,18 +111,72 @@ public class ParticleManager {
             }
 
             Location blockLocation = crateLocation.toLocation(world);
+            if (isIdleSuppressed(blockLocation)) {
+                continue;
+            }
             Location origin = resolveOrigin(effect, null, blockLocation);
             renderer.render(effect, origin, null, blockLocation, (int) (tickCounter % Integer.MAX_VALUE));
         }
     }
 
+    public Location resolveCrateLocation(Player player, Crate crate) {
+        Location nearest = findNearestCrateLocation(player, crate);
+        if (nearest != null) {
+            return nearest;
+        }
+        return player != null ? player.getLocation() : null;
+    }
+
+    public Location findNearestCrateLocation(Player player, Crate crate) {
+        if (player == null || player.getWorld() == null || crate == null) {
+            return null;
+        }
+
+        Location playerLocation = player.getLocation();
+        Location nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+        for (CrateLocation crateLocation : plugin.getCrateManager().getCrateLocations()) {
+            if (!crate.getId().equals(crateLocation.getCrateId())
+                    || !player.getWorld().getName().equals(crateLocation.getWorld())) {
+                continue;
+            }
+
+            Location location = crateLocation.toLocation(player.getWorld());
+            if (location == null) {
+                continue;
+            }
+
+            double distance = location.distanceSquared(playerLocation);
+            if (distance < nearestDistance) {
+                nearest = location;
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
+    }
+
     private Location resolveOrigin(CrateParticleEffect effect, Player player, Location crateLocation) {
+        Location normalizedCrate = normalizeCrateLocation(crateLocation);
         return switch (effect.getTarget()) {
             case PLAYER -> player != null ? player.getLocation().clone().add(0, 1.0, 0)
-                    : normalizeCrateLocation(crateLocation).add(0, 0.5, 0);
-            case CRATE_TOP -> normalizeCrateLocation(crateLocation).add(0, 1.1, 0);
-            case CRATE -> normalizeCrateLocation(crateLocation).add(0, 0.5, 0);
+                    : addOrNull(normalizedCrate, 0, 0.5, 0);
+            case CRATE_TOP -> {
+                Location origin = addOrNull(normalizedCrate, 0, 1.1, 0);
+                yield origin != null ? origin : fallbackPlayerOrigin(player);
+            }
+            case CRATE -> {
+                Location origin = addOrNull(normalizedCrate, 0, 0.5, 0);
+                yield origin != null ? origin : fallbackPlayerOrigin(player);
+            }
         };
+    }
+
+    private Location addOrNull(Location location, double x, double y, double z) {
+        return location == null ? null : location.clone().add(x, y, z);
+    }
+
+    private Location fallbackPlayerOrigin(Player player) {
+        return player != null ? player.getLocation().clone().add(0, 1.0, 0) : null;
     }
 
     private Location normalizeCrateLocation(Location crateLocation) {
@@ -127,5 +189,36 @@ public class ParticleManager {
                 crateLocation.getBlockZ() + 0.5,
                 crateLocation.getYaw(),
                 crateLocation.getPitch());
+    }
+
+    private void suppressIdle(Location crateLocation, long ticks) {
+        String key = locationKey(crateLocation);
+        if (key == null) {
+            return;
+        }
+        idleSuppressedUntil.put(key, tickCounter + Math.max(1L, ticks));
+    }
+
+    private boolean isIdleSuppressed(Location crateLocation) {
+        String key = locationKey(crateLocation);
+        if (key == null) {
+            return false;
+        }
+        Long until = idleSuppressedUntil.get(key);
+        if (until == null) {
+            return false;
+        }
+        if (until <= tickCounter) {
+            idleSuppressedUntil.remove(key);
+            return false;
+        }
+        return true;
+    }
+
+    private String locationKey(Location location) {
+        if (location == null || location.getWorld() == null) {
+            return null;
+        }
+        return location.getWorld().getName() + ':' + location.getBlockX() + ':' + location.getBlockY() + ':' + location.getBlockZ();
     }
 }

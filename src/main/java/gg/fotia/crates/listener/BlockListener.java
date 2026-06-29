@@ -205,7 +205,7 @@ public class BlockListener implements Listener {
         Runnable onComplete = () -> {
             if (!plugin.getCrateManager().isLocationSet(crateLocation)) {
                 openingPlayers.remove(playerUuid);
-                crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult);
+                crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
                 return;
             }
 
@@ -215,7 +215,7 @@ public class BlockListener implements Listener {
 
             plugin.getHologramManager().showHologram(crateLocation, crateId);
             openingPlayers.remove(playerUuid);
-            crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult);
+            crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
         };
 
         if (crate.isAnimationEnabled() || crate.isPhysicalAnimationEnabled()) {

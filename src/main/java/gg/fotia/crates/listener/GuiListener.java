@@ -16,6 +16,7 @@ import gg.fotia.crates.particle.ParticleEffectMode;
 import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.particle.ParticleTarget;
 import gg.fotia.crates.reward.Reward;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -148,18 +149,20 @@ public class GuiListener implements Listener {
         int slot = event.getSlot();
 
         // 稀有度槽位
-        int[] raritySlots = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25};
+        List<Integer> raritySlots = contentSlots("admin_rarity_manager",
+                List.of(10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25));
         List<String> rarityIds = plugin.getConfigManager().getRarityIds();
+        String action = actionOrFallback("admin_rarity_manager", slot, Map.of(45, "back"));
 
         // 返回按钮
-        if (slot == 45) {
+        if ("back".equals(action)) {
             plugin.getGuiManager().openAdminGui(player);
             return;
         }
 
         // 检查是否点击了稀有度槽位
-        for (int i = 0; i < raritySlots.length; i++) {
-            if (slot == raritySlots[i]) {
+        for (int i = 0; i < raritySlots.size(); i++) {
+            if (slot == raritySlots.get(i)) {
                 if (i < rarityIds.size()) {
                     // 编辑现有稀有度
                     String rarityId = rarityIds.get(i);
@@ -292,9 +295,20 @@ public class GuiListener implements Listener {
     }
 
     private void handleAnimationSelectClick(InventoryClickEvent event, Player player, Crate crate, int slot) {
-        switch (slot) {
-            case 36 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
-            case 10 -> { // GUI动画开关
+        String action = actionOrFallback("admin_animation_select", slot, Map.of(
+                36, "back",
+                10, "toggle_gui_animation",
+                13, "select_roulette",
+                15, "select_instant",
+                28, "toggle_physical_animation",
+                30, "adjust_physical_height",
+                32, "adjust_animation_duration"
+        ));
+        if (action == null) return;
+
+        switch (action) {
+            case "back" -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
+            case "toggle_gui_animation" -> { // GUI动画开关
                 plugin.getCrateManager().toggleGuiAnimation(crate.getId());
                 Crate updated = plugin.getCrateManager().getCrate(crate.getId());
                 String status = updated.isAnimationEnabled() ? "开启" : "关闭";
@@ -302,19 +316,19 @@ public class GuiListener implements Listener {
                         LanguageManager.placeholders("type", "GUI动画 " + status));
                 plugin.getGuiManager().openAnimationSelectGui(player, updated);
             }
-            case 13 -> { // ROULETTE (轮盘动画)
+            case "select_roulette" -> { // ROULETTE (轮盘动画)
                 plugin.getCrateManager().updateAnimationType(crate.getId(), gg.fotia.crates.animation.AnimationType.ROULETTE);
                 plugin.getLanguageManager().send(player, "admin-animation-updated",
                         LanguageManager.placeholders("type", "ROULETTE"));
                 plugin.getGuiManager().openAnimationSelectGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             }
-            case 15 -> { // INSTANT (无动画)
+            case "select_instant" -> { // INSTANT (无动画)
                 plugin.getCrateManager().updateAnimationType(crate.getId(), gg.fotia.crates.animation.AnimationType.INSTANT);
                 plugin.getLanguageManager().send(player, "admin-animation-updated",
                         LanguageManager.placeholders("type", "INSTANT"));
                 plugin.getGuiManager().openAnimationSelectGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             }
-            case 28 -> { // 物理动画开关
+            case "toggle_physical_animation" -> { // 物理动画开关
                 plugin.getCrateManager().togglePhysicalAnimation(crate.getId());
                 Crate updated = plugin.getCrateManager().getCrate(crate.getId());
                 String status = updated.isPhysicalAnimationEnabled() ? "开启" : "关闭";
@@ -322,7 +336,7 @@ public class GuiListener implements Listener {
                         LanguageManager.placeholders("type", "物理动画 " + status));
                 plugin.getGuiManager().openAnimationSelectGui(player, updated);
             }
-            case 30 -> { // 物理动画高度
+            case "adjust_physical_height" -> { // 物理动画高度
                 double delta = 0;
                 if (event.isLeftClick()) {
                     delta = 0.1;
@@ -334,7 +348,7 @@ public class GuiListener implements Listener {
                 plugin.getCrateManager().updatePhysicalAnimationHeight(crate.getId(), newHeight);
                 plugin.getGuiManager().openAnimationSelectGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             }
-            case 32 -> { // 动画时长
+            case "adjust_animation_duration" -> { // 动画时长
                 if (event.getClick() == org.bukkit.event.inventory.ClickType.MIDDLE) {
                     // 中键输入精确数值
                     plugin.getLanguageManager().send(player, "admin-input-duration");
@@ -367,8 +381,29 @@ public class GuiListener implements Listener {
 
     private void handlePityEditClick(InventoryClickEvent event, Player player, Crate crate, int slot) {
         // 保底等级槽位
-        int[] tierSlots = {19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34};
+        List<Integer> tierSlots = contentSlots("admin_pity_edit", List.of(19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34));
         List<Crate.PityTier> tiers = crate.getPityTiers();
+        String action = actionOrFallback("admin_pity_edit", slot, Map.of(
+                45, "back",
+                4, "toggle_pity",
+                53, "save"
+        ));
+
+        if ("back".equals(action)) {
+            plugin.getGuiManager().openCrateEditGui(player, crate);
+            return;
+        }
+        if ("toggle_pity".equals(action)) {
+            plugin.getCrateManager().togglePity(crate.getId());
+            plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            return;
+        }
+        if ("save".equals(action)) {
+            plugin.getCrateManager().saveCrate(crate.getId());
+            plugin.getLanguageManager().send(player, "admin-crate-saved");
+            plugin.getGuiManager().openCrateEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            return;
+        }
 
         switch (slot) {
             case 45 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
@@ -383,8 +418,8 @@ public class GuiListener implements Listener {
             }
             default -> {
                 // 检查是否点击了保底等级槽位
-                for (int i = 0; i < tierSlots.length; i++) {
-                    if (slot == tierSlots[i]) {
+                for (int i = 0; i < tierSlots.size(); i++) {
+                    if (slot == tierSlots.get(i)) {
                         if (i < tiers.size()) {
                             // 编辑现有等级
                             Crate.PityTier tier = tiers.get(i);
@@ -437,6 +472,54 @@ public class GuiListener implements Listener {
     }
 
     private void handleBasicEditClick(InventoryClickEvent event, Player player, Crate crate, int slot) {
+        String action = actionOrFallback("admin_basic_edit", slot, Map.of(
+                18, "back",
+                11, "edit_name",
+                13, "edit_block",
+                15, "adjust_animation_duration"
+        ));
+        if ("back".equals(action)) {
+            plugin.getGuiManager().openCrateEditGui(player, crate);
+            return;
+        }
+        if ("edit_name".equals(action)) {
+            plugin.getLanguageManager().send(player, "admin-input-name");
+            plugin.getGuiManager().startInputSession(player, "crate_name", crate.getId(), (p, input, data) -> {
+                String crateId = (String) data;
+                plugin.getCrateManager().updateCrateName(crateId, input);
+                plugin.getLanguageManager().send(p, "admin-crate-name-updated",
+                        LanguageManager.placeholders("name", input));
+                Crate updatedCrate = plugin.getCrateManager().getCrate(crateId);
+                if (updatedCrate != null) {
+                    plugin.getGuiManager().openBasicEditGui(p, updatedCrate);
+                }
+            });
+            return;
+        }
+        if ("edit_block".equals(action)) {
+            org.bukkit.inventory.ItemStack item = player.getInventory().getItemInMainHand();
+            if (item.getType().isAir() || !item.getType().isBlock()) {
+                plugin.getLanguageManager().send(player, "admin-hold-block");
+                return;
+            }
+            plugin.getCrateManager().updateCrateBlock(crate.getId(), item.getType());
+            plugin.getLanguageManager().send(player, "admin-block-updated");
+            plugin.getGuiManager().openBasicEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            return;
+        }
+        if ("adjust_animation_duration".equals(action)) {
+            int delta = 0;
+            if (event.isLeftClick()) {
+                delta = event.isShiftClick() ? 5 : 1;
+            } else if (event.isRightClick()) {
+                delta = event.isShiftClick() ? -5 : -1;
+            }
+            int newDuration = Math.max(1, crate.getAnimationDuration() + delta);
+            plugin.getCrateManager().updateAnimationDuration(crate.getId(), newDuration);
+            plugin.getGuiManager().openBasicEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            return;
+        }
+
         switch (slot) {
             case 18 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
             case 11 -> { // 编辑名称
@@ -477,6 +560,33 @@ public class GuiListener implements Listener {
     }
 
     private void handleMultiOpenEditClick(InventoryClickEvent event, Player player, Crate crate, int slot) {
+        String action = actionOrFallback("admin_multi_open_edit", slot, Map.of(
+                18, "back",
+                11, "toggle_multi_open",
+                15, "adjust_multi_open_max"
+        ));
+        if ("back".equals(action)) {
+            plugin.getGuiManager().openCrateEditGui(player, crate);
+            return;
+        }
+        if ("toggle_multi_open".equals(action)) {
+            plugin.getCrateManager().toggleMultiOpen(crate.getId());
+            plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            return;
+        }
+        if ("adjust_multi_open_max".equals(action)) {
+            int delta = 0;
+            if (event.isLeftClick()) {
+                delta = event.isShiftClick() ? 5 : 1;
+            } else if (event.isRightClick()) {
+                delta = event.isShiftClick() ? -5 : -1;
+            }
+            int newMax = Math.max(1, crate.getMultiOpenMax() + delta);
+            plugin.getCrateManager().updateMultiOpenMax(crate.getId(), newMax);
+            plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            return;
+        }
+
         switch (slot) {
             case 18 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
             case 11 -> { // 切换启用/禁用
@@ -505,104 +615,172 @@ public class GuiListener implements Listener {
         }
 
         ParticleStage stage = ParticleStage.fromPath(stageName);
-        CrateParticleEffect effect = crate.getParticleEffect(stage);
+        String materialKey = holder.getData("particle_material_key");
+        if (materialKey != null) {
+            handleParticleMaterialSelectClick(event, player, crate, stage, holder, slot, materialKey);
+            return;
+        }
 
-        switch (slot) {
-            case 45 -> plugin.getGuiManager().openParticleEditGui(player, crate);
-            case 4 -> {
+        CrateParticleEffect effect = crate.getParticleEffect(stage);
+        String action = actionOrFallback("admin_particle_stage_edit", slot, Map.ofEntries(
+                Map.entry(45, "back"),
+                Map.entry(4, "toggle_stage"),
+                Map.entry(10, "cycle_particle"),
+                Map.entry(12, "cycle_mode"),
+                Map.entry(14, "cycle_target"),
+                Map.entry(16, "preview"),
+                Map.entry(19, "adjust_count"),
+                Map.entry(20, "adjust_radius"),
+                Map.entry(21, "adjust_height"),
+                Map.entry(22, "adjust_speed"),
+                Map.entry(23, "adjust_size"),
+                Map.entry(28, "adjust_interval"),
+                Map.entry(29, "adjust_duration"),
+                Map.entry(30, "edit_color"),
+                Map.entry(31, "edit_to_color"),
+                Map.entry(32, "select_block_material"),
+                Map.entry(33, "select_item_material")
+        ));
+        if (action == null) return;
+
+        switch (action) {
+            case "back" -> plugin.getGuiManager().openParticleEditGui(player, crate);
+            case "toggle_stage" -> {
                 plugin.getCrateManager().toggleParticleStage(crate.getId(), stage);
                 sendParticleUpdated(player, stage.displayName() + "阶段开关");
                 reopenParticleStage(player, crate.getId(), stage);
             }
-            case 10 -> startParticleTypeInput(player, crate, stage);
-            case 12 -> {
+            case "cycle_particle" -> {
+                String particle = ParticleCompat.nextSelectableParticle(effect.getParticle(), event.isRightClick());
+                plugin.getCrateManager().updateParticleType(crate.getId(), stage, particle);
+                sendParticleUpdated(player, "粒子类型");
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case "cycle_mode" -> {
                 ParticleEffectMode mode = event.isRightClick() ? effect.getMode().previous() : effect.getMode().next();
                 plugin.getCrateManager().updateParticleMode(crate.getId(), stage, mode);
                 sendParticleUpdated(player, "特效模式");
                 reopenParticleStage(player, crate.getId(), stage);
             }
-            case 14 -> {
-                ParticleTarget target = event.isRightClick() ? effect.getTarget().previous() : effect.getTarget().next();
+            case "cycle_target" -> {
+                ParticleTarget target = event.isRightClick() ? effect.getTarget().previous(stage) : effect.getTarget().next(stage);
                 plugin.getCrateManager().updateParticleTarget(crate.getId(), stage, target);
                 sendParticleUpdated(player, "播放目标");
                 reopenParticleStage(player, crate.getId(), stage);
             }
-            case 16 -> {
+            case "preview" -> {
                 plugin.getParticleManager().previewStage(player, crate, stage);
                 plugin.getLanguageManager().send(player, "admin-particles-preview");
             }
-            case 19 -> {
+            case "adjust_count" -> {
                 int delta = signedDelta(event, event.isShiftClick() ? 5 : 1);
                 plugin.getCrateManager().updateParticleInt(crate.getId(), stage, "count", effect.getCount() + delta, 1, 500);
                 reopenParticleStage(player, crate.getId(), stage);
             }
-            case 21 -> {
+            case "adjust_radius" -> {
                 double delta = signedDelta(event, event.isShiftClick() ? 0.5 : 0.1);
                 plugin.getCrateManager().updateParticleDouble(crate.getId(), stage, "radius", effect.getRadius() + delta, 0.0, 8.0);
                 reopenParticleStage(player, crate.getId(), stage);
             }
-            case 23 -> {
+            case "adjust_height" -> {
                 double delta = signedDelta(event, event.isShiftClick() ? 0.5 : 0.1);
                 plugin.getCrateManager().updateParticleDouble(crate.getId(), stage, "height", effect.getHeight() + delta, 0.0, 8.0);
                 reopenParticleStage(player, crate.getId(), stage);
             }
-            case 25 -> {
+            case "adjust_speed" -> {
                 double delta = signedDelta(event, event.isShiftClick() ? 0.05 : 0.01);
                 plugin.getCrateManager().updateParticleDouble(crate.getId(), stage, "speed", effect.getSpeed() + delta, 0.0, 2.0);
                 reopenParticleStage(player, crate.getId(), stage);
             }
-            case 28 -> {
+            case "adjust_size" -> {
+                double delta = signedDelta(event, event.isShiftClick() ? 0.5 : 0.1);
+                plugin.getCrateManager().updateParticleDouble(crate.getId(), stage, "size", effect.getSize() + delta, 0.1, 5.0);
+                reopenParticleStage(player, crate.getId(), stage);
+            }
+            case "adjust_interval" -> {
                 int delta = signedDelta(event, event.isShiftClick() ? 5 : 1);
                 plugin.getCrateManager().updateParticleInt(crate.getId(), stage, "interval", effect.getInterval() + delta, 1, 200);
                 reopenParticleStage(player, crate.getId(), stage);
             }
-            case 30 -> {
+            case "adjust_duration" -> {
                 int delta = signedDelta(event, event.isShiftClick() ? 20 : 5);
                 plugin.getCrateManager().updateParticleInt(crate.getId(), stage, "duration", effect.getDuration() + delta, 1, 400);
                 reopenParticleStage(player, crate.getId(), stage);
             }
-            case 32 -> startParticleColorInput(player, crate, stage, "color");
-            case 34 -> startParticleColorInput(player, crate, stage, "to-color");
-            case 37 -> {
-                org.bukkit.inventory.ItemStack held = player.getInventory().getItemInMainHand();
-                if (held.getType().isAir() || !held.getType().isBlock()) {
-                    plugin.getLanguageManager().send(player, "admin-hold-block");
+            case "edit_color" -> startParticleColorInput(player, crate, stage, "color");
+            case "edit_to_color" -> startParticleColorInput(player, crate, stage, "to-color");
+            case "select_block_material" -> plugin.getGuiManager().openParticleMaterialSelectGui(player, crate, stage, "block", 0);
+            case "select_item_material" -> plugin.getGuiManager().openParticleMaterialSelectGui(player, crate, stage, "item", 0);
+        }
+    }
+
+    private void handleParticleMaterialSelectClick(InventoryClickEvent event, Player player, Crate crate,
+                                                   ParticleStage stage, CrateGuiHolder holder, int slot,
+                                                   String materialKey) {
+        int page = holder.getData("particle_material_page", 0);
+        String action = actionOrFallback("admin_particle_material_select", slot, Map.of(
+                45, "back",
+                48, "previous_page",
+                50, "next_page"
+        ));
+        if ("back".equals(action)) {
+            plugin.getGuiManager().openParticleStageEditGui(player, crate, stage);
+            return;
+        }
+        if ("previous_page".equals(action)) {
+            plugin.getGuiManager().openParticleMaterialSelectGui(
+                    player, crate, stage, materialKey, Math.max(0, page - 1));
+            return;
+        }
+        if ("next_page".equals(action)) {
+            plugin.getGuiManager().openParticleMaterialSelectGui(
+                    player, crate, stage, materialKey,
+                    Math.min(plugin.getGuiManager().getParticleMaterialMaxPage(materialKey), page + 1));
+            return;
+        }
+
+        switch (slot) {
+            case 45 -> plugin.getGuiManager().openParticleStageEditGui(player, crate, stage);
+            case 48 -> plugin.getGuiManager().openParticleMaterialSelectGui(
+                    player, crate, stage, materialKey, Math.max(0, page - 1));
+            case 50 -> plugin.getGuiManager().openParticleMaterialSelectGui(
+                    player, crate, stage, materialKey,
+                    Math.min(plugin.getGuiManager().getParticleMaterialMaxPage(materialKey), page + 1));
+            default -> {
+                Material material = plugin.getGuiManager().getParticleMaterialSelection(materialKey, page, slot);
+                if (material == null) {
                     return;
                 }
-                plugin.getCrateManager().updateParticleMaterial(crate.getId(), stage, "block", held.getType());
-                sendParticleUpdated(player, "方块粒子材质");
-                reopenParticleStage(player, crate.getId(), stage);
-            }
-            case 39 -> {
-                org.bukkit.inventory.ItemStack held = player.getInventory().getItemInMainHand();
-                if (held.getType().isAir()) {
-                    plugin.getLanguageManager().send(player, "reward-hold-item");
-                    return;
-                }
-                plugin.getCrateManager().updateParticleMaterial(crate.getId(), stage, "item", held.getType());
-                sendParticleUpdated(player, "物品粒子材质");
-                reopenParticleStage(player, crate.getId(), stage);
-            }
-            case 40 -> {
-                double delta = signedDelta(event, event.isShiftClick() ? 0.5 : 0.1);
-                plugin.getCrateManager().updateParticleDouble(crate.getId(), stage, "size", effect.getSize() + delta, 0.1, 5.0);
-                reopenParticleStage(player, crate.getId(), stage);
+                plugin.getCrateManager().updateParticleMaterial(crate.getId(), stage, materialKey, material);
+                sendParticleUpdated(player, "block".equalsIgnoreCase(materialKey) ? "方块粒子材质" : "物品粒子材质");
+                plugin.getGuiManager().openParticleMaterialSelectGui(player,
+                        plugin.getCrateManager().getCrate(crate.getId()), stage, materialKey, page);
             }
         }
     }
 
     private void handleParticleMainClick(Player player, Crate crate, int slot) {
-        switch (slot) {
-            case 4 -> {
+        String action = actionOrFallback("admin_particle_edit", slot, Map.of(
+                4, "toggle_particles",
+                20, "edit_idle_stage",
+                22, "edit_open_stage",
+                24, "edit_reward_stage",
+                45, "back",
+                49, "preview_all"
+        ));
+        if (action == null) return;
+
+        switch (action) {
+            case "toggle_particles" -> {
                 plugin.getCrateManager().toggleParticles(crate.getId());
                 sendParticleUpdated(player, "粒子总开关");
                 plugin.getGuiManager().openParticleEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             }
-            case 20 -> plugin.getGuiManager().openParticleStageEditGui(player, crate, ParticleStage.IDLE);
-            case 22 -> plugin.getGuiManager().openParticleStageEditGui(player, crate, ParticleStage.OPEN);
-            case 24 -> plugin.getGuiManager().openParticleStageEditGui(player, crate, ParticleStage.REWARD);
-            case 45 -> plugin.getGuiManager().openCrateEditGui(player, crate);
-            case 49 -> {
+            case "edit_idle_stage" -> plugin.getGuiManager().openParticleStageEditGui(player, crate, ParticleStage.IDLE);
+            case "edit_open_stage" -> plugin.getGuiManager().openParticleStageEditGui(player, crate, ParticleStage.OPEN);
+            case "edit_reward_stage" -> plugin.getGuiManager().openParticleStageEditGui(player, crate, ParticleStage.REWARD);
+            case "back" -> plugin.getGuiManager().openCrateEditGui(player, crate);
+            case "preview_all" -> {
                 plugin.getParticleManager().previewAll(player, crate);
                 plugin.getLanguageManager().send(player, "admin-particles-preview");
             }
@@ -673,6 +851,18 @@ public class GuiListener implements Listener {
     private boolean hasConfiguredAction(GuiConfig config, String action) {
         return config.getItems().values().stream()
                 .anyMatch(item -> action.equalsIgnoreCase(item.getAction()));
+    }
+
+    private String actionOrFallback(String guiId, int slot, Map<Integer, String> fallbackActions) {
+        String action = plugin.getGuiManager().getConfiguredAction(guiId, slot);
+        if (action != null && !action.isBlank()) {
+            return action.toLowerCase();
+        }
+        return fallbackActions.get(slot);
+    }
+
+    private List<Integer> contentSlots(String guiId, List<Integer> fallback) {
+        return plugin.getGuiManager().getConfiguredContentSlots(guiId, fallback);
     }
 
     private void handleCrateEditAction(Player player, String action, Crate crate, CrateGuiHolder holder, boolean isShiftClick) {
@@ -775,6 +965,44 @@ public class GuiListener implements Listener {
         if (reward == null) {
             plugin.getGuiManager().openCrateEditGui(player, crate);
             return;
+        }
+
+        String action = actionOrFallback("admin_reward_edit", slot, Map.ofEntries(
+                Map.entry(45, "back"),
+                Map.entry(4, "edit_display_icon"),
+                Map.entry(11, "edit_reward_items"),
+                Map.entry(15, "edit_commands"),
+                Map.entry(28, "adjust_chance"),
+                Map.entry(30, "cycle_rarity"),
+                Map.entry(32, "toggle_broadcast"),
+                Map.entry(34, "edit_display_name"),
+                Map.entry(37, "toggle_permission_check"),
+                Map.entry(39, "edit_permission_node"),
+                Map.entry(41, "cycle_permission_action"),
+                Map.entry(43, "select_alternative_reward"),
+                Map.entry(47, "copy_reward"),
+                Map.entry(49, "delete_reward"),
+                Map.entry(51, "save")
+        ));
+        if (action != null) {
+            slot = switch (action) {
+                case "back" -> 45;
+                case "edit_display_icon" -> 4;
+                case "edit_reward_items" -> 11;
+                case "edit_commands" -> 15;
+                case "adjust_chance" -> 28;
+                case "cycle_rarity" -> 30;
+                case "toggle_broadcast" -> 32;
+                case "edit_display_name" -> 34;
+                case "toggle_permission_check" -> 37;
+                case "edit_permission_node" -> 39;
+                case "cycle_permission_action" -> 41;
+                case "select_alternative_reward" -> 43;
+                case "copy_reward" -> 47;
+                case "delete_reward" -> 49;
+                case "save" -> 51;
+                default -> slot;
+            };
         }
 
         switch (slot) {
@@ -928,12 +1156,12 @@ public class GuiListener implements Listener {
         }
 
         // 奖励槽位
-        List<Integer> rewardSlots = List.of(
+        List<Integer> rewardSlots = contentSlots("admin_alternative_reward_select", List.of(
                 10, 11, 12, 13, 14, 15, 16,
                 19, 20, 21, 22, 23, 24, 25,
                 28, 29, 30, 31, 32, 33, 34,
                 37, 38, 39, 40, 41, 42, 43
-        );
+        ));
 
         int slotIndex = rewardSlots.indexOf(slot);
         if (slotIndex >= 0) {
@@ -950,6 +1178,18 @@ public class GuiListener implements Listener {
                 refreshRewardEditGui(player, crate.getId(), sourceRewardId);
             }
             return;
+        }
+
+        String action = actionOrFallback("admin_alternative_reward_select", slot, Map.of(
+                45, "back",
+                49, "clear_alternative_reward"
+        ));
+        if (action != null) {
+            slot = switch (action) {
+                case "back" -> 45;
+                case "clear_alternative_reward" -> 49;
+                default -> slot;
+            };
         }
 
         switch (slot) {
@@ -975,12 +1215,12 @@ public class GuiListener implements Listener {
         }
 
         // 奖励槽位
-        List<Integer> rewardSlots = List.of(
+        List<Integer> rewardSlots = contentSlots("admin_reward_manager", List.of(
                 10, 11, 12, 13, 14, 15, 16,
                 19, 20, 21, 22, 23, 24, 25,
                 28, 29, 30, 31, 32, 33, 34,
                 37, 38, 39, 40, 41, 42, 43
-        );
+        ));
 
         int slotIndex = rewardSlots.indexOf(slot);
         if (slotIndex >= 0) {
@@ -1008,6 +1248,24 @@ public class GuiListener implements Listener {
                 }
             }
             return;
+        }
+
+        String action = actionOrFallback("admin_reward_manager", slot, Map.of(
+                45, "back",
+                48, "previous_page",
+                50, "next_page",
+                52, "balance_chances",
+                53, "add_reward"
+        ));
+        if (action != null) {
+            slot = switch (action) {
+                case "back" -> 45;
+                case "previous_page" -> 48;
+                case "next_page" -> 50;
+                case "balance_chances" -> 52;
+                case "add_reward" -> 53;
+                default -> slot;
+            };
         }
 
         // 底部工具栏
@@ -1075,6 +1333,8 @@ public class GuiListener implements Listener {
         }
 
         int topSize = topInventory.getSize(); // 27
+        List<Integer> inputSlots = contentSlots("admin_item_input", List.of(13));
+        int inputSlot = inputSlots.isEmpty() ? 13 : inputSlots.get(0);
 
         // 点击玩家背包区域 - 允许所有操作
         if (rawSlot >= topSize) {
@@ -1082,9 +1342,9 @@ public class GuiListener implements Listener {
             // Shift点击时特殊处理：放入slot 13
             if (event.isShiftClick() && event.getCurrentItem() != null && !event.getCurrentItem().getType().isAir()) {
                 event.setCancelled(true);
-                org.bukkit.inventory.ItemStack slot13Item = topInventory.getItem(13);
+                org.bukkit.inventory.ItemStack slot13Item = topInventory.getItem(inputSlot);
                 if (slot13Item == null || slot13Item.getType().isAir()) {
-                    topInventory.setItem(13, event.getCurrentItem().clone());
+                    topInventory.setItem(inputSlot, event.getCurrentItem().clone());
                     event.setCurrentItem(null);
                 }
             }
@@ -1092,7 +1352,7 @@ public class GuiListener implements Listener {
         }
 
         // 点击GUI的slot 13 - 允许所有物品操作
-        if (rawSlot == 13) {
+        if (rawSlot == inputSlot) {
             // 完全不取消，允许正常的放入/取出/交换
             return;
         }
@@ -1103,18 +1363,34 @@ public class GuiListener implements Listener {
         // 如果光标有物品，放入slot 13
         org.bukkit.inventory.ItemStack cursor = event.getCursor();
         if (cursor != null && !cursor.getType().isAir()) {
-            org.bukkit.inventory.ItemStack slot13Item = topInventory.getItem(13);
+            org.bukkit.inventory.ItemStack slot13Item = topInventory.getItem(inputSlot);
             if (slot13Item == null || slot13Item.getType().isAir()) {
-                topInventory.setItem(13, cursor.clone());
+                topInventory.setItem(inputSlot, cursor.clone());
                 player.setItemOnCursor(null);
             }
             return;
         }
 
         // 按钮处理
+        String action = actionOrFallback("admin_item_input", rawSlot, Map.of(
+                15, "confirm",
+                16, "confirm",
+                10, "cancel",
+                11, "cancel",
+                22, "clear_reward_item"
+        ));
+        if (action != null) {
+            rawSlot = switch (action) {
+                case "confirm" -> 15;
+                case "cancel" -> 10;
+                case "clear_reward_item" -> 22;
+                default -> rawSlot;
+            };
+        }
+
         switch (rawSlot) {
             case 15, 16 -> { // 确认按钮
-                org.bukkit.inventory.ItemStack inputItem = topInventory.getItem(13);
+                org.bukkit.inventory.ItemStack inputItem = topInventory.getItem(inputSlot);
                 if (inputItem != null && !inputItem.getType().isAir()) {
                     // 标记已保存，关闭时不返还物品
                     holder.setData("saved", true);
@@ -1125,7 +1401,7 @@ public class GuiListener implements Listener {
                         plugin.getCrateManager().updateRewardItemFull(crate.getId(), rewardId, inputItem.clone());
                     }
                     plugin.getLanguageManager().send(player, "admin-key-item-updated");
-                    topInventory.setItem(13, null);
+                    topInventory.setItem(inputSlot, null);
                 }
                 returnToRewardEdit(player, crate.getId(), rewardId);
             }
@@ -1136,7 +1412,7 @@ public class GuiListener implements Listener {
                 if (inputType.equals("reward_item")) {
                     plugin.getCrateManager().clearRewardItem(crate.getId(), rewardId);
                     plugin.getLanguageManager().send(player, "admin-reward-item-cleared");
-                    topInventory.setItem(13, null);
+                    topInventory.setItem(inputSlot, null);
                     returnToRewardEdit(player, crate.getId(), rewardId);
                 }
             }
@@ -1178,11 +1454,11 @@ public class GuiListener implements Listener {
         int topSize = topInventory.getSize(); // 54
 
         // 物品槽位
-        List<Integer> itemSlots = List.of(
+        List<Integer> itemSlots = contentSlots("admin_reward_items", List.of(
                 10, 11, 12, 13, 14, 15, 16,
                 19, 20, 21, 22, 23, 24, 25,
                 28, 29, 30, 31, 32, 33, 34
-        );
+        ));
 
         // 点击玩家背包区域 - 允许所有操作
         if (rawSlot >= topSize) {
@@ -1224,6 +1500,20 @@ public class GuiListener implements Listener {
         }
 
         // 按钮处理
+        String action = actionOrFallback("admin_reward_items", rawSlot, Map.of(
+                45, "back",
+                49, "clear_all",
+                53, "save"
+        ));
+        if (action != null) {
+            rawSlot = switch (action) {
+                case "back" -> 45;
+                case "clear_all" -> 49;
+                case "save" -> 53;
+                default -> rawSlot;
+            };
+        }
+
         switch (rawSlot) {
             case 45 -> { // 返回
                 returnToRewardEdit(player, crate.getId(), rewardId);
@@ -1337,15 +1627,17 @@ public class GuiListener implements Listener {
 
     private void handleCrateSelectClick(InventoryClickEvent event, Player player, CrateGuiHolder holder, gg.fotia.crates.key.Key key) {
         int slot = event.getSlot();
+        String action = actionOrFallback("admin_crate_select", slot, Map.of(45, "back"));
 
         // 返回按钮
-        if (slot == 45) {
+        if ("back".equals(action)) {
             plugin.getGuiManager().openKeyEditGui(player, key);
             return;
         }
 
         // 检查是否点击了宝箱
-        List<Integer> contentSlots = List.of(10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34);
+        List<Integer> contentSlots = contentSlots("admin_crate_select",
+                List.of(10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34));
         if (contentSlots.contains(slot) && event.isLeftClick()) {
             // 获取点击的宝箱
             int slotIndex = contentSlots.indexOf(slot);
@@ -1633,21 +1925,26 @@ public class GuiListener implements Listener {
             }
         }
 
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, player.getLocation());
+        Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
+        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
 
         if (crate.isAnimationEnabled()) {
             AnimationManager animationManager = new AnimationManager(plugin);
-            animationManager.playAnimation(player, crate, reward, player.getLocation(), () -> {
-                giveReward(player, crate, reward);
+            animationManager.playAnimation(player, crate, reward, crateLocation, () -> {
+                giveReward(player, crate, reward, crateLocation);
                 openingPlayers.remove(player.getUniqueId());
             });
         } else {
-            giveReward(player, crate, reward);
+            giveReward(player, crate, reward, crateLocation);
             openingPlayers.remove(player.getUniqueId());
         }
     }
 
     private void giveReward(Player player, Crate crate, Reward reward) {
+        giveReward(player, crate, reward, plugin.getParticleManager().resolveCrateLocation(player, crate));
+    }
+
+    private void giveReward(Player player, Crate crate, Reward reward, Location crateLocation) {
         reward.give(player);
 
         plugin.getLanguageManager().send(player, "reward-received",
@@ -1671,7 +1968,7 @@ public class GuiListener implements Listener {
                 reward.getDisplayName()
         );
 
-        plugin.getParticleManager().playStage(ParticleStage.REWARD, player, crate, player.getLocation());
+        plugin.getParticleManager().playStage(ParticleStage.REWARD, player, crate, crateLocation);
 
         if (crate.getWinSound() != null) {
             player.playSound(player.getLocation(), crate.getWinSound(),
@@ -1685,17 +1982,19 @@ public class GuiListener implements Listener {
             // 物品输入界面允许拖拽到slot 13
             if (holder.getGuiType() == GuiType.ITEM_INPUT) {
                 // 只允许拖拽到slot 13
-                if (event.getRawSlots().size() == 1 && event.getRawSlots().contains(13)) {
+                List<Integer> inputSlots = contentSlots("admin_item_input", List.of(13));
+                int inputSlot = inputSlots.isEmpty() ? 13 : inputSlots.get(0);
+                if (event.getRawSlots().size() == 1 && event.getRawSlots().contains(inputSlot)) {
                     return; // 允许
                 }
             }
             // 奖励物品管理界面允许拖拽到物品槽位
             if (holder.getGuiType() == GuiType.REWARD_ITEMS) {
-                List<Integer> itemSlots = List.of(
+                List<Integer> itemSlots = contentSlots("admin_reward_items", List.of(
                         10, 11, 12, 13, 14, 15, 16,
                         19, 20, 21, 22, 23, 24, 25,
                         28, 29, 30, 31, 32, 33, 34
-                );
+                ));
                 // 检查所有拖拽的槽位是否都在允许范围内
                 boolean allAllowed = event.getRawSlots().stream().allMatch(itemSlots::contains);
                 if (allAllowed) {
@@ -1715,7 +2014,9 @@ public class GuiListener implements Listener {
                 Boolean saved = holder.getData("saved");
                 if (saved != null && saved) return;
 
-                org.bukkit.inventory.ItemStack item = event.getInventory().getItem(13);
+                List<Integer> inputSlots = contentSlots("admin_item_input", List.of(13));
+                int inputSlot = inputSlots.isEmpty() ? 13 : inputSlots.get(0);
+                org.bukkit.inventory.ItemStack item = event.getInventory().getItem(inputSlot);
                 if (item != null && !item.getType().isAir()) {
                     if (event.getPlayer() instanceof Player player) {
                         player.getInventory().addItem(item);
@@ -1728,11 +2029,11 @@ public class GuiListener implements Listener {
                 Boolean saved = holder.getData("saved");
                 if (saved != null && saved) return;
 
-                List<Integer> itemSlots = List.of(
+                List<Integer> itemSlots = contentSlots("admin_reward_items", List.of(
                         10, 11, 12, 13, 14, 15, 16,
                         19, 20, 21, 22, 23, 24, 25,
                         28, 29, 30, 31, 32, 33, 34
-                );
+                ));
                 if (event.getPlayer() instanceof Player player) {
                     for (int slot : itemSlots) {
                         org.bukkit.inventory.ItemStack item = event.getInventory().getItem(slot);

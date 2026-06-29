@@ -4,7 +4,7 @@
   <groupId>gg.fotia</groupId>
   <artifactId>FotiaCrates</artifactId>
   <name>FotiaCrates</name>
-  <version>1.0.15</version>
+  <version>1.0.16</version>
   <description>功能丰富的Minecraft抽奖箱插件</description>
   <build>
     <resources>
@@ -20,6 +20,15 @@
         <configuration>
           <source>${java.version}</source>
           <target>${java.version}</target>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <excludes>
+            <exclude>kr/toxicity/model/api/**</exclude>
+          </excludes>
         </configuration>
       </plugin>
       <plugin>
@@ -110,12 +119,6 @@
       <scope>provided</scope>
     </dependency>
     <dependency>
-      <groupId>io.github.toxicity188</groupId>
-      <artifactId>bettermodel-bukkit-api</artifactId>
-      <version>3.0.2</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
       <groupId>me.clip</groupId>
       <artifactId>placeholderapi</artifactId>
       <version>2.11.6</version>
@@ -129,7 +132,7 @@
     </dependency>
   </dependencies>
   <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <java.version>17</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 </project>

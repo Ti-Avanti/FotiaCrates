@@ -71,6 +71,38 @@ public class GuiConfig {
         return items.get(slot);
     }
 
+    public GuiItem getItemByAction(String action) {
+        if (action == null || action.isEmpty()) {
+            return null;
+        }
+        for (GuiItem item : items.values()) {
+            if (item.getAction() != null && item.getAction().equalsIgnoreCase(action)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    public int getSlotByAction(String action, int fallback) {
+        GuiItem item = getItemByAction(action);
+        return item != null ? item.getSlot() : fallback;
+    }
+
+    public List<Integer> getSlotsByAction(String action) {
+        List<Integer> slots = new ArrayList<>();
+        if (action == null || action.isEmpty()) {
+            return slots;
+        }
+        for (Map.Entry<Integer, GuiItem> entry : items.entrySet()) {
+            GuiItem item = entry.getValue();
+            if (item.getAction() != null && item.getAction().equalsIgnoreCase(action)) {
+                slots.add(entry.getKey());
+            }
+        }
+        slots.sort(Integer::compareTo);
+        return slots;
+    }
+
     public List<Integer> getContentSlots() {
         return new ArrayList<>(contentSlots);
     }

@@ -1,0 +1,31 @@
+title: "<!i><dark_gray>多连抽设置"
+size: 27
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+items:
+  toggle:
+    slot: 11
+    material: LIME_DYE
+    name: "<!i><green>多连抽: {multi_open_enabled}"
+    lore:
+      - "<!i><yellow>点击切换"
+    action: toggle_multi_open
+  max:
+    slot: 15
+    material: CHEST_MINECART
+    name: "<!i><yellow>最大数量: {multi_open_max}"
+    lore:
+      - "<!i><yellow>左键 +1 / 右键 -1"
+      - "<!i><yellow>Shift = 5"
+    action: adjust_multi_open_max
+  back:
+    slot: 18
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回宝箱编辑界面"
+    action: back

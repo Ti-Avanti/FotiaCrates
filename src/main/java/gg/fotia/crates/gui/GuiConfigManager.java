@@ -14,6 +14,30 @@ import java.util.*;
  */
 public class GuiConfigManager {
 
+    private static final List<String> DEFAULT_GUI_FILES = List.of(
+            "preview.yml",
+            "animation.yml",
+            "history.yml",
+            "admin.yml",
+            "admin_crate_edit.yml",
+            "admin_keys.yml",
+            "admin_key_edit.yml",
+            "admin_crate_select.yml",
+            "admin_animation_select.yml",
+            "admin_pity_edit.yml",
+            "admin_basic_edit.yml",
+            "admin_multi_open_edit.yml",
+            "admin_reward_edit.yml",
+            "admin_reward_manager.yml",
+            "admin_item_input.yml",
+            "admin_reward_items.yml",
+            "admin_alternative_reward_select.yml",
+            "admin_rarity_manager.yml",
+            "admin_particle_edit.yml",
+            "admin_particle_stage_edit.yml",
+            "admin_particle_material_select.yml"
+    );
+
     private final FotiaCrates plugin;
     private final Map<String, GuiConfig> guiConfigs = new HashMap<>();
 
@@ -32,13 +56,10 @@ public class GuiConfigManager {
         if (!guisFolder.exists()) {
             guisFolder.mkdirs();
             // 保存默认GUI配置
-            saveDefaultGui("preview.yml");
-            saveDefaultGui("animation.yml");
-            saveDefaultGui("history.yml");
-            saveDefaultGui("admin.yml");
-            saveDefaultGui("admin_crate_edit.yml");
-            saveDefaultGui("admin_keys.yml");
-            saveDefaultGui("admin_key_edit.yml");
+        }
+
+        for (String fileName : DEFAULT_GUI_FILES) {
+            saveDefaultGui(fileName);
         }
 
         File[] files = guisFolder.listFiles((dir, name) -> name.endsWith(".yml"));

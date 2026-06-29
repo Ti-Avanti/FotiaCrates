@@ -1,0 +1,56 @@
+title: "<!i><dark_gray>放入物品"
+size: 27
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+content-slots:
+  - 13
+
+items:
+  info:
+    slot: 4
+    material: BOOK
+    name: "<!i><yellow>设置{input_type}"
+    lore:
+      - "<!i><gray>将物品放入中间槽位"
+      - "<!i><gray>会完整保存物品数据"
+  cancel_left:
+    slot: 10
+    material: RED_STAINED_GLASS_PANE
+    name: "<!i><red>取消"
+    lore:
+      - "<!i><gray>返回奖励编辑界面"
+    action: cancel
+  cancel_right:
+    slot: 11
+    material: RED_STAINED_GLASS_PANE
+    name: "<!i><red>取消"
+    lore:
+      - "<!i><gray>返回奖励编辑界面"
+    action: cancel
+  confirm_left:
+    slot: 15
+    material: LIME_STAINED_GLASS_PANE
+    name: "<!i><green>确认保存"
+    lore:
+      - "<!i><gray>保存物品并返回"
+    action: confirm
+  confirm_right:
+    slot: 16
+    material: LIME_STAINED_GLASS_PANE
+    name: "<!i><green>确认保存"
+    lore:
+      - "<!i><gray>保存物品并返回"
+    action: confirm
+  clear:
+    slot: 22
+    material: BARRIER
+    name: "<!i><red>清除奖励物品"
+    lore:
+      - "<!i><gray>仅奖励物品设置有效"
+      - ""
+      - "<!i><yellow>点击清除"
+    action: clear_reward_item

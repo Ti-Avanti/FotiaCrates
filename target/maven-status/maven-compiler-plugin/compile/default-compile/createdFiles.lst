@@ -1,7 +1,9 @@
 gg\fotia\crates\key\KeyType.class
 gg\fotia\crates\particle\ParticleManager.class
+kr\toxicity\model\api\BetterModel.class
 gg\fotia\crates\gui\CrateGuiHolder.class
 gg\fotia\crates\command\subcommand\RemoveCommand.class
+kr\toxicity\model\api\tracker\EntityTracker.class
 gg\fotia\crates\command\subcommand\SubCommand.class
 gg\fotia\crates\util\ChestLidUtil.class
 gg\fotia\crates\particle\ParticleStage.class
@@ -10,11 +12,14 @@ gg\fotia\crates\particle\CrateParticleEffect$1.class
 gg\fotia\crates\util\ItemBuilder.class
 gg\fotia\crates\gui\GuiManager$InputSession.class
 gg\fotia\crates\command\subcommand\HistoryCommand.class
+kr\toxicity\model\api\platform\PlatformEntity.class
+kr\toxicity\model\api\tracker\TrackerModifier$Builder.class
 gg\fotia\crates\animation\AnimationType.class
 gg\fotia\crates\particle\CrateParticleEffect.class
 gg\fotia\crates\util\LegacyColorConverter.class
 gg\fotia\crates\reward\MoneyReward.class
 gg\fotia\crates\reward\Reward.class
+kr\toxicity\model\api\data\renderer\ModelRenderer.class
 gg\fotia\crates\crate\CrateLocation.class
 gg\fotia\crates\particle\ParticleManager$1.class
 gg\fotia\crates\reward\PendingRewardManager.class
@@ -25,6 +30,7 @@ gg\fotia\crates\config\ConfigManager.class
 gg\fotia\crates\particle\ParticleTarget.class
 gg\fotia\crates\modelengine\ModelEngineManager.class
 gg\fotia\crates\command\subcommand\PreviewCommand.class
+kr\toxicity\model\api\tracker\TrackerModifier.class
 gg\fotia\crates\animation\AnimationManager$1.class
 gg\fotia\crates\listener\EntityInteractPacketListener$1.class
 gg\fotia\crates\listener\PlayerListener.class
@@ -38,6 +44,7 @@ gg\fotia\crates\database\SQLiteDatabase.class
 gg\fotia\crates\database\DatabaseManager.class
 gg\fotia\crates\database\Database.class
 gg\fotia\crates\modelengine\BetterModelManager.class
+kr\toxicity\model\api\animation\AnimationModifier.class
 gg\fotia\crates\hologram\HologramManager.class
 gg\fotia\crates\crate\CrateOpenService$OpenAttempt.class
 gg\fotia\crates\command\subcommand\ClaimCommand.class
@@ -53,10 +60,12 @@ gg\fotia\crates\crate\CrateOpenService$OpenFailureReason.class
 gg\fotia\crates\gui\GuiManager$InputCallback.class
 gg\fotia\crates\gui\GuiItem.class
 gg\fotia\crates\hook\SweetMailHook.class
+kr\toxicity\model\api\BetterModelPlatform.class
 gg\fotia\crates\reward\RewardItemDeliveryService.class
 gg\fotia\crates\particle\ParticleCompat.class
 gg\fotia\crates\listener\EntityInteractPacketListener.class
 gg\fotia\crates\reward\CommandReward.class
+kr\toxicity\model\api\tracker\EntityTrackerRegistry.class
 gg\fotia\crates\animation\PhysicalAnimation$1.class
 gg\fotia\crates\crate\Crate$PityTier.class
 gg\fotia\crates\FotiaCrates.class
@@ -68,6 +77,7 @@ gg\fotia\crates\gui\GuiConfig.class
 gg\fotia\crates\gui\GuiType.class
 gg\fotia\crates\command\subcommand\AbstractSubCommand.class
 gg\fotia\crates\pity\PityManager.class
+kr\toxicity\model\api\bukkit\platform\BukkitAdapter.class
 gg\fotia\crates\hook\FotiaCratesExpansion.class
 gg\fotia\crates\command\subcommand\GiveCommand.class
 gg\fotia\crates\command\CrateCommand.class
@@ -76,6 +86,7 @@ gg\fotia\crates\particle\ParticleManager$2.class
 gg\fotia\crates\key\KeyManager.class
 gg\fotia\crates\command\subcommand\OpenCommand.class
 gg\fotia\crates\listener\GuiListener$1.class
+kr\toxicity\model\api\tracker\Tracker.class
 gg\fotia\crates\crate\Crate.class
 gg\fotia\crates\particle\ParticleEffectMode.class
 gg\fotia\crates\history\HistoryManager$HistoryEntry.class

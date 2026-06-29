@@ -1,0 +1,53 @@
+title: "<!i><dark_gray>选择替代奖励"
+size: 54
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+content-slots:
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 28
+  - 29
+  - 30
+  - 31
+  - 32
+  - 33
+  - 34
+  - 37
+  - 38
+  - 39
+  - 40
+  - 41
+  - 42
+  - 43
+
+items:
+  back:
+    slot: 45
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回奖励编辑界面"
+    action: back
+  clear:
+    slot: 49
+    material: BARRIER
+    name: "<!i><red>清除替代奖励"
+    lore:
+      - "<!i><yellow>点击清除"
+    action: clear_alternative_reward
