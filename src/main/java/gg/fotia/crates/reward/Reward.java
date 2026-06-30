@@ -42,4 +42,12 @@ public interface Reward {
     default String getAlternativeRewardId() {
         return null;
     }
+
+    default boolean isAutoDisplayIcon() {
+        return true;
+    }
+
+    default boolean isAutoDisplayName() {
+        return true;
+    }
 }

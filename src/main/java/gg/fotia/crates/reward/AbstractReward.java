@@ -16,6 +16,8 @@ public abstract class AbstractReward implements Reward {
     protected final String checkPermission;
     protected final PermissionAction permissionAction;
     protected final String alternativeRewardId;
+    protected final boolean autoDisplayIcon;
+    protected final boolean autoDisplayName;
 
     public AbstractReward(String id, String displayName, String rarity, double chance, boolean broadcast, ItemStack displayItem) {
         this(id, displayName, rarity, chance, broadcast, displayItem, false, null, PermissionAction.SKIP, null);
@@ -23,6 +25,13 @@ public abstract class AbstractReward implements Reward {
 
     public AbstractReward(String id, String displayName, String rarity, double chance, boolean broadcast, ItemStack displayItem,
                           boolean permissionCheckEnabled, String checkPermission, PermissionAction permissionAction, String alternativeRewardId) {
+        this(id, displayName, rarity, chance, broadcast, displayItem,
+                permissionCheckEnabled, checkPermission, permissionAction, alternativeRewardId, true, true);
+    }
+
+    public AbstractReward(String id, String displayName, String rarity, double chance, boolean broadcast, ItemStack displayItem,
+                          boolean permissionCheckEnabled, String checkPermission, PermissionAction permissionAction, String alternativeRewardId,
+                          boolean autoDisplayIcon, boolean autoDisplayName) {
         this.id = id;
         this.displayName = displayName;
         this.rarity = rarity;
@@ -33,6 +42,8 @@ public abstract class AbstractReward implements Reward {
         this.checkPermission = checkPermission;
         this.permissionAction = permissionAction != null ? permissionAction : PermissionAction.SKIP;
         this.alternativeRewardId = alternativeRewardId;
+        this.autoDisplayIcon = autoDisplayIcon;
+        this.autoDisplayName = autoDisplayName;
     }
 
     @Override
@@ -64,4 +75,10 @@ public abstract class AbstractReward implements Reward {
 
     @Override
     public String getAlternativeRewardId() { return alternativeRewardId; }
+
+    @Override
+    public boolean isAutoDisplayIcon() { return autoDisplayIcon; }
+
+    @Override
+    public boolean isAutoDisplayName() { return autoDisplayName; }
 }

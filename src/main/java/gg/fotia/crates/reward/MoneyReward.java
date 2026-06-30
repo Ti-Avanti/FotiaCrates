@@ -19,8 +19,18 @@ public class MoneyReward extends AbstractReward {
                        ItemStack displayItem, double amount,
                        boolean permissionCheckEnabled, String checkPermission,
                        PermissionAction permissionAction, String alternativeRewardId) {
+        this(id, displayName, rarity, chance, broadcast, displayItem, amount,
+                permissionCheckEnabled, checkPermission, permissionAction, alternativeRewardId, true, true);
+    }
+
+    public MoneyReward(String id, String displayName, String rarity, double chance, boolean broadcast,
+                       ItemStack displayItem, double amount,
+                       boolean permissionCheckEnabled, String checkPermission,
+                       PermissionAction permissionAction, String alternativeRewardId,
+                       boolean autoDisplayIcon, boolean autoDisplayName) {
         super(id, displayName, rarity, chance, broadcast, displayItem,
-                permissionCheckEnabled, checkPermission, permissionAction, alternativeRewardId);
+                permissionCheckEnabled, checkPermission, permissionAction, alternativeRewardId,
+                autoDisplayIcon, autoDisplayName);
         this.amount = amount;
     }
 

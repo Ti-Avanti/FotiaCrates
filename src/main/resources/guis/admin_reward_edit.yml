@@ -15,8 +15,10 @@ items:
     lore:
       - "<!i><gray>奖励: <!i><white>{reward}"
       - "<!i><gray>ID: <!i><white>{reward_id}"
+      - "<!i><gray>自动状态: <!i><white>{auto_icon_status}"
       - ""
-      - "<!i><yellow>点击设置预览图标"
+      - "<!i><yellow>左键设置预览图标"
+      - "<!i><green>右键恢复自动同步第一个奖励物品"
     action: edit_display_icon
   reward_items:
     slot: 11
@@ -25,6 +27,7 @@ items:
     lore:
       - "<!i><gray>实际发放给玩家的物品"
       - "<!i><gray>可为空，只发放命令奖励"
+      - "<!i><gray>保存后可作为默认图标和名称来源"
       - ""
       - "<!i><yellow>点击管理"
     action: edit_reward_items
@@ -68,8 +71,10 @@ items:
     name: "<!i><yellow>显示名称"
     lore:
       - "<!i><gray>当前: <!i><white>{display_name}"
+      - "<!i><gray>自动状态: <!i><white>{auto_name_status}"
       - ""
-      - "<!i><yellow>点击修改"
+      - "<!i><yellow>左键修改"
+      - "<!i><green>右键恢复自动同步第一个奖励物品"
     action: edit_display_name
   permission_toggle:
     slot: 37

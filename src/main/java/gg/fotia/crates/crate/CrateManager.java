@@ -9,6 +9,8 @@ import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.particle.ParticleTarget;
 import gg.fotia.crates.reward.*;
 import gg.fotia.crates.util.ItemBuilder;
+import gg.fotia.crates.util.MessageUtil;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -17,7 +19,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.io.File;
@@ -206,6 +207,8 @@ public class CrateManager {
         double chance = section.getDouble("chance", 10.0);
         boolean broadcast = section.getBoolean("broadcast", false);
         String type = section.getString("type", "item");
+        boolean autoDisplayIcon = section.getBoolean("display-auto.icon", true);
+        boolean autoDisplayName = section.getBoolean("display-auto.name", true);
 
         ItemStack displayItem = loadDisplayItem(section, displayName);
 
@@ -219,13 +222,13 @@ public class CrateManager {
 
         return switch (type.toLowerCase()) {
             case "item" -> loadItemReward(id, displayName, rarity, chance, broadcast, displayItem, section,
-                    permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+                    permCheckEnabled, checkPermission, permAction, alternativeRewardId, autoDisplayIcon, autoDisplayName);
             case "command" -> loadCommandReward(id, displayName, rarity, chance, broadcast, displayItem, section,
-                    permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+                    permCheckEnabled, checkPermission, permAction, alternativeRewardId, autoDisplayIcon, autoDisplayName);
             case "money" -> loadMoneyReward(id, displayName, rarity, chance, broadcast, displayItem, section,
-                    permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+                    permCheckEnabled, checkPermission, permAction, alternativeRewardId, autoDisplayIcon, autoDisplayName);
             case "experience" -> loadExperienceReward(id, displayName, rarity, chance, broadcast, displayItem, section,
-                    permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+                    permCheckEnabled, checkPermission, permAction, alternativeRewardId, autoDisplayIcon, autoDisplayName);
             default -> null;
         };
     }
@@ -335,7 +338,8 @@ public class CrateManager {
     private ItemReward loadItemReward(String id, String displayName, String rarity, double chance,
                                       boolean broadcast, ItemStack displayItem, ConfigurationSection section,
                                       boolean permCheckEnabled, String checkPermission,
-                                      PermissionAction permAction, String alternativeRewardId) {
+                                      PermissionAction permAction, String alternativeRewardId,
+                                      boolean autoDisplayIcon, boolean autoDisplayName) {
         ItemStack item = loadOptionalRewardItem(section, displayName);
 
         // 首先尝试直接获取序列化的ItemStack
@@ -383,38 +387,41 @@ public class CrateManager {
         List<String> commands = section.getStringList("commands");
 
         return new ItemReward(id, displayName, rarity, chance, broadcast, displayItem, item, extraItems, commands,
-                permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+                permCheckEnabled, checkPermission, permAction, alternativeRewardId, autoDisplayIcon, autoDisplayName);
     }
 
     private CommandReward loadCommandReward(String id, String displayName, String rarity, double chance,
                                             boolean broadcast, ItemStack displayItem, ConfigurationSection section,
                                             boolean permCheckEnabled, String checkPermission,
-                                            PermissionAction permAction, String alternativeRewardId) {
+                                            PermissionAction permAction, String alternativeRewardId,
+                                            boolean autoDisplayIcon, boolean autoDisplayName) {
         List<String> commands = section.getStringList("commands");
         ItemStack item = loadOptionalRewardItem(section, displayName);
         List<ItemStack> extraItems = loadExtraItems(section);
         return new CommandReward(id, displayName, rarity, chance, broadcast, displayItem, commands, item, extraItems,
-                permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+                permCheckEnabled, checkPermission, permAction, alternativeRewardId, autoDisplayIcon, autoDisplayName);
     }
 
     private MoneyReward loadMoneyReward(String id, String displayName, String rarity, double chance,
                                         boolean broadcast, ItemStack displayItem, ConfigurationSection section,
                                         boolean permCheckEnabled, String checkPermission,
-                                        PermissionAction permAction, String alternativeRewardId) {
+                                        PermissionAction permAction, String alternativeRewardId,
+                                        boolean autoDisplayIcon, boolean autoDisplayName) {
         double amount = section.getDouble("amount", 100);
         return new MoneyReward(id, displayName, rarity, chance, broadcast, displayItem, amount,
-                permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+                permCheckEnabled, checkPermission, permAction, alternativeRewardId, autoDisplayIcon, autoDisplayName);
     }
 
     private ExperienceReward loadExperienceReward(String id, String displayName, String rarity, double chance,
                                                   boolean broadcast, ItemStack displayItem, ConfigurationSection section,
                                                   boolean permCheckEnabled, String checkPermission,
-                                                  PermissionAction permAction, String alternativeRewardId) {
+                                                  PermissionAction permAction, String alternativeRewardId,
+                                                  boolean autoDisplayIcon, boolean autoDisplayName) {
         ConfigurationSection expSection = section.getConfigurationSection("experience");
         int amount = expSection != null ? expSection.getInt("amount", 100) : 100;
         boolean levels = expSection != null && expSection.getString("type", "points").equalsIgnoreCase("levels");
         return new ExperienceReward(id, displayName, rarity, chance, broadcast, displayItem, amount, levels,
-                permCheckEnabled, checkPermission, permAction, alternativeRewardId);
+                permCheckEnabled, checkPermission, permAction, alternativeRewardId, autoDisplayIcon, autoDisplayName);
     }
 
     public void loadLocations() {
@@ -794,6 +801,9 @@ public class CrateManager {
             config.set(path + ".chance", chance);
             config.set(path + ".rarity", rarity);
             config.set(path + ".broadcast", rarity.equalsIgnoreCase("legendary") || rarity.equalsIgnoreCase("epic"));
+            config.set(path + ".display-auto.icon", true);
+            config.set(path + ".display-auto.name", true);
+            applyAutoDisplayFromFirstItem(config, path, item);
 
             config.save(file);
             loadCrates();
@@ -1185,13 +1195,21 @@ public class CrateManager {
      * 更新奖励显示图标（完整保存NBT，使用序列化）
      */
     public void updateRewardDisplayIconFull(String crateId, String rewardId, ItemStack item) {
+        updateRewardDisplayIconFull(crateId, rewardId, item, true);
+    }
+
+    public void updateRewardDisplayIconFull(String crateId, String rewardId, ItemStack item, boolean manual) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
         if (!file.exists()) return;
 
         try {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             // 使用Bukkit序列化完整保存物品（包含所有NBT）
-            config.set("rewards." + rewardId + ".display", item);
+            String basePath = "rewards." + rewardId;
+            config.set(basePath + ".display", item);
+            if (manual) {
+                config.set(basePath + ".display-auto.icon", false);
+            }
             config.save(file);
             loadCrates();
         } catch (java.io.IOException e) {
@@ -1203,12 +1221,17 @@ public class CrateManager {
      * 更新奖励显示图标（仅用于预览显示，不影响实际给予的物品）
      */
     public void updateRewardDisplayIcon(String crateId, String rewardId, ItemStack item) {
+        updateRewardDisplayIcon(crateId, rewardId, item, true);
+    }
+
+    public void updateRewardDisplayIcon(String crateId, String rewardId, ItemStack item, boolean manual) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
         if (!file.exists()) return;
 
         try {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            String path = "rewards." + rewardId + ".display";
+            String basePath = "rewards." + rewardId;
+            String path = basePath + ".display";
 
             // 只更新display配置
             config.set(path + ".material", item.getType().name());
@@ -1229,6 +1252,9 @@ public class CrateManager {
             } else {
                 config.set(path + ".name", null);
                 config.set(path + ".lore", null);
+            }
+            if (manual) {
+                config.set(basePath + ".display-auto.icon", false);
             }
 
             config.save(file);
@@ -1251,6 +1277,7 @@ public class CrateManager {
 
             // 使用Bukkit序列化完整保存物品（包含所有NBT）
             config.set(path, item);
+            applyAutoDisplayFromFirstItem(config, "rewards." + rewardId, item);
 
             config.save(file);
             loadCrates();
@@ -1309,6 +1336,7 @@ public class CrateManager {
                 } else {
                     config.set(basePath + ".extra-items", null);
                 }
+                applyAutoDisplayFromFirstItem(config, basePath, items.get(0));
             }
 
             config.save(file);
@@ -1358,16 +1386,64 @@ public class CrateManager {
      * 更新奖励显示名称
      */
     public void updateRewardDisplayName(String crateId, String rewardId, String displayName) {
+        updateRewardDisplayName(crateId, rewardId, displayName, true);
+    }
+
+    public void updateRewardDisplayName(String crateId, String rewardId, String displayName, boolean manual) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
         if (!file.exists()) return;
 
         try {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            config.set("rewards." + rewardId + ".display-name", displayName);
+            String basePath = "rewards." + rewardId;
+            config.set(basePath + ".display-name", displayName);
+            if (manual) {
+                config.set(basePath + ".display-auto.name", false);
+            }
             config.save(file);
             loadCrates();
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward display name: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 恢复奖励显示自动同步状态
+     */
+    public void resetRewardDisplayIconAuto(String crateId, String rewardId) {
+        resetRewardAutoDisplay(crateId, rewardId, true, false);
+    }
+
+    public void resetRewardDisplayNameAuto(String crateId, String rewardId) {
+        resetRewardAutoDisplay(crateId, rewardId, false, true);
+    }
+
+    private void resetRewardAutoDisplay(String crateId, String rewardId, boolean icon, boolean name) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            String basePath = "rewards." + rewardId;
+            if (icon) {
+                config.set(basePath + ".display-auto.icon", true);
+            }
+            if (name) {
+                config.set(basePath + ".display-auto.name", true);
+            }
+            ItemStack firstItem = loadFirstRewardItem(config, basePath);
+            if (hasRewardItem(firstItem) && plugin.getConfigManager().isRewardAutoDisplayFromFirstItemEnabled()) {
+                if (icon && plugin.getConfigManager().isRewardAutoDisplayIconFromFirstItem()) {
+                    applyAutoDisplayIcon(config, basePath, firstItem);
+                }
+                if (name && plugin.getConfigManager().isRewardAutoDisplayNameFromFirstItem()) {
+                    applyAutoDisplayName(config, basePath, firstItem);
+                }
+            }
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to reset reward auto display: " + e.getMessage());
         }
     }
 
@@ -1469,6 +1545,72 @@ public class CrateManager {
         }
     }
 
+    private void applyAutoDisplayFromFirstItem(YamlConfiguration config, String basePath, ItemStack firstItem) {
+        if (!hasRewardItem(firstItem)) {
+            return;
+        }
+
+        boolean enabled = plugin.getConfigManager().isRewardAutoDisplayFromFirstItemEnabled();
+        boolean onlyWhenNotCustomized = plugin.getConfigManager().isRewardAutoDisplayOnlyWhenNotCustomized();
+        if (RewardAutoDisplayPolicy.shouldApply(enabled,
+                plugin.getConfigManager().isRewardAutoDisplayIconFromFirstItem(),
+                onlyWhenNotCustomized,
+                config.getBoolean(basePath + ".display-auto.icon", true))) {
+            applyAutoDisplayIcon(config, basePath, firstItem);
+        }
+        if (RewardAutoDisplayPolicy.shouldApply(enabled,
+                plugin.getConfigManager().isRewardAutoDisplayNameFromFirstItem(),
+                onlyWhenNotCustomized,
+                config.getBoolean(basePath + ".display-auto.name", true))) {
+            applyAutoDisplayName(config, basePath, firstItem);
+        }
+    }
+
+    private void applyAutoDisplayIcon(YamlConfiguration config, String basePath, ItemStack firstItem) {
+        ItemStack displayIcon = firstItem.clone();
+        displayIcon.setAmount(1);
+        config.set(basePath + ".display", displayIcon);
+        config.set(basePath + ".display-auto.icon", true);
+    }
+
+    private void applyAutoDisplayName(YamlConfiguration config, String basePath, ItemStack firstItem) {
+        config.set(basePath + ".display-name", resolveAutoDisplayName(firstItem));
+        config.set(basePath + ".display-auto.name", true);
+    }
+
+    private ItemStack loadFirstRewardItem(YamlConfiguration config, String basePath) {
+        ConfigurationSection rewardSection = config.getConfigurationSection(basePath);
+        if (rewardSection == null) {
+            return null;
+        }
+        String defaultName = rewardSection.getString("display-name", "reward");
+        return loadOptionalRewardItem(rewardSection, defaultName);
+    }
+
+    private boolean hasRewardItem(ItemStack item) {
+        return item != null && !item.getType().isAir();
+    }
+
+    private String resolveAutoDisplayName(ItemStack item) {
+        if (item.hasItemMeta()) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null && meta.hasDisplayName()) {
+                Component component = meta.displayName();
+                if (component != null) {
+                    String legacyName = MessageUtil.toLegacy(component);
+                    if (legacyName != null && !legacyName.isBlank()) {
+                        return legacyName;
+                    }
+                }
+                String legacyName = meta.getDisplayName();
+                if (legacyName != null && !legacyName.isBlank()) {
+                    return legacyName;
+                }
+            }
+        }
+        return RewardAutoDisplayPolicy.fallbackName(item.getType());
+    }
+
     /**
      * 创建空奖励（用户先创建，再配置）
      * @return 新奖励的ID
@@ -1489,6 +1631,8 @@ public class CrateManager {
             config.set(path + ".display-name", "新奖励");
 
             // 设置默认显示物品为钻石
+            config.set(path + ".display-auto.icon", true);
+            config.set(path + ".display-auto.name", true);
             config.set(path + ".display.material", "DIAMOND");
             config.set(path + ".display.amount", 1);
 
@@ -1517,6 +1661,9 @@ public class CrateManager {
             config.set(path + ".chance", chance);
             config.set(path + ".rarity", rarity);
             config.set(path + ".broadcast", rarity.equalsIgnoreCase("legendary") || rarity.equalsIgnoreCase("epic"));
+            boolean customDisplayName = displayName != null && !displayName.isEmpty();
+            config.set(path + ".display-auto.icon", true);
+            config.set(path + ".display-auto.name", !customDisplayName);
 
             // 设置显示名称
             String name = displayName;
@@ -1554,6 +1701,7 @@ public class CrateManager {
                     config.set(path + ".display.lore", meta.getLore());
                 }
             }
+            applyAutoDisplayFromFirstItem(config, path, item);
 
             config.save(file);
             loadCrates();
@@ -1568,16 +1716,8 @@ public class CrateManager {
      * 格式化材质名称
      */
     private String formatMaterialName(String materialName) {
-        String[] words = materialName.toLowerCase().split("_");
-        StringBuilder result = new StringBuilder();
-        for (String word : words) {
-            if (!word.isEmpty()) {
-                result.append(Character.toUpperCase(word.charAt(0)))
-                        .append(word.substring(1))
-                        .append(" ");
-            }
-        }
-        return result.toString().trim();
+        Material material = Material.matchMaterial(materialName);
+        return material != null ? RewardAutoDisplayPolicy.fallbackName(material) : materialName;
     }
 
     // ==================== 权限检测配置管理 ====================

@@ -620,6 +620,13 @@ public class GuiManager {
         return value ? "是" : "否";
     }
 
+    private String autoDisplayStatus(boolean autoEnabled, boolean fieldEnabled) {
+        if (!plugin.getConfigManager().isRewardAutoDisplayFromFirstItemEnabled() || !fieldEnabled) {
+            return "已关闭";
+        }
+        return autoEnabled ? "自动同步" : "手动修改";
+    }
+
     private boolean openConfiguredCrateSelectGui(Player player, Key key) {
         String guiId = "admin_crate_select";
         GuiConfig config = configManager.getGuiConfig(guiId);
@@ -779,6 +786,10 @@ public class GuiManager {
         placeholders.put("{rarity}", getRarityDisplayName(reward.getRarity()));
         placeholders.put("{broadcast}", yesNo(reward.shouldBroadcast()));
         placeholders.put("{display_name}", MessageUtil.stripColor(reward.getDisplayName()));
+        placeholders.put("{auto_icon_status}", autoDisplayStatus(reward.isAutoDisplayIcon(),
+                plugin.getConfigManager().isRewardAutoDisplayIconFromFirstItem()));
+        placeholders.put("{auto_name_status}", autoDisplayStatus(reward.isAutoDisplayName(),
+                plugin.getConfigManager().isRewardAutoDisplayNameFromFirstItem()));
         placeholders.put("{permission_check}", yesNo(reward.isPermissionCheckEnabled()));
         placeholders.put("{permission_node}", reward.getCheckPermission() == null || reward.getCheckPermission().isEmpty() ? "未设置" : reward.getCheckPermission());
         placeholders.put("{permission_action}", reward.getPermissionAction().name());

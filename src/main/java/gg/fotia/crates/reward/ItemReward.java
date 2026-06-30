@@ -38,8 +38,18 @@ public class ItemReward extends AbstractReward {
                       ItemStack displayItem, ItemStack item, List<ItemStack> extraItems, List<String> commands,
                       boolean permissionCheckEnabled, String checkPermission,
                       PermissionAction permissionAction, String alternativeRewardId) {
+        this(id, displayName, rarity, chance, broadcast, displayItem, item, extraItems, commands,
+                permissionCheckEnabled, checkPermission, permissionAction, alternativeRewardId, true, true);
+    }
+
+    public ItemReward(String id, String displayName, String rarity, double chance, boolean broadcast,
+                      ItemStack displayItem, ItemStack item, List<ItemStack> extraItems, List<String> commands,
+                      boolean permissionCheckEnabled, String checkPermission,
+                      PermissionAction permissionAction, String alternativeRewardId,
+                      boolean autoDisplayIcon, boolean autoDisplayName) {
         super(id, displayName, rarity, chance, broadcast, displayItem,
-                permissionCheckEnabled, checkPermission, permissionAction, alternativeRewardId);
+                permissionCheckEnabled, checkPermission, permissionAction, alternativeRewardId,
+                autoDisplayIcon, autoDisplayName);
         this.item = item != null ? item.clone() : null;
         this.extraItems = extraItems != null ? new ArrayList<>(extraItems) : new ArrayList<>();
         this.commands = commands != null ? new ArrayList<>(commands) : new ArrayList<>();

@@ -129,6 +129,8 @@ messages:
   admin-input-command: "<!i><yellow>Please enter command in chat (use %player% as player placeholder):"
   admin-reward-command-added: "<!i><green>Command added to reward!"
   admin-reward-command-removed: "<!i><red>Command removed from reward!"
+  admin-reward-auto-display-icon-reset: "<!i><green>Reward icon now auto-syncs from the first reward item."
+  admin-reward-auto-display-name-reset: "<!i><green>Reward name now auto-syncs from the first reward item."
   admin-reward-broadcast-toggled: "<!i><yellow>Broadcast {status}!"
   admin-reward-copied: "<!i><green>Reward copied!"
   admin-reward-balanced: "<!i><green>All reward chances balanced to 100%!"

@@ -133,6 +133,8 @@ messages:
   admin-input-chance: "<!i><yellow>请在聊天中输入概率（0.01-100）："
   admin-reward-command-added: "<!i><green>命令已添加到奖励！"
   admin-reward-command-removed: "<!i><red>命令已从奖励移除！"
+  admin-reward-auto-display-icon-reset: "<!i><green>奖励图标已恢复为自动同步第一个奖励物品。"
+  admin-reward-auto-display-name-reset: "<!i><green>奖励名称已恢复为自动同步第一个奖励物品。"
   admin-reward-broadcast-toggled: "<!i><yellow>广播已{status}！"
   admin-reward-copied: "<!i><green>奖励已复制！"
   admin-reward-balanced: "<!i><green>所有奖励概率已平衡为100%！"

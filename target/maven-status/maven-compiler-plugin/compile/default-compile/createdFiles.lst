@@ -21,6 +21,7 @@ gg\fotia\crates\reward\MoneyReward.class
 gg\fotia\crates\reward\Reward.class
 kr\toxicity\model\api\data\renderer\ModelRenderer.class
 gg\fotia\crates\crate\CrateLocation.class
+gg\fotia\crates\reward\RewardAutoDisplayPolicy.class
 gg\fotia\crates\particle\ParticleManager$1.class
 gg\fotia\crates\reward\PendingRewardManager.class
 gg\fotia\crates\history\HistoryManager.class

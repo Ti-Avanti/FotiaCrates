@@ -6,6 +6,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -61,6 +62,7 @@ public class GuiConfigManager {
         for (String fileName : DEFAULT_GUI_FILES) {
             saveDefaultGui(fileName);
         }
+        migrateRewardEditGui(guisFolder);
 
         File[] files = guisFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) return;
@@ -94,6 +96,102 @@ public class GuiConfigManager {
                 // 文件不存在于jar中，忽略
             }
         }
+    }
+
+    private void migrateRewardEditGui(File guisFolder) {
+        File file = new File(guisFolder, "admin_reward_edit.yml");
+        if (!file.exists()) {
+            return;
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        boolean changed = false;
+
+        List<String> displayIconLore = new ArrayList<>(config.getStringList("items.display_icon.lore"));
+        if (!containsLine(displayIconLore, "{auto_icon_status}")) {
+            int insertIndex = findFirstBlank(displayIconLore);
+            displayIconLore.add(insertIndex >= 0 ? insertIndex : displayIconLore.size(),
+                    "<!i><gray>自动状态: <!i><white>{auto_icon_status}");
+            changed = true;
+        }
+        if (replaceLine(displayIconLore, "<!i><yellow>点击设置预览图标",
+                List.of("<!i><yellow>左键设置预览图标", "<!i><green>右键恢复自动同步第一个奖励物品"))) {
+            changed = true;
+        } else if (!containsLine(displayIconLore, "右键恢复自动同步第一个奖励物品")) {
+            displayIconLore.add("<!i><green>右键恢复自动同步第一个奖励物品");
+            changed = true;
+        }
+        if (changed) {
+            config.set("items.display_icon.lore", displayIconLore);
+        }
+
+        List<String> rewardItemsLore = new ArrayList<>(config.getStringList("items.reward_items.lore"));
+        if (!containsLine(rewardItemsLore, "保存后可作为默认图标和名称来源")) {
+            int insertIndex = findFirstBlank(rewardItemsLore);
+            rewardItemsLore.add(insertIndex >= 0 ? insertIndex : rewardItemsLore.size(),
+                    "<!i><gray>保存后可作为默认图标和名称来源");
+            config.set("items.reward_items.lore", rewardItemsLore);
+            changed = true;
+        }
+
+        List<String> displayNameLore = new ArrayList<>(config.getStringList("items.display_name.lore"));
+        if (!containsLine(displayNameLore, "{auto_name_status}")) {
+            int insertIndex = findFirstBlank(displayNameLore);
+            displayNameLore.add(insertIndex >= 0 ? insertIndex : displayNameLore.size(),
+                    "<!i><gray>自动状态: <!i><white>{auto_name_status}");
+            changed = true;
+        }
+        if (replaceLine(displayNameLore, "<!i><yellow>点击修改",
+                List.of("<!i><yellow>左键修改", "<!i><green>右键恢复自动同步第一个奖励物品"))) {
+            changed = true;
+        } else if (!containsLine(displayNameLore, "右键恢复自动同步第一个奖励物品")) {
+            displayNameLore.add("<!i><green>右键恢复自动同步第一个奖励物品");
+            changed = true;
+        }
+        if (changed) {
+            config.set("items.display_name.lore", displayNameLore);
+        }
+
+        if (!changed) {
+            return;
+        }
+
+        try {
+            config.save(file);
+            plugin.getLogger().info("Migrated GUI config: admin_reward_edit");
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to migrate admin_reward_edit GUI config: " + e.getMessage());
+        }
+    }
+
+    private boolean containsLine(List<String> lines, String needle) {
+        for (String line : lines) {
+            if (line != null && line.contains(needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int findFirstBlank(List<String> lines) {
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (line == null || line.isBlank()) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean replaceLine(List<String> lines, String target, List<String> replacement) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (Objects.equals(lines.get(i), target)) {
+                lines.remove(i);
+                lines.addAll(i, replacement);
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

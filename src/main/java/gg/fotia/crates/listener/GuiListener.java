@@ -1008,7 +1008,13 @@ public class GuiListener implements Listener {
         switch (slot) {
             case 45 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
             case 4 -> { // 显示图标 - 点击打开物品输入界面
-                plugin.getGuiManager().openItemInputGui(player, crate, rewardId, "display_icon");
+                if (event.isRightClick()) {
+                    plugin.getCrateManager().resetRewardDisplayIconAuto(crate.getId(), rewardId);
+                    plugin.getLanguageManager().send(player, "admin-reward-auto-display-icon-reset");
+                    refreshRewardEditGui(player, crate.getId(), rewardId);
+                } else {
+                    plugin.getGuiManager().openItemInputGui(player, crate, rewardId, "display_icon");
+                }
             }
             case 11 -> { // 奖励物品 - 打开奖励物品管理界面
                 plugin.getGuiManager().openRewardItemsGui(player, crate, rewardId);
@@ -1071,13 +1077,19 @@ public class GuiListener implements Listener {
                 refreshRewardEditGui(player, crate.getId(), rewardId);
             }
             case 34 -> { // 显示名称
-                plugin.getLanguageManager().send(player, "admin-input-name");
-                plugin.getGuiManager().startInputSession(player, "reward_name",
-                        new String[]{crate.getId(), rewardId}, (p, input, data) -> {
-                    String[] ids = (String[]) data;
-                    plugin.getCrateManager().updateRewardDisplayName(ids[0], ids[1], input);
-                    refreshRewardEditGui(p, ids[0], ids[1]);
-                });
+                if (event.isRightClick()) {
+                    plugin.getCrateManager().resetRewardDisplayNameAuto(crate.getId(), rewardId);
+                    plugin.getLanguageManager().send(player, "admin-reward-auto-display-name-reset");
+                    refreshRewardEditGui(player, crate.getId(), rewardId);
+                } else {
+                    plugin.getLanguageManager().send(player, "admin-input-name");
+                    plugin.getGuiManager().startInputSession(player, "reward_name",
+                            new String[]{crate.getId(), rewardId}, (p, input, data) -> {
+                        String[] ids = (String[]) data;
+                        plugin.getCrateManager().updateRewardDisplayName(ids[0], ids[1], input);
+                        refreshRewardEditGui(p, ids[0], ids[1]);
+                    });
+                }
             }
             // ===== 权限检测配置 =====
             case 37 -> { // 权限检测开关

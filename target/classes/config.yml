@@ -67,6 +67,20 @@ settings:
   # 每个玩家最大历史记录数，0 表示不限制
   max-history-entries: 100
 
+# 编辑器设置
+editor:
+  rewards:
+    # 设置奖励物品后，是否默认用第一个奖励物品同步奖励图标和名称
+    auto-display-from-first-item:
+      # 总开关
+      enabled: true
+      # 同步奖励图标
+      apply-icon: true
+      # 同步奖励显示名称
+      apply-name: true
+      # 仅在该奖励未手动修改过图标/名称时同步；关闭后每次保存奖励物品都会覆盖
+      only-when-not-customized: true
+
 # 背包溢出邮件补发
 overflow-mail:
   # 是否启用 SweetMail 溢出邮件补发

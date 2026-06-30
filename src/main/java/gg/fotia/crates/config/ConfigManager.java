@@ -232,6 +232,22 @@ public class ConfigManager {
         return config.getInt("settings.max-history-entries", 100);
     }
 
+    public boolean isRewardAutoDisplayFromFirstItemEnabled() {
+        return config.getBoolean("editor.rewards.auto-display-from-first-item.enabled", true);
+    }
+
+    public boolean isRewardAutoDisplayIconFromFirstItem() {
+        return config.getBoolean("editor.rewards.auto-display-from-first-item.apply-icon", true);
+    }
+
+    public boolean isRewardAutoDisplayNameFromFirstItem() {
+        return config.getBoolean("editor.rewards.auto-display-from-first-item.apply-name", true);
+    }
+
+    public boolean isRewardAutoDisplayOnlyWhenNotCustomized() {
+        return config.getBoolean("editor.rewards.auto-display-from-first-item.only-when-not-customized", true);
+    }
+
     public boolean isOverflowMailEnabled() {
         return config.getBoolean("overflow-mail.enabled", true);
     }
