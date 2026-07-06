@@ -35,6 +35,7 @@ public class PhysicalAnimation implements Animation {
     private Location crateLocation;
     private Runnable onComplete;
     private Player targetPlayer; // 目标玩家
+    private AnimationCompletion completion = new AnimationCompletion();
 
     // 滚动显示的物品数量（奇数，中间为选中物品）
     private static final int DISPLAY_COUNT = 9;
@@ -66,6 +67,7 @@ public class PhysicalAnimation implements Animation {
         this.crateLocation = crateLocation;
         this.onComplete = onComplete;
         this.targetPlayer = player;
+        this.completion = new AnimationCompletion();
 
         // 打开箱子盖子（只对该玩家显示）
         openChestLid(player, crateLocation);
@@ -164,9 +166,16 @@ public class PhysicalAnimation implements Animation {
             public void run() {
                 if (!running || displayEntities.isEmpty()) {
                     cleanup();
+                    complete();
+                    return;
+                }
+
+                if (completion.completeIfUnavailable(player.isOnline(), () -> {
+                    cleanup();
                     if (PhysicalAnimation.this.onComplete != null) {
                         PhysicalAnimation.this.onComplete.run();
                     }
+                })) {
                     return;
                 }
 
@@ -384,9 +393,7 @@ public class PhysicalAnimation implements Animation {
         // 延迟后清理
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             cleanup();
-            if (onComplete != null) {
-                onComplete.run();
-            }
+            complete();
         }, 50L);
     }
 
@@ -395,6 +402,7 @@ public class PhysicalAnimation implements Animation {
      */
     private void openChestLid(Player player, Location location) {
         if (location == null || player == null) return;
+        if (!player.isOnline()) return;
         if (ChestLidUtil.isPacketEventsAvailable()) {
             ChestLidUtil.openChestLid(player, location);
         }
@@ -405,8 +413,15 @@ public class PhysicalAnimation implements Animation {
      */
     private void closeChestLid(Player player, Location location) {
         if (location == null || player == null) return;
+        if (!player.isOnline()) return;
         if (ChestLidUtil.isPacketEventsAvailable()) {
             ChestLidUtil.closeChestLid(player, location);
+        }
+    }
+
+    private void complete() {
+        if (onComplete != null) {
+            completion.complete(onComplete);
         }
     }
 

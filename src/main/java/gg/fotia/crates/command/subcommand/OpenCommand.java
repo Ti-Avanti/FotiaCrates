@@ -88,9 +88,11 @@ public class OpenCommand extends AbstractSubCommand {
         Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
         plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
         if (crate.isAnimationEnabled()) {
+            var playerUuid = player.getUniqueId();
+            var playerName = player.getName();
             AnimationManager animationManager = new AnimationManager(plugin);
             animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation,
-                    () -> crateOpenService.deliverReward(player, crate, rewardResult, crateLocation));
+                    () -> crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation));
             return;
         }
 

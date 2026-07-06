@@ -2,6 +2,7 @@ gg\fotia\crates\key\KeyType.class
 gg\fotia\crates\particle\ParticleManager.class
 kr\toxicity\model\api\BetterModel.class
 gg\fotia\crates\gui\CrateGuiHolder.class
+gg\fotia\crates\animation\AnimationCompletion.class
 gg\fotia\crates\command\subcommand\RemoveCommand.class
 kr\toxicity\model\api\tracker\EntityTracker.class
 gg\fotia\crates\command\subcommand\SubCommand.class

@@ -32,6 +32,7 @@ public class RouletteAnimation implements Animation {
     private List<Integer> animationSlots;
     private int centerSlot;
     private boolean finalRewardPlaced = false; // 标记最终奖励是否已放入
+    private AnimationCompletion completion = new AnimationCompletion();
 
     public RouletteAnimation(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -42,6 +43,7 @@ public class RouletteAnimation implements Animation {
         this.player = player;
         this.running = true;
         this.finalRewardPlaced = false; // 重置标记
+        this.completion = new AnimationCompletion();
 
         // 从GUI配置读取动画设置
         GuiConfig animConfig = plugin.getGuiManager().getConfigManager().getGuiConfig("animation");
@@ -138,7 +140,11 @@ public class RouletteAnimation implements Animation {
     private void runAnimationStep(Player player, Crate crate, Reward finalReward,
                                    List<Reward> rewards, Random random,
                                    int currentStep, int totalTicks, int currentDelay, int elapsedTicks, Runnable onComplete) {
-        if (!running || !player.isOnline()) {
+        if (!running) {
+            return;
+        }
+
+        if (completion.completeIfUnavailable(player.isOnline(), () -> finishInterrupted(onComplete))) {
             return;
         }
 
@@ -202,8 +208,10 @@ public class RouletteAnimation implements Animation {
             }
 
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                player.closeInventory();
-                onComplete.run();
+                if (player.isOnline()) {
+                    player.closeInventory();
+                }
+                completion.complete(onComplete);
             }, 40L);
             return;
         }
@@ -242,6 +250,14 @@ public class RouletteAnimation implements Animation {
             newItem = randomReward.getDisplayItem();
         }
         inventory.setItem(lastSlot, newItem);
+    }
+
+    private void finishInterrupted(Runnable onComplete) {
+        running = false;
+        if (task != null && !task.isCancelled()) {
+            task.cancel();
+        }
+        onComplete.run();
     }
 
     @Override

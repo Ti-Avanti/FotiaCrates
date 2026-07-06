@@ -219,6 +219,10 @@ public class BlockListener implements Listener {
         };
 
         if (crate.isAnimationEnabled() || crate.isPhysicalAnimationEnabled()) {
+            if (!player.isOnline()) {
+                onComplete.run();
+                return;
+            }
             AnimationManager animationManager = new AnimationManager(plugin);
             animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation, onComplete);
             return;
