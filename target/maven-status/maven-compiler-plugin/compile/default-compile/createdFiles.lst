@@ -94,6 +94,7 @@ gg\fotia\crates\particle\ParticleEffectMode.class
 gg\fotia\crates\history\HistoryManager$HistoryEntry.class
 gg\fotia\crates\listener\GuiListener.class
 gg\fotia\crates\reward\ExperienceReward.class
+gg\fotia\crates\crate\MultiOpenAmount.class
 gg\fotia\crates\command\subcommand\EditorCommand.class
 gg\fotia\crates\reward\AbstractReward.class
 gg\fotia\crates\reward\PermissionAction.class

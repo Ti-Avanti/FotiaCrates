@@ -51,9 +51,11 @@ icons:
       material: chest
       name: '<!i><green>打开抽奖箱'
       lore:
-        - '<!i><gray>点击打开此抽奖箱'
+        - '<!i><yellow>左键 <!i><gray>- 单次抽奖'
+        - '{multi_open_hint}'
         - ''
         - '<!i><yellow>你拥有 {keys} 把钥匙'
+        - '<!i><gray>最大连抽: <!i><white>{multi_open_max}'
     action: open_crate
 
   'H':

@@ -2,6 +2,7 @@ package gg.fotia.crates.gui;
 
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.crate.Crate;
+import gg.fotia.crates.crate.MultiOpenAmount;
 import gg.fotia.crates.history.HistoryManager;
 import gg.fotia.crates.key.Key;
 import gg.fotia.crates.particle.CrateParticleEffect;
@@ -110,7 +111,19 @@ public class GuiManager {
         placeholders.put("{reward_count}", String.valueOf(rewards.size()));
         placeholders.put("{page}", String.valueOf(page + 1));
         placeholders.put("{total_pages}", String.valueOf(totalPages));
-        placeholders.put("{keys}", String.valueOf(plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId())));
+        int keys = plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId());
+        int multiOpenAmount = MultiOpenAmount.forPreviewRightClick(
+                crate.isMultiOpenEnabled(),
+                crate.getMultiOpenMax(),
+                keys
+        );
+        placeholders.put("{keys}", String.valueOf(keys));
+        placeholders.put("{multi_open_enabled}", crate.isMultiOpenEnabled() ? "是" : "否");
+        placeholders.put("{multi_open_max}", String.valueOf(crate.getMultiOpenMax()));
+        placeholders.put("{multi_open_amount}", String.valueOf(multiOpenAmount));
+        placeholders.put("{multi_open_hint}", multiOpenAmount > 1
+                ? "<!i><yellow>右键 <!i><gray>- 多连抽 " + multiOpenAmount + " 次"
+                : "<!i><dark_gray>右键多连抽不可用");
         placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
 
         // 放置奖励图标（分页）

@@ -4,11 +4,12 @@ import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateOpenService;
+import gg.fotia.crates.crate.MultiOpenAmount;
+import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.gui.CrateGuiHolder;
 import gg.fotia.crates.gui.GuiConfig;
 import gg.fotia.crates.gui.GuiItem;
 import gg.fotia.crates.gui.GuiType;
-import gg.fotia.crates.key.KeyType;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.CrateParticleEffect;
 import gg.fotia.crates.particle.ParticleCompat;
@@ -105,9 +106,32 @@ public class GuiListener implements Listener {
         if (config != null) {
             GuiItem guiItem = config.getItem(slot);
             if (guiItem != null && guiItem.getAction() != null) {
+                if ("open_crate".equalsIgnoreCase(guiItem.getAction())) {
+                    handlePreviewOpenClick(event, player, holder.getCrate());
+                    return;
+                }
                 handleAction(player, guiItem.getAction(), guiItem.getActionValue(), holder);
             }
         }
+    }
+
+    private void handlePreviewOpenClick(InventoryClickEvent event, Player player, Crate crate) {
+        if (crate == null) {
+            return;
+        }
+
+        player.closeInventory();
+        int amount = 1;
+        if (event.isRightClick()) {
+            int keys = plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId());
+            amount = MultiOpenAmount.forPreviewRightClick(crate.isMultiOpenEnabled(), crate.getMultiOpenMax(), keys);
+        }
+
+        if (amount > 1) {
+            openMultiple(player, crate, amount);
+            return;
+        }
+        openCrate(player, crate);
     }
 
     private void handleAdminClick(InventoryClickEvent event, Player player, CrateGuiHolder holder) {
@@ -1900,91 +1924,74 @@ public class GuiListener implements Listener {
             return;
         }
 
-        if (!plugin.getKeyManager().hasKeyForCrate(player, crate.getId())) {
+        CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
+        if (!openAttempt.isSuccess()) {
             openingPlayers.remove(player.getUniqueId());
-            plugin.getLanguageManager().send(player, "no-key");
+            crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
             return;
         }
 
-        // 先检查是否有可用奖励（在消耗钥匙之前）
-        boolean isPity = false;
-        if (crate.isPityEnabled()) {
-            isPity = plugin.getPityManager().shouldTriggerPity(
-                    player.getUniqueId(), crate.getId(), crate.getPityCount());
-        }
-
-        Reward reward = isPity ? crate.rollPityRewardWithPermissionCheck(player, crate.getPityRarity())
-                : crate.rollRewardWithPermissionCheck(player);
-        if (reward == null) {
-            // 没有可用奖励，不消耗钥匙
-            openingPlayers.remove(player.getUniqueId());
-            plugin.getLanguageManager().send(player, "no-available-reward");
-            return;
-        }
-
-        // 有可用奖励，消耗钥匙
-        if (!plugin.getKeyManager().consumeKeyForCrate(player, crate.getId(), KeyType.ALL)) {
-            openingPlayers.remove(player.getUniqueId());
-            plugin.getLanguageManager().send(player, "no-key");
-            return;
-        }
-
-        if (crate.isPityEnabled()) {
-            if (isPity || reward.getRarity().equalsIgnoreCase(crate.getPityRarity())) {
-                plugin.getPityManager().resetPityCount(player.getUniqueId(), crate.getId());
-            } else {
-                plugin.getPityManager().incrementPityCount(player.getUniqueId(), crate.getId());
-            }
-        }
-
+        RewardResult rewardResult = openAttempt.rewardResult();
         Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
         plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
 
         if (crate.isAnimationEnabled()) {
+            UUID playerUuid = player.getUniqueId();
+            String playerName = player.getName();
             AnimationManager animationManager = new AnimationManager(plugin);
-            animationManager.playAnimation(player, crate, reward, crateLocation, () -> {
-                giveReward(player, crate, reward, crateLocation);
-                openingPlayers.remove(player.getUniqueId());
+            animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation, () -> {
+                crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
+                openingPlayers.remove(playerUuid);
             });
         } else {
-            giveReward(player, crate, reward, crateLocation);
+            crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
             openingPlayers.remove(player.getUniqueId());
         }
     }
 
-    private void giveReward(Player player, Crate crate, Reward reward) {
-        giveReward(player, crate, reward, plugin.getParticleManager().resolveCrateLocation(player, crate));
-    }
-
-    private void giveReward(Player player, Crate crate, Reward reward, Location crateLocation) {
-        reward.give(player);
-
-        plugin.getLanguageManager().send(player, "reward-received",
-                LanguageManager.placeholders("reward", reward.getDisplayName()));
-
-        if (reward.shouldBroadcast() && plugin.getConfigManager().isBroadcastRareRewards()) {
-            var message = plugin.getLanguageManager().getMessage(player, "broadcast-rare",
-                    LanguageManager.placeholders(
-                            "player", player.getName(),
-                            "crate", crate.getName(),
-                            "reward", reward.getDisplayName()
-                    ));
-            plugin.getServer().broadcast(message);
+    private void openMultiple(Player player, Crate crate, int amount) {
+        UUID playerUuid = player.getUniqueId();
+        if (openingPlayers.contains(playerUuid)) {
+            return;
         }
 
-        plugin.getHistoryManager().addHistory(
-                player.getUniqueId(),
-                player.getName(),
-                crate.getId(),
-                reward.getId(),
-                reward.getDisplayName()
-        );
+        long now = System.currentTimeMillis();
+        Long lastInteract = interactCooldown.get(playerUuid);
+        if (lastInteract != null && now - lastInteract < INTERACT_COOLDOWN_MS) {
+            return;
+        }
+        interactCooldown.put(playerUuid, now);
+        openingPlayers.add(playerUuid);
 
-        plugin.getParticleManager().playStage(ParticleStage.REWARD, player, crate, crateLocation);
+        try {
+            if (!crateOpenService.hasOpenPermission(player, crate)) {
+                plugin.getLanguageManager().send(player, "no-permission");
+                return;
+            }
 
-        if (crate.getWinSound() != null) {
-            player.playSound(player.getLocation(), crate.getWinSound(),
-                    crate.getWinVolume(), crate.getWinPitch());
+            if (plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId()) < amount) {
+                plugin.getLanguageManager().send(player, "no-key");
+                return;
+            }
+
+            plugin.getLanguageManager().send(player, "multi-open-start",
+                    LanguageManager.placeholders("amount", String.valueOf(amount)));
+            Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
+            plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
+
+            for (int i = 0; i < amount; i++) {
+                CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
+                if (!openAttempt.isSuccess()) {
+                    if (openAttempt.failureReason() == CrateOpenService.OpenFailureReason.NO_KEY) {
+                        break;
+                    }
+                    continue;
+                }
+
+                crateOpenService.deliverReward(player, crate, openAttempt.rewardResult(), crateLocation);
+            }
+        } finally {
+            openingPlayers.remove(playerUuid);
         }
     }
 

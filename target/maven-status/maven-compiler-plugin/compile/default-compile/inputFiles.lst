@@ -45,6 +45,7 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subco
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\CrateGuiHolder.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\particle\ParticleEffectRenderer.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\HistoryCommand.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\MultiOpenAmount.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\ReloadCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\modelengine\ModelEngineManager.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\SetCommand.java
