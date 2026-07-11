@@ -6,6 +6,7 @@ package gg.fotia.crates.gui;
 public enum GuiType {
     MAIN_MENU,          // 主菜单
     PREVIEW,            // 预览
+    MULTI_OPEN_RESULT,  // 多连抽结果
     ANIMATION,          // 动画
     HISTORY,            // 历史记录
     ADMIN,              // 管理主界面

@@ -7,6 +7,7 @@ import gg.fotia.crates.gui.GuiConfig;
 import gg.fotia.crates.gui.GuiItem;
 import gg.fotia.crates.gui.GuiType;
 import gg.fotia.crates.reward.Reward;
+import gg.fotia.crates.reward.RewardProbability;
 import gg.fotia.crates.util.ItemBuilder;
 import gg.fotia.crates.util.MessageUtil;
 import net.kyori.adventure.text.Component;
@@ -127,7 +128,7 @@ public class RouletteAnimation implements Animation {
 
         player.openInventory(inventory);
 
-        List<Reward> rewards = crate.getRewards();
+        List<Reward> rewards = crate.getAvailableRewardsFor(player);
         Random random = new Random();
 
         // 动画时长（秒），至少5秒
@@ -238,16 +239,8 @@ public class RouletteAnimation implements Animation {
             // 在正确时机放入最终奖励，让它自然滚动到中间
             newItem = finalReward.getDisplayItem();
         } else {
-            // 随机选择一个奖励（排除最终奖励，增加悬念）
-            Reward randomReward;
-            if (rewards.size() > 1) {
-                do {
-                    randomReward = rewards.get(random.nextInt(rewards.size()));
-                } while (randomReward.getId().equals(finalReward.getId()) && random.nextInt(3) != 0);
-            } else {
-                randomReward = rewards.get(0);
-            }
-            newItem = randomReward.getDisplayItem();
+            Reward randomReward = RewardProbability.select(rewards, random);
+            newItem = (randomReward != null ? randomReward : finalReward).getDisplayItem();
         }
         inventory.setItem(lastSlot, newItem);
     }

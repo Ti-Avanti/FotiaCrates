@@ -155,12 +155,17 @@ pity:
   count: 50
   # 保底最低稀有度
   rarity: rare
+  # 提前获得达到保底稀有度的奖励时，是否重置保底计数
+  reset-on-early-qualifying-reward: false
 
 # 多连抽设置
 multi-open:
   enabled: true
   # 最大连抽数量
   max: 10
+  # 多连抽时仅播放首抽动画，随后直接展示全部结果
+  animation:
+    enabled: false
 
 # 奖励列表
 rewards:

@@ -3,6 +3,7 @@ package gg.fotia.crates.gui;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.MultiOpenAmount;
+import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.history.HistoryManager;
 import gg.fotia.crates.key.Key;
 import gg.fotia.crates.particle.CrateParticleEffect;
@@ -11,6 +12,7 @@ import gg.fotia.crates.particle.ParticleEffectMode;
 import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.particle.ParticleTarget;
 import gg.fotia.crates.reward.Reward;
+import gg.fotia.crates.reward.RewardProbability;
 import gg.fotia.crates.util.ItemBuilder;
 import gg.fotia.crates.util.MessageUtil;
 import net.kyori.adventure.text.Component;
@@ -134,7 +136,7 @@ public class GuiManager {
             if (slotIndex >= contentSlots.size()) break;
             Reward reward = rewards.get(i);
             int slot = contentSlots.get(slotIndex);
-            ItemStack rewardItem = createRewardPreviewItem(reward, crate.isShowChance());
+            ItemStack rewardItem = createRewardPreviewItem(reward, rewards, crate.isShowChance());
             inventory.setItem(slot, rewardItem);
             slotIndex++;
         }
@@ -701,6 +703,7 @@ public class GuiManager {
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{pity_enabled}", yesNo(crate.isPityEnabled()));
         placeholders.put("{pity_tier_count}", String.valueOf(crate.getPityTiers().size()));
+        placeholders.put("{pity_early_reset}", yesNo(crate.isResetPityOnEarlyQualifyingReward()));
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("edit_pity", true);
@@ -761,6 +764,7 @@ public class GuiManager {
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{multi_open_enabled}", yesNo(crate.isMultiOpenEnabled()));
         placeholders.put("{multi_open_max}", String.valueOf(crate.getMultiOpenMax()));
+        placeholders.put("{multi_open_animation_enabled}", yesNo(crate.isMultiOpenAnimationEnabled()));
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("edit_multi_open", true);
@@ -796,6 +800,7 @@ public class GuiManager {
         placeholders.put("{reward_item_count}", String.valueOf(totalItems));
         placeholders.put("{command_count}", String.valueOf(commands.size()));
         placeholders.put("{chance}", String.format("%.2f", reward.getChance()));
+        placeholders.put("{probability}", RewardProbability.format(RewardProbability.percentage(reward, crate.getRewards())));
         placeholders.put("{rarity}", getRarityDisplayName(reward.getRarity()));
         placeholders.put("{broadcast}", yesNo(reward.shouldBroadcast()));
         placeholders.put("{display_name}", MessageUtil.stripColor(reward.getDisplayName()));
@@ -1145,7 +1150,7 @@ public class GuiManager {
     /**
      * 创建奖励预览物品
      */
-    private ItemStack createRewardPreviewItem(Reward reward, boolean showChance) {
+    private ItemStack createRewardPreviewItem(Reward reward, List<? extends Reward> rewards, boolean showChance) {
         ItemStack item = reward.getDisplayItem();
         ItemBuilder builder = new ItemBuilder(item);
 
@@ -1153,7 +1158,7 @@ public class GuiManager {
         lore.add("");
         lore.add("<!i><gray>稀有度: <!i><yellow>" + reward.getRarity());
         if (showChance) {
-            lore.add("<!i><gray>概率: <!i><yellow>" + String.format("%.2f%%", reward.getChance()));
+            lore.add("<!i><gray>概率: <!i><yellow>" + RewardProbability.format(RewardProbability.percentage(reward, rewards)));
         }
         if (reward.shouldBroadcast()) {
             lore.add("<!i><gold>★ 稀有奖励");
@@ -1696,12 +1701,13 @@ public class GuiManager {
         // ===== 第三行：基本属性 =====
         // 概率设置
         ItemStack chance = new ItemBuilder(Material.PAPER)
-                .name("<!i><yellow>概率: " + String.format("%.2f%%", reward.getChance()))
+                .name("<!i><yellow>权重: " + String.format("%.2f", reward.getChance()))
                 .lore(List.of(
-                        "<!i><gray>获得此奖励的概率",
+                        "<!i><gray>玩家展示概率: <!i><white>" + RewardProbability.format(RewardProbability.percentage(reward, crate.getRewards())),
+                        "<!i><gray>用于计算此奖励的相对掉落概率",
                         "",
-                        "<!i><yellow>左键 +1%  |  右键 -1%",
-                        "<!i><yellow>Shift+左键 +5%  |  Shift+右键 -5%",
+                        "<!i><yellow>左键 +1  |  右键 -1",
+                        "<!i><yellow>Shift+左键 +5  |  Shift+右键 -5",
                         "<!i><aqua>中键 输入精确数值"
                 ))
                 .build();
@@ -2454,6 +2460,35 @@ public class GuiManager {
                 .lore(List.of("<!i><gray>返回管理界面"))
                 .build();
         inventory.setItem(45, back);
+
+        player.openInventory(inventory);
+    }
+
+    public void openMultiOpenResultGui(Player player, Crate crate, List<RewardResult> rewardResults) {
+        GuiConfig config = configManager.getGuiConfig("multi_open_result");
+        if (config == null) {
+            return;
+        }
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("{crate}", MessageUtil.stripColor(crate.getName()));
+        placeholders.put("{result_count}", String.valueOf(rewardResults.size()));
+
+        CrateGuiHolder holder = new CrateGuiHolder(GuiType.MULTI_OPEN_RESULT, crate);
+        Inventory inventory = createConfiguredInventory(
+                "multi_open_result", holder, "<!i><dark_gray>{crate} 抽奖结果", 45, placeholders);
+        fillBackground(inventory, config);
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+
+        List<Integer> contentSlots = config.getContentSlots();
+        for (int index = 0; index < rewardResults.size() && index < contentSlots.size(); index++) {
+            Reward reward = rewardResults.get(index).getActualReward();
+            ItemStack item = reward.getDisplayItem();
+            ItemBuilder builder = new ItemBuilder(item)
+                    .addLore("")
+                    .addLore("<!i><yellow>第 " + (index + 1) + " 抽");
+            inventory.setItem(contentSlots.get(index), builder.build());
+        }
 
         player.openInventory(inventory);
     }

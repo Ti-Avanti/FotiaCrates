@@ -45,10 +45,11 @@ items:
   chance:
     slot: 28
     material: PAPER
-    name: "<!i><yellow>概率: <!i><white>{chance}%"
+    name: "<!i><yellow>权重: <!i><white>{chance}"
     lore:
-      - "<!i><yellow>左键 +1% / 右键 -1%"
-      - "<!i><yellow>Shift = 5%"
+      - "<!i><gray>玩家展示概率: <!i><white>{probability}"
+      - "<!i><yellow>左键 +1 / 右键 -1"
+      - "<!i><yellow>Shift = 5"
       - "<!i><aqua>中键输入精确值"
     action: adjust_chance
   rarity:

@@ -1,0 +1,25 @@
+# 多连抽结果界面配置
+title: "<!i><dark_gray>{crate} 抽奖结果"
+
+layout:
+  - '#########'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '#CCCCCCC#'
+  - '####I####'
+
+icons:
+  '#':
+    display:
+      material: gray_stained_glass_pane
+      name: ' '
+  'C':
+    content: true
+  'I':
+    display:
+      material: chest
+      name: '<!i><gold>多连抽完成'
+      lore:
+        - '<!i><gray>本次获得 <!i><white>{result_count} <!i><gray>个奖励'
+        - ''
+        - '<!i><yellow>关闭界面即可继续游戏'

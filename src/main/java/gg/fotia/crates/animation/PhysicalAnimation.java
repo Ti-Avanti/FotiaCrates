@@ -3,6 +3,7 @@ package gg.fotia.crates.animation;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.reward.Reward;
+import gg.fotia.crates.reward.RewardProbability;
 import gg.fotia.crates.util.ChestLidUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -18,8 +19,8 @@ import org.joml.AxisAngle4f;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 /**
  * 物理动画 - 在宝箱上方显示多个漂浮物品滚动效果
@@ -72,22 +73,9 @@ public class PhysicalAnimation implements Animation {
         // 打开箱子盖子（只对该玩家显示）
         openChestLid(player, crateLocation);
 
-        // 准备滚动物品列表
-        List<Reward> rewards = crate.getRewards();
-        List<ItemStack> allItems = new ArrayList<>();
-        for (Reward reward : rewards) {
-            allItems.add(reward.getDisplayItem());
-        }
-
-        // 多复制几份以便滚动
-        List<ItemStack> displayItems = new ArrayList<>();
-        for (int i = 0; i < 20; i++) {
-            List<ItemStack> shuffled = new ArrayList<>(allItems);
-            Collections.shuffle(shuffled);
-            displayItems.addAll(shuffled);
-        }
-        // 确保最终奖励在列表末尾
-        displayItems.add(finalReward.getDisplayItem());
+        List<Reward> rewards = crate.getAvailableRewardsFor(player);
+        Random random = new Random();
+        List<ItemStack> currentItems = new ArrayList<>(DISPLAY_COUNT);
 
         // 计算中心位置（宝箱上方，使用配置的高度）
         double heightOffset = crate.getPhysicalAnimationHeight();
@@ -108,7 +96,8 @@ public class PhysicalAnimation implements Animation {
         // 生成多个 ItemDisplay 实体
         int centerIndex = DISPLAY_COUNT / 2;
         for (int i = 0; i < DISPLAY_COUNT; i++) {
-            final int index = i;
+            ItemStack initialItem = nextDisplayItem(rewards, random, finalReward);
+            currentItems.add(initialItem);
             double offset = (i - centerIndex) * ITEM_SPACING;
             Location displayLoc = centerLoc.clone().add(rightX * offset, 0, rightZ * offset);
 
@@ -116,7 +105,7 @@ public class PhysicalAnimation implements Animation {
             float scale = calculateScale(i, centerIndex);
 
             ItemDisplay display = crateLocation.getWorld().spawn(displayLoc, ItemDisplay.class, d -> {
-                d.setItemStack(displayItems.get(index % displayItems.size()));
+                d.setItemStack(initialItem);
                 d.setBillboard(Display.Billboard.CENTER);
                 d.setTransformation(new Transformation(
                         new Vector3f(0, 0, 0),
@@ -146,21 +135,10 @@ public class PhysicalAnimation implements Animation {
 
         animationTask = new BukkitRunnable() {
             int tick = 0;
-            int scrollCount = 0;
             int lastScrollTick = 0;
-
-            // 当前显示的物品索引数组
-            int[] currentItemIndices = new int[DISPLAY_COUNT];
 
             // 是否已放入最终奖励
             boolean finalRewardInserted = false;
-
-            {
-                // 初始化显示的物品
-                for (int i = 0; i < DISPLAY_COUNT; i++) {
-                    currentItemIndices[i] = i % (displayItems.size() - 1);
-                }
-            }
 
             @Override
             public void run() {
@@ -265,26 +243,17 @@ public class PhysicalAnimation implements Animation {
             }
 
             private void doScroll(boolean insertFinalReward) {
-                scrollCount++;
-
-                // 所有物品向左移动一格
                 for (int i = 0; i < DISPLAY_COUNT - 1; i++) {
-                    currentItemIndices[i] = currentItemIndices[i + 1];
+                    currentItems.set(i, currentItems.get(i + 1));
                 }
+                currentItems.set(DISPLAY_COUNT - 1, insertFinalReward
+                        ? finalReward.getDisplayItem()
+                        : nextDisplayItem(rewards, random, finalReward));
 
-                // 最右边放入新物品
-                if (insertFinalReward) {
-                    currentItemIndices[DISPLAY_COUNT - 1] = displayItems.size() - 1; // 最终奖励的索引
-                } else {
-                    // 放入随机物品（排除最终奖励）
-                    currentItemIndices[DISPLAY_COUNT - 1] = (scrollCount * 7) % (displayItems.size() - 1);
-                }
-
-                // 更新显示
                 for (int i = 0; i < displayEntities.size(); i++) {
                     ItemDisplay display = displayEntities.get(i);
                     if (display == null || display.isDead()) continue;
-                    display.setItemStack(displayItems.get(currentItemIndices[i]));
+                    display.setItemStack(currentItems.get(i));
                 }
 
                 // 播放滚动音效
@@ -296,28 +265,7 @@ public class PhysicalAnimation implements Animation {
 
             // 最终奖励放入后的滚动（不再放入新物品，让最终奖励自然滚动到中间）
             private void doScrollAfterFinal() {
-                scrollCount++;
-
-                // 所有物品向左移动一格
-                for (int i = 0; i < DISPLAY_COUNT - 1; i++) {
-                    currentItemIndices[i] = currentItemIndices[i + 1];
-                }
-
-                // 最右边放入随机物品（不是最终奖励）
-                currentItemIndices[DISPLAY_COUNT - 1] = (scrollCount * 7) % (displayItems.size() - 1);
-
-                // 更新显示
-                for (int i = 0; i < displayEntities.size(); i++) {
-                    ItemDisplay display = displayEntities.get(i);
-                    if (display == null || display.isDead()) continue;
-                    display.setItemStack(displayItems.get(currentItemIndices[i]));
-                }
-
-                // 播放滚动音效
-                if (crate.getSpinSound() != null) {
-                    player.playSound(centerLoc, crate.getSpinSound(),
-                            crate.getSpinVolume() * 0.3f, crate.getSpinPitch());
-                }
+                doScroll(false);
             }
 
             private int estimateRemainingScrolls(int currentTick, int totalTicks) {
@@ -340,6 +288,11 @@ public class PhysicalAnimation implements Animation {
                 return scrolls;
             }
         }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private ItemStack nextDisplayItem(List<Reward> rewards, Random random, Reward fallback) {
+        Reward reward = RewardProbability.select(rewards, random);
+        return (reward != null ? reward : fallback).getDisplayItem();
     }
 
     /**

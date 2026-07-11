@@ -50,8 +50,10 @@ public class Crate {
     private final float winPitch;
     private final boolean pityEnabled;
     private final List<PityTier> pityTiers; // 多级保底
+    private final boolean resetPityOnEarlyQualifyingReward;
     private final boolean multiOpenEnabled;
     private final int multiOpenMax;
+    private final boolean multiOpenAnimationEnabled;
     private final String permission; // 开箱权限节点
     private final List<String> rarityOrder;
     private final Random random = new Random();
@@ -85,8 +87,8 @@ public class Crate {
                  Map<ParticleStage, CrateParticleEffect> particleEffects,
                  Sound spinSound, float spinVolume, float spinPitch,
                  Sound winSound, float winVolume, float winPitch,
-                 boolean pityEnabled, List<PityTier> pityTiers,
-                 boolean multiOpenEnabled, int multiOpenMax, String permission,
+                 boolean pityEnabled, List<PityTier> pityTiers, boolean resetPityOnEarlyQualifyingReward,
+                 boolean multiOpenEnabled, int multiOpenMax, boolean multiOpenAnimationEnabled, String permission,
                  List<String> rarityOrder) {
         this.id = id;
         this.name = name;
@@ -124,8 +126,10 @@ public class Crate {
         this.winPitch = winPitch;
         this.pityEnabled = pityEnabled;
         this.pityTiers = pityTiers != null ? pityTiers : new ArrayList<>();
+        this.resetPityOnEarlyQualifyingReward = resetPityOnEarlyQualifyingReward;
         this.multiOpenEnabled = multiOpenEnabled;
         this.multiOpenMax = multiOpenMax;
+        this.multiOpenAnimationEnabled = multiOpenAnimationEnabled;
         this.permission = permission;
         this.rarityOrder = rarityOrder != null ? new ArrayList<>(rarityOrder) : new ArrayList<>();
     }
@@ -161,6 +165,16 @@ public class Crate {
     public Reward rollRewardWithPermissionCheck(Player player) {
         RewardResult result = rollRewardWithPermissionCheckResult(player);
         return result != null ? result.getActualReward() : null;
+    }
+
+    public List<Reward> getAvailableRewardsFor(Player player) {
+        if (player == null) {
+            return getRewards();
+        }
+
+        return rewards.stream()
+                .filter(reward -> !shouldSkipReward(player, reward, new HashSet<>()))
+                .toList();
     }
 
     /**
@@ -375,6 +389,21 @@ public class Crate {
         return pityTiers.stream().mapToInt(PityTier::getCount).max().orElse(0);
     }
 
+    public String getMinimumPityRarity() {
+        String minimumRarity = null;
+        int minimumLevel = Integer.MAX_VALUE;
+        for (PityTier tier : pityTiers) {
+            int level = getRarityLevel(tier.getRarity());
+            if (level >= 0 && level < minimumLevel) {
+                minimumLevel = level;
+                minimumRarity = tier.getRarity();
+            }
+        }
+        return minimumRarity != null
+                ? minimumRarity
+                : (pityTiers.isEmpty() ? null : pityTiers.get(0).getRarity());
+    }
+
     /**
      * 根据指定稀有度抽取保底奖励
      */
@@ -545,8 +574,11 @@ public class Crate {
     public float getWinPitch() { return winPitch; }
     public boolean isPityEnabled() { return pityEnabled; }
     public List<PityTier> getPityTiers() { return new ArrayList<>(pityTiers); }
+    public boolean isResetPityOnEarlyQualifyingReward() { return resetPityOnEarlyQualifyingReward; }
     public boolean isMultiOpenEnabled() { return multiOpenEnabled; }
     public int getMultiOpenMax() { return multiOpenMax; }
+    public boolean isMultiOpenAnimationEnabled() { return multiOpenAnimationEnabled; }
+    public List<String> getRarityOrder() { return new ArrayList<>(rarityOrder); }
     public String getPermission() { return permission; }
 
     // 兼容旧版

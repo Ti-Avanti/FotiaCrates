@@ -5,6 +5,7 @@ import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateLocation;
 import gg.fotia.crates.crate.CrateOpenService;
+import gg.fotia.crates.crate.MultiOpenService;
 import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.ParticleStage;
@@ -34,6 +35,7 @@ public class BlockListener implements Listener {
 
     private final FotiaCrates plugin;
     private final CrateOpenService crateOpenService;
+    private final MultiOpenService multiOpenService;
     private final Set<UUID> openingPlayers = new HashSet<>();
     private final Map<UUID, Long> interactCooldown = new HashMap<>();
     private static final long INTERACT_COOLDOWN_MS = 500;
@@ -41,6 +43,7 @@ public class BlockListener implements Listener {
     public BlockListener(FotiaCrates plugin) {
         this.plugin = plugin;
         this.crateOpenService = new CrateOpenService(plugin);
+        this.multiOpenService = new MultiOpenService(plugin, crateOpenService);
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -383,24 +386,6 @@ public class BlockListener implements Listener {
         interactCooldown.put(playerUuid, now);
         openingPlayers.add(playerUuid);
 
-        plugin.getLanguageManager().send(player, "multi-open-start",
-                LanguageManager.placeholders("amount", String.valueOf(amount)));
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, location);
-
-        try {
-            for (int i = 0; i < amount; i++) {
-                CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
-                if (!openAttempt.isSuccess()) {
-                    if (openAttempt.failureReason() == CrateOpenService.OpenFailureReason.NO_KEY) {
-                        break;
-                    }
-                    continue;
-                }
-
-                crateOpenService.deliverReward(player, crate, openAttempt.rewardResult());
-            }
-        } finally {
-            openingPlayers.remove(playerUuid);
-        }
+        multiOpenService.open(player, crate, amount, location, () -> openingPlayers.remove(playerUuid));
     }
 }

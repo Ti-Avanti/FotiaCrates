@@ -5,6 +5,7 @@ import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.crate.MultiOpenAmount;
+import gg.fotia.crates.crate.MultiOpenService;
 import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.gui.CrateGuiHolder;
 import gg.fotia.crates.gui.GuiConfig;
@@ -39,6 +40,7 @@ public class GuiListener implements Listener {
 
     private final FotiaCrates plugin;
     private final CrateOpenService crateOpenService;
+    private final MultiOpenService multiOpenService;
     // 防止重复开箱的冷却集合
     private final Set<UUID> openingPlayers = new HashSet<>();
     // 防止短时间内重复触发的冷却时间戳（毫秒）
@@ -48,6 +50,7 @@ public class GuiListener implements Listener {
     public GuiListener(FotiaCrates plugin) {
         this.plugin = plugin;
         this.crateOpenService = new CrateOpenService(plugin);
+        this.multiOpenService = new MultiOpenService(plugin, crateOpenService);
     }
 
     @EventHandler
@@ -95,7 +98,7 @@ public class GuiListener implements Listener {
             case ADMIN_KEYS -> handleKeysClick(event, player, holder);
             case ADMIN_KEY_EDIT -> handleKeyEditClick(event, player, holder);
             case HISTORY -> handleHistoryClick(event, player, holder);
-            case ANIMATION, MAIN_MENU -> {} // 动画GUI不处理点击
+            case ANIMATION, MAIN_MENU, MULTI_OPEN_RESULT -> {} // 动画和结果GUI不处理点击
         }
     }
 
@@ -410,6 +413,7 @@ public class GuiListener implements Listener {
         String action = actionOrFallback("admin_pity_edit", slot, Map.of(
                 45, "back",
                 4, "toggle_pity",
+                6, "toggle_pity_early_reset",
                 53, "save"
         ));
 
@@ -419,6 +423,11 @@ public class GuiListener implements Listener {
         }
         if ("toggle_pity".equals(action)) {
             plugin.getCrateManager().togglePity(crate.getId());
+            plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            return;
+        }
+        if ("toggle_pity_early_reset".equals(action)) {
+            plugin.getCrateManager().togglePityEarlyReset(crate.getId());
             plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             return;
         }
@@ -433,6 +442,10 @@ public class GuiListener implements Listener {
             case 45 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
             case 4 -> { // 切换启用/禁用
                 plugin.getCrateManager().togglePity(crate.getId());
+                plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            }
+            case 6 -> {
+                plugin.getCrateManager().togglePityEarlyReset(crate.getId());
                 plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             }
             case 53 -> { // 保存并返回
@@ -587,6 +600,7 @@ public class GuiListener implements Listener {
         String action = actionOrFallback("admin_multi_open_edit", slot, Map.of(
                 18, "back",
                 11, "toggle_multi_open",
+                13, "toggle_multi_open_animation",
                 15, "adjust_multi_open_max"
         ));
         if ("back".equals(action)) {
@@ -595,6 +609,11 @@ public class GuiListener implements Listener {
         }
         if ("toggle_multi_open".equals(action)) {
             plugin.getCrateManager().toggleMultiOpen(crate.getId());
+            plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            return;
+        }
+        if ("toggle_multi_open_animation".equals(action)) {
+            plugin.getCrateManager().toggleMultiOpenAnimation(crate.getId());
             plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             return;
         }
@@ -615,6 +634,10 @@ public class GuiListener implements Listener {
             case 18 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
             case 11 -> { // 切换启用/禁用
                 plugin.getCrateManager().toggleMultiOpen(crate.getId());
+                plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+            }
+            case 13 -> {
+                plugin.getCrateManager().toggleMultiOpenAnimation(crate.getId());
                 plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             }
             case 15 -> { // 调整最大数量
@@ -1963,36 +1986,20 @@ public class GuiListener implements Listener {
         interactCooldown.put(playerUuid, now);
         openingPlayers.add(playerUuid);
 
-        try {
-            if (!crateOpenService.hasOpenPermission(player, crate)) {
-                plugin.getLanguageManager().send(player, "no-permission");
-                return;
-            }
-
-            if (plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId()) < amount) {
-                plugin.getLanguageManager().send(player, "no-key");
-                return;
-            }
-
-            plugin.getLanguageManager().send(player, "multi-open-start",
-                    LanguageManager.placeholders("amount", String.valueOf(amount)));
-            Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
-            plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-
-            for (int i = 0; i < amount; i++) {
-                CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
-                if (!openAttempt.isSuccess()) {
-                    if (openAttempt.failureReason() == CrateOpenService.OpenFailureReason.NO_KEY) {
-                        break;
-                    }
-                    continue;
-                }
-
-                crateOpenService.deliverReward(player, crate, openAttempt.rewardResult(), crateLocation);
-            }
-        } finally {
+        if (!crateOpenService.hasOpenPermission(player, crate)) {
+            plugin.getLanguageManager().send(player, "no-permission");
             openingPlayers.remove(playerUuid);
+            return;
         }
+
+        if (plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId()) < amount) {
+            plugin.getLanguageManager().send(player, "no-key");
+            openingPlayers.remove(playerUuid);
+            return;
+        }
+
+        Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
+        multiOpenService.open(player, crate, amount, crateLocation, () -> openingPlayers.remove(playerUuid));
     }
 
     @EventHandler

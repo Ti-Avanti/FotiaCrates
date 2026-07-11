@@ -4,6 +4,7 @@ import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.key.KeyType;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.ParticleStage;
+import gg.fotia.crates.pity.PityResetPolicy;
 import gg.fotia.crates.reward.Reward;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -32,8 +33,8 @@ public class CrateOpenService {
     }
 
     public OpenAttempt prepareOpen(Player player, Crate crate) {
-        RewardResult rewardResult = resolveRewardResult(player, crate);
-        if (rewardResult == null) {
+        ResolvedReward resolvedReward = resolveRewardResult(player, crate);
+        if (resolvedReward == null) {
             return OpenAttempt.failure(OpenFailureReason.NO_AVAILABLE_REWARD);
         }
 
@@ -41,8 +42,8 @@ public class CrateOpenService {
             return OpenAttempt.failure(OpenFailureReason.NO_KEY);
         }
 
-        updatePityCounter(player, crate);
-        return OpenAttempt.success(rewardResult);
+        updatePityCounter(player, crate, resolvedReward);
+        return OpenAttempt.success(resolvedReward.rewardResult());
     }
 
     public void sendOpenFailure(Player player, OpenFailureReason reason) {
@@ -140,19 +141,21 @@ public class CrateOpenService {
         deliverReward(player, crate, rewardResult, resolvedCrateLocation);
     }
 
-    private RewardResult resolveRewardResult(Player player, Crate crate) {
+    private ResolvedReward resolveRewardResult(Player player, Crate crate) {
         if (crate.isPityEnabled() && !crate.getPityTiers().isEmpty()) {
             int currentCount = plugin.getPityManager().getPityCount(player.getUniqueId(), crate.getId()) + 1;
             Crate.PityTier triggeredTier = crate.getTriggeredPityTier(currentCount);
             if (triggeredTier != null) {
-                return crate.rollPityRewardWithPermissionCheckResult(player, triggeredTier.getRarity());
+                RewardResult rewardResult = crate.rollPityRewardWithPermissionCheckResult(player, triggeredTier.getRarity());
+                return rewardResult != null ? new ResolvedReward(rewardResult, true) : null;
             }
         }
 
-        return crate.rollRewardWithPermissionCheckResult(player);
+        RewardResult rewardResult = crate.rollRewardWithPermissionCheckResult(player);
+        return rewardResult != null ? new ResolvedReward(rewardResult, false) : null;
     }
 
-    private void updatePityCounter(Player player, Crate crate) {
+    private void updatePityCounter(Player player, Crate crate, ResolvedReward resolvedReward) {
         if (!crate.isPityEnabled() || crate.getPityTiers().isEmpty()) {
             return;
         }
@@ -164,7 +167,20 @@ public class CrateOpenService {
             return;
         }
 
+        if (PityResetPolicy.shouldResetEarly(
+                crate.isResetPityOnEarlyQualifyingReward(),
+                resolvedReward.pityTriggered(),
+                resolvedReward.rewardResult().getActualReward().getRarity(),
+                crate.getMinimumPityRarity(),
+                crate.getRarityOrder())) {
+            plugin.getPityManager().resetPityCount(player.getUniqueId(), crate.getId());
+            return;
+        }
+
         plugin.getPityManager().incrementPityCount(player.getUniqueId(), crate.getId());
+    }
+
+    private record ResolvedReward(RewardResult rewardResult, boolean pityTriggered) {
     }
 
     public enum OpenFailureReason {

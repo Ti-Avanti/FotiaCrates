@@ -141,9 +141,11 @@ public class CrateManager {
             String pityRarity = config.getString("pity.rarity", plugin.getConfigManager().getDefaultPityRarityId());
             pityTiers.add(new Crate.PityTier(pityCount, pityRarity));
         }
+        boolean resetPityOnEarlyQualifyingReward = config.getBoolean("pity.reset-on-early-qualifying-reward", false);
 
         boolean multiOpenEnabled = config.getBoolean("multi-open.enabled", true);
         int multiOpenMax = config.getInt("multi-open.max", 10);
+        boolean multiOpenAnimationEnabled = config.getBoolean("multi-open.animation.enabled", false);
 
         // 权限节点，默认为空（留空则不检测开箱权限）
         String permission = config.getString("permission", "");
@@ -163,8 +165,8 @@ public class CrateManager {
                 particlesEnabled, particleType, particleCount, particleEffects,
                 spinSound, spinVolume, spinPitch,
                 winSound, winVolume, winPitch,
-                pityEnabled, pityTiers,
-                multiOpenEnabled, multiOpenMax, permission,
+                pityEnabled, pityTiers, resetPityOnEarlyQualifyingReward,
+                multiOpenEnabled, multiOpenMax, multiOpenAnimationEnabled, permission,
                 plugin.getConfigManager().getRarityIds());
     }
 
@@ -784,6 +786,21 @@ public class CrateManager {
         }
     }
 
+    public void toggleMultiOpenAnimation(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("multi-open.animation.enabled", false);
+            config.set("multi-open.animation.enabled", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle multi-open animation: " + e.getMessage());
+        }
+    }
+
     /**
      * 添加奖励
      */
@@ -952,6 +969,21 @@ public class CrateManager {
         }
     }
 
+    public void togglePityEarlyReset(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean current = config.getBoolean("pity.reset-on-early-qualifying-reward", false);
+            config.set("pity.reset-on-early-qualifying-reward", !current);
+            config.save(file);
+            loadCrates();
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to toggle early pity reset: " + e.getMessage());
+        }
+    }
+
     /**
      * 添加保底等级
      */
@@ -1103,8 +1135,10 @@ public class CrateManager {
             config.set("pity.enabled", false);
             config.set("pity.count", 50);
             config.set("pity.rarity", plugin.getConfigManager().getDefaultPityRarityId());
+            config.set("pity.reset-on-early-qualifying-reward", false);
             config.set("multi-open.enabled", true);
             config.set("multi-open.max", 10);
+            config.set("multi-open.animation.enabled", false);
             config.save(file);
             loadCrates();
         } catch (java.io.IOException e) {

@@ -17,6 +17,7 @@ public class GuiConfigManager {
 
     private static final List<String> DEFAULT_GUI_FILES = List.of(
             "preview.yml",
+            "multi_open_result.yml",
             "animation.yml",
             "history.yml",
             "admin.yml",
@@ -63,6 +64,7 @@ public class GuiConfigManager {
             saveDefaultGui(fileName);
         }
         migrateRewardEditGui(guisFolder);
+        migrateFeatureGuiConfigs(guisFolder);
 
         File[] files = guisFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) return;
@@ -161,6 +163,68 @@ public class GuiConfigManager {
             plugin.getLogger().info("Migrated GUI config: admin_reward_edit");
         } catch (IOException e) {
             plugin.getLogger().warning("Failed to migrate admin_reward_edit GUI config: " + e.getMessage());
+        }
+    }
+
+    private void migrateFeatureGuiConfigs(File guisFolder) {
+        migratePityEarlyResetGui(guisFolder);
+        migrateMultiOpenAnimationGui(guisFolder);
+    }
+
+    private void migratePityEarlyResetGui(File guisFolder) {
+        File file = new File(guisFolder, "admin_pity_edit.yml");
+        if (!file.exists()) {
+            return;
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        if (config.contains("items.early_reset")) {
+            return;
+        }
+
+        config.set("items.early_reset.slot", 6);
+        config.set("items.early_reset.material", "CLOCK");
+        config.set("items.early_reset.name", "<!i><aqua>提前出货重置: {pity_early_reset}");
+        config.set("items.early_reset.lore", List.of(
+                "<!i><gray>提前获得达到保底稀有度的奖励时",
+                "<!i><gray>是否立即清空当前保底计数",
+                "",
+                "<!i><yellow>点击切换"
+        ));
+        config.set("items.early_reset.action", "toggle_pity_early_reset");
+        saveMigratedGui(file, config, "admin_pity_edit");
+    }
+
+    private void migrateMultiOpenAnimationGui(File guisFolder) {
+        File file = new File(guisFolder, "admin_multi_open_edit.yml");
+        if (!file.exists()) {
+            return;
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        if (config.contains("items.animation")) {
+            return;
+        }
+
+        config.set("items.animation.slot", 13);
+        config.set("items.animation.material", "FIREWORK_ROCKET");
+        config.set("items.animation.name", "<!i><aqua>十连首抽动画: {multi_open_animation_enabled}");
+        config.set("items.animation.lore", List.of(
+                "<!i><gray>开启后只播放第一抽动画",
+                "<!i><gray>随后立即展示全部抽奖结果",
+                "",
+                "<!i><yellow>点击切换"
+        ));
+        config.set("items.animation.action", "toggle_multi_open_animation");
+        saveMigratedGui(file, config, "admin_multi_open_edit");
+    }
+
+    private void saveMigratedGui(File file, YamlConfiguration config, String guiId) {
+        try {
+            config.save(file);
+            plugin.getLogger().info("Migrated GUI config: " + guiId);
+        } catch (IOException e) {
+            plugin.getLogger().warning("Failed to migrate GUI config " + guiId + ": " + e.getMessage());
         }
     }
 

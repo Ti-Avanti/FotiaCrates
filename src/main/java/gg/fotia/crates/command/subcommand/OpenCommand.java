@@ -4,6 +4,7 @@ import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateOpenService;
+import gg.fotia.crates.crate.MultiOpenService;
 import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.ParticleStage;
@@ -16,10 +17,12 @@ import java.util.List;
 public class OpenCommand extends AbstractSubCommand {
 
     private final CrateOpenService crateOpenService;
+    private final MultiOpenService multiOpenService;
 
     public OpenCommand(FotiaCrates plugin) {
         super(plugin, "fotiacrates.use", "/crate open <crate> [amount]");
         this.crateOpenService = new CrateOpenService(plugin);
+        this.multiOpenService = new MultiOpenService(plugin, crateOpenService);
     }
 
     @Override
@@ -100,22 +103,8 @@ public class OpenCommand extends AbstractSubCommand {
     }
 
     private void openMultiple(Player player, Crate crate, int amount) {
-        plugin.getLanguageManager().send(player, "multi-open-start",
-                LanguageManager.placeholders("amount", String.valueOf(amount)));
         Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-
-        for (int i = 0; i < amount; i++) {
-            CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
-            if (!openAttempt.isSuccess()) {
-                if (openAttempt.failureReason() == CrateOpenService.OpenFailureReason.NO_KEY) {
-                    break;
-                }
-                continue;
-            }
-
-            crateOpenService.deliverReward(player, crate, openAttempt.rewardResult(), crateLocation);
-        }
+        multiOpenService.open(player, crate, amount, crateLocation, () -> {});
     }
 
     @Override
