@@ -16,6 +16,7 @@ public class PlayerListener implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
+        plugin.getAsyncPlayerDataManager().loadPlayer(event.getPlayer().getUniqueId());
         // 延迟检查待领取奖励，避免登录时消息被淹没
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             plugin.getPendingRewardManager().onPlayerJoin(event.getPlayer());
@@ -25,5 +26,6 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         // 玩家退出时动画会自动检测玩家是否在线
+        plugin.getAsyncPlayerDataManager().flushAndUnload(event.getPlayer().getUniqueId());
     }
 }

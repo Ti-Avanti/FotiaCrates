@@ -4,6 +4,7 @@ import gg.fotia.crates.command.CrateCommand;
 import gg.fotia.crates.config.ConfigManager;
 import gg.fotia.crates.crate.CrateManager;
 import gg.fotia.crates.database.DatabaseManager;
+import gg.fotia.crates.data.AsyncPlayerDataManager;
 import gg.fotia.crates.gui.GuiManager;
 import gg.fotia.crates.history.HistoryManager;
 import gg.fotia.crates.hologram.HologramManager;
@@ -34,6 +35,7 @@ public class FotiaCrates extends JavaPlugin {
     private GuiManager guiManager;
     private HistoryManager historyManager;
     private PityManager pityManager;
+    private AsyncPlayerDataManager asyncPlayerDataManager;
     private ModelEngineManager modelEngineManager;
     private PendingRewardManager pendingRewardManager;
     private RewardItemDeliveryService rewardItemDeliveryService;
@@ -61,6 +63,8 @@ public class FotiaCrates extends JavaPlugin {
             return;
         }
 
+        asyncPlayerDataManager = new AsyncPlayerDataManager(this);
+
         // 初始化管理器
         keyManager = new KeyManager(this);
         crateManager = new CrateManager(this);
@@ -72,6 +76,7 @@ public class FotiaCrates extends JavaPlugin {
         rewardItemDeliveryService = new RewardItemDeliveryService(this);
         hologramManager = new HologramManager(this);
         particleManager = new ParticleManager(this);
+        asyncPlayerDataManager.start();
 
         // 加载抽奖箱
         crateManager.loadCrates();
@@ -128,6 +133,9 @@ public class FotiaCrates extends JavaPlugin {
         if (modelEngineManager != null) {
             modelEngineManager.cleanup();
         }
+        if (asyncPlayerDataManager != null) {
+            asyncPlayerDataManager.shutdown();
+        }
         if (databaseManager != null) {
             databaseManager.close();;
         }
@@ -158,6 +166,7 @@ public class FotiaCrates extends JavaPlugin {
         guiManager.reload();
         hologramManager.reload();
         particleManager.restart();
+        asyncPlayerDataManager.reload();
         // 重新生成模型
         spawnAllCrateModels();
     }
@@ -222,6 +231,10 @@ public class FotiaCrates extends JavaPlugin {
 
     public PityManager getPityManager() {
         return pityManager;
+    }
+
+    public AsyncPlayerDataManager getAsyncPlayerDataManager() {
+        return asyncPlayerDataManager;
     }
 
     public ModelEngineManager getModelEngineManager() {

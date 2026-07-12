@@ -232,6 +232,26 @@ public class ConfigManager {
         return config.getInt("settings.max-history-entries", 100);
     }
 
+    public long getPersistenceFlushIntervalTicks() {
+        return Math.max(1L, config.getLong("persistence.flush-interval-ticks", 20L));
+    }
+
+    public int getPersistenceHistoryBatchSize() {
+        return Math.max(1, config.getInt("persistence.history.batch-size", 100));
+    }
+
+    public int getPersistenceHistoryQueueCapacity() {
+        return Math.max(1, config.getInt("persistence.history.queue-capacity", 10_000));
+    }
+
+    public long getPersistenceShutdownFlushTimeoutMillis() {
+        return Math.max(1L, config.getLong("persistence.shutdown-flush-timeout-millis", 5_000L));
+    }
+
+    public long getHistoryCleanupIntervalMillis() {
+        return Math.max(1_000L, config.getLong("persistence.history.cleanup-interval-seconds", 300L) * 1_000L);
+    }
+
     public boolean isRewardAutoDisplayFromFirstItemEnabled() {
         return config.getBoolean("editor.rewards.auto-display-from-first-item.enabled", true);
     }

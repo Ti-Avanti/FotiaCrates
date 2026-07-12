@@ -96,7 +96,8 @@ public class MySQLDatabase implements Database {
                     reward_name VARCHAR(128) NOT NULL,
                     timestamp BIGINT NOT NULL,
                     INDEX idx_uuid (uuid),
-                    INDEX idx_timestamp (timestamp)
+                    INDEX idx_timestamp (timestamp),
+                    INDEX idx_history_uuid_timestamp_id (uuid, timestamp, id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
             """);
 
@@ -128,6 +129,12 @@ public class MySQLDatabase implements Database {
                 stmt.executeUpdate("ALTER TABLE crate_locations ADD COLUMN yaw FLOAT DEFAULT 0");
             } catch (SQLException ignored) {
                 // 列已存在，忽略错误
+            }
+
+            try {
+                stmt.executeUpdate("CREATE INDEX idx_history_uuid_timestamp_id ON crate_history(uuid, timestamp, id)");
+            } catch (SQLException ignored) {
+                // 索引已存在，忽略错误
             }
 
             plugin.getLogger().info("Database tables created successfully!");

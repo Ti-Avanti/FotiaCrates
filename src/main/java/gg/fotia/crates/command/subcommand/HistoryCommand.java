@@ -51,29 +51,29 @@ public class HistoryCommand extends AbstractSubCommand {
             return;
         }
 
-        List<HistoryManager.HistoryEntry> history = plugin.getHistoryManager()
-                .getHistory(target.getUniqueId(), 10);
+        Player historyTarget = target;
+        plugin.getHistoryManager().getHistoryAsync(historyTarget.getUniqueId(), 10, history -> {
+            if (history.isEmpty()) {
+                sender.sendMessage(plugin.getLanguageManager().getMessage("no-history"));
+                return;
+            }
 
-        if (history.isEmpty()) {
-            sender.sendMessage(plugin.getLanguageManager().getMessage("no-history"));
-            return;
-        }
+            sender.sendMessage(plugin.getLanguageManager().getMessage("history-header",
+                    LanguageManager.placeholders("player", historyTarget.getName())));
 
-        sender.sendMessage(plugin.getLanguageManager().getMessage("history-header",
-                LanguageManager.placeholders("player", target.getName())));
+            for (HistoryManager.HistoryEntry entry : history) {
+                String crateName = plugin.getCrateManager().getCrate(entry.crateId()) != null
+                        ? plugin.getCrateManager().getCrate(entry.crateId()).getName()
+                        : entry.crateId();
 
-        for (HistoryManager.HistoryEntry entry : history) {
-            String crateName = plugin.getCrateManager().getCrate(entry.crateId()) != null
-                    ? plugin.getCrateManager().getCrate(entry.crateId()).getName()
-                    : entry.crateId();
-
-            sender.sendMessage(plugin.getLanguageManager().getMessage("history-entry",
-                    LanguageManager.placeholders(
-                            "crate", crateName,
-                            "reward", entry.rewardName(),
-                            "time", entry.formattedTime()
-                    )));
-        }
+                sender.sendMessage(plugin.getLanguageManager().getMessage("history-entry",
+                        LanguageManager.placeholders(
+                                "crate", crateName,
+                                "reward", entry.rewardName(),
+                                "time", entry.formattedTime()
+                        )));
+            }
+        });
     }
 
     @Override

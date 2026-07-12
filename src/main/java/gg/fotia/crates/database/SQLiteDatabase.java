@@ -11,7 +11,6 @@ import java.sql.Statement;
 public class SQLiteDatabase implements Database {
 
     private final FotiaCrates plugin;
-    private Connection connection;
     private final String fileName;
     private boolean initialConnectLogged = false;
 
@@ -22,14 +21,7 @@ public class SQLiteDatabase implements Database {
 
     @Override
     public boolean connect() {
-        try {
-            File dataFolder = plugin.getDataFolder();
-            if (!dataFolder.exists()) {
-                dataFolder.mkdirs();
-            }
-            File dbFile = new File(dataFolder, fileName);
-            String url = "jdbc:sqlite:" + dbFile.getAbsolutePath();
-            connection = DriverManager.getConnection(url);
+        try (Connection ignored = openConnection()) {
             if (!initialConnectLogged) {
                 plugin.getLogger().info("SQLite database connected!");
                 initialConnectLogged = true;
@@ -43,27 +35,17 @@ public class SQLiteDatabase implements Database {
 
     @Override
     public void close() {
-        try {
-            if (connection != null && !connection.isClosed()) {
-                connection.close();
-                plugin.getLogger().info("SQLite database connection closed.");
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to close SQLite connection: " + e.getMessage());
-        }
+        // SQLite connections are operation-scoped and closed by their callers.
     }
 
     @Override
     public Connection getConnection() throws SQLException {
-        if (connection == null || connection.isClosed()) {
-            connect();
-        }
-        return connection;
+        return openConnection();
     }
 
     @Override
     public void createTables() {
-        try (Statement stmt = getConnection().createStatement()) {
+        try (Connection connection = getConnection(); Statement stmt = connection.createStatement()) {
             // 虚拟钥匙表 - 使用 key_id 存储钥匙ID
             stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS player_keys (
@@ -119,10 +101,28 @@ public class SQLiteDatabase implements Database {
 
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_uuid ON crate_history(uuid)");
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_timestamp ON crate_history(timestamp)");
+            stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_uuid_timestamp_id ON crate_history(uuid, timestamp DESC, id DESC)");
 
             plugin.getLogger().info("Database tables created successfully!");
         } catch (SQLException e) {
             plugin.getLogger().severe("Failed to create database tables: " + e.getMessage());
+        }
+    }
+
+    private Connection openConnection() throws SQLException {
+        File dataFolder = plugin.getDataFolder();
+        if (!dataFolder.exists()) {
+            dataFolder.mkdirs();
+        }
+        File dbFile = new File(dataFolder, fileName);
+        Connection connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
+        try (Statement statement = connection.createStatement()) {
+            // Allow the asynchronous writer to wait briefly for another SQLite operation instead of failing immediately.
+            statement.execute("PRAGMA busy_timeout = 5000");
+            return connection;
+        } catch (SQLException exception) {
+            connection.close();
+            throw exception;
         }
     }
 }

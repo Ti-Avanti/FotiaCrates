@@ -8,6 +8,8 @@ messages:
   # General messages
   no-permission: "<!i><red>You don't have permission to do this!"
   no-key: "<!i><red>You don't have enough keys!"
+  player-data-loading: "<!i><yellow>Your data is still synchronizing. Please try again shortly."
+  player-data-save-failed: "<!i><red>Data saving failed. This crate opening was cancelled."
   reward-received: "<!i><green>Congratulations! You received {reward}<!i><green>!"
   broadcast-rare: "<!i><gold>{player} <!i><yellow>got <!i><gold>{reward} <!i><yellow>from <!i><gold>{crate}<!i><yellow>!"
   key-given: "<!i><green>You received {amount} {key}<!i><green>!"

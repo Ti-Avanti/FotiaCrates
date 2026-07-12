@@ -74,7 +74,13 @@ public class KeyCommand extends AbstractSubCommand {
         if (keyType == KeyType.PHYSICAL) {
             plugin.getKeyManager().givePhysicalKeys(target, keyId, amount);
         } else {
-            plugin.getKeyManager().addVirtualKeys(target.getUniqueId(), keyId, amount);
+            if (!ensureVirtualDataReady(sender, target)) {
+                return;
+            }
+            if (!plugin.getKeyManager().addVirtualKeys(target.getUniqueId(), keyId, amount)) {
+                sendMessage(sender, "player-data-loading");
+                return;
+            }
         }
 
         plugin.getLanguageManager().send(target, "key-given",
@@ -130,7 +136,13 @@ public class KeyCommand extends AbstractSubCommand {
         if (keyType == KeyType.PHYSICAL) {
             plugin.getKeyManager().removePhysicalKeys(target, keyId, amount);
         } else {
-            plugin.getKeyManager().removeVirtualKeys(target.getUniqueId(), keyId, amount);
+            if (!ensureVirtualDataReady(sender, target)) {
+                return;
+            }
+            if (!plugin.getKeyManager().removeVirtualKeys(target.getUniqueId(), keyId, amount)) {
+                sendMessage(sender, "player-data-loading");
+                return;
+            }
         }
 
         plugin.getLanguageManager().send(target, "key-removed",
@@ -156,6 +168,9 @@ public class KeyCommand extends AbstractSubCommand {
         Player target = Bukkit.getPlayer(args[1]);
         if (target == null) {
             sendMessage(sender, "invalid-player");
+            return;
+        }
+        if (!ensureVirtualDataReady(sender, target)) {
             return;
         }
 
@@ -206,6 +221,14 @@ public class KeyCommand extends AbstractSubCommand {
             sender.sendMessage(plugin.getLanguageManager().getMessage("usage",
                     LanguageManager.placeholders("usage", usage)));
         }
+    }
+
+    private boolean ensureVirtualDataReady(CommandSender sender, Player target) {
+        if (plugin.getAsyncPlayerDataManager().isReady(target.getUniqueId())) {
+            return true;
+        }
+        sendMessage(sender, "player-data-loading");
+        return false;
     }
 
     private void sendMessage(CommandSender sender, String key) {

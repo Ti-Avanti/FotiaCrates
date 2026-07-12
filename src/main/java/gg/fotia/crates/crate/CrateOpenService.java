@@ -1,6 +1,7 @@
 package gg.fotia.crates.crate;
 
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.data.PlayerDataCache;
 import gg.fotia.crates.key.KeyType;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.ParticleStage;
@@ -8,7 +9,9 @@ import gg.fotia.crates.pity.PityResetPolicy;
 import gg.fotia.crates.reward.Reward;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
+import java.util.Arrays;
 import java.util.UUID;
 
 public class CrateOpenService {
@@ -33,6 +36,12 @@ public class CrateOpenService {
     }
 
     public OpenAttempt prepareOpen(Player player, Crate crate) {
+        if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
+            return OpenAttempt.failure(OpenFailureReason.PLAYER_DATA_PENDING);
+        }
+
+        PlayerDataCache.Snapshot previousData = plugin.getAsyncPlayerDataManager().snapshot(player.getUniqueId());
+        ItemStack[] previousInventory = copyInventory(player.getInventory().getContents());
         ResolvedReward resolvedReward = resolveRewardResult(player, crate);
         if (resolvedReward == null) {
             return OpenAttempt.failure(OpenFailureReason.NO_AVAILABLE_REWARD);
@@ -43,10 +52,28 @@ public class CrateOpenService {
         }
 
         updatePityCounter(player, crate, resolvedReward);
-        return OpenAttempt.success(resolvedReward.rewardResult());
+        return OpenAttempt.success(resolvedReward.rewardResult(), previousData, previousInventory);
+    }
+
+    public void commitOpen(Player player, OpenAttempt openAttempt, Runnable onSuccess, Runnable onFailure) {
+        if (!openAttempt.isSuccess()) {
+            onFailure.run();
+            return;
+        }
+
+        plugin.getAsyncPlayerDataManager().commitNow(player.getUniqueId(), onSuccess, () -> {
+            plugin.getAsyncPlayerDataManager().restore(player.getUniqueId(), openAttempt.previousData());
+            player.getInventory().setContents(copyInventory(openAttempt.previousInventory()));
+            plugin.getLanguageManager().send(player, "player-data-save-failed");
+            onFailure.run();
+        });
     }
 
     public void sendOpenFailure(Player player, OpenFailureReason reason) {
+        if (reason == OpenFailureReason.PLAYER_DATA_PENDING) {
+            plugin.getLanguageManager().send(player, "player-data-loading");
+            return;
+        }
         if (reason == OpenFailureReason.NO_AVAILABLE_REWARD) {
             plugin.getLanguageManager().send(player, "no-available-reward");
             return;
@@ -183,19 +210,28 @@ public class CrateOpenService {
     private record ResolvedReward(RewardResult rewardResult, boolean pityTriggered) {
     }
 
-    public enum OpenFailureReason {
-        NO_KEY,
-        NO_AVAILABLE_REWARD
+    private ItemStack[] copyInventory(ItemStack[] contents) {
+        return Arrays.stream(contents)
+                .map(item -> item == null ? null : item.clone())
+                .toArray(ItemStack[]::new);
     }
 
-    public record OpenAttempt(RewardResult rewardResult, OpenFailureReason failureReason) {
+    public enum OpenFailureReason {
+        NO_KEY,
+        NO_AVAILABLE_REWARD,
+        PLAYER_DATA_PENDING
+    }
 
-        public static OpenAttempt success(RewardResult rewardResult) {
-            return new OpenAttempt(rewardResult, null);
+    public record OpenAttempt(RewardResult rewardResult, OpenFailureReason failureReason,
+                              PlayerDataCache.Snapshot previousData, ItemStack[] previousInventory) {
+
+        public static OpenAttempt success(RewardResult rewardResult, PlayerDataCache.Snapshot previousData,
+                                          ItemStack[] previousInventory) {
+            return new OpenAttempt(rewardResult, null, previousData, previousInventory);
         }
 
         public static OpenAttempt failure(OpenFailureReason failureReason) {
-            return new OpenAttempt(null, failureReason);
+            return new OpenAttempt(null, failureReason, null, null);
         }
 
         public boolean isSuccess() {

@@ -1831,24 +1831,22 @@ public class GuiListener implements Listener {
                     return;
                 }
 
-                int cleared = crateId != null && !crateId.isBlank()
-                        ? plugin.getHistoryManager().clearHistory(targetUuid, crateId)
-                        : plugin.getHistoryManager().clearHistory(targetUuid);
+                plugin.getHistoryManager().clearHistoryAsync(targetUuid, crateId, cleared -> {
+                    if (cleared > 0) {
+                        plugin.getLanguageManager().send(player, "history-cleared",
+                                LanguageManager.placeholders("count", String.valueOf(cleared)));
+                    } else {
+                        plugin.getLanguageManager().send(player, "no-history");
+                    }
 
-                if (cleared > 0) {
-                    plugin.getLanguageManager().send(player, "history-cleared",
-                            LanguageManager.placeholders("count", String.valueOf(cleared)));
-                } else {
-                    plugin.getLanguageManager().send(player, "no-history");
-                }
-
-                plugin.getGuiManager().openHistoryGui(
-                        player,
-                        targetUuid,
-                        targetName,
-                        crateId,
-                        holder.getCurrentPage()
-                );
+                    plugin.getGuiManager().openHistoryGui(
+                            player,
+                            targetUuid,
+                            targetName,
+                            crateId,
+                            holder.getCurrentPage()
+                    );
+                });
             }
             case "create_key" -> {
                 plugin.getLanguageManager().send(player, "admin-input-name");
@@ -1947,6 +1945,12 @@ public class GuiListener implements Listener {
             return;
         }
 
+        if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
+            openingPlayers.remove(player.getUniqueId());
+            plugin.getLanguageManager().send(player, "player-data-loading");
+            return;
+        }
+
         CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
         if (!openAttempt.isSuccess()) {
             openingPlayers.remove(player.getUniqueId());
@@ -1954,22 +1958,24 @@ public class GuiListener implements Listener {
             return;
         }
 
-        RewardResult rewardResult = openAttempt.rewardResult();
-        Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
+        crateOpenService.commitOpen(player, openAttempt, () -> {
+            RewardResult rewardResult = openAttempt.rewardResult();
+            Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
+            plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
 
-        if (crate.isAnimationEnabled()) {
-            UUID playerUuid = player.getUniqueId();
-            String playerName = player.getName();
-            AnimationManager animationManager = new AnimationManager(plugin);
-            animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation, () -> {
-                crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
-                openingPlayers.remove(playerUuid);
-            });
-        } else {
-            crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
-            openingPlayers.remove(player.getUniqueId());
-        }
+            if (crate.isAnimationEnabled()) {
+                UUID playerUuid = player.getUniqueId();
+                String playerName = player.getName();
+                AnimationManager animationManager = new AnimationManager(plugin);
+                animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation, () -> {
+                    crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
+                    openingPlayers.remove(playerUuid);
+                });
+            } else {
+                crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
+                openingPlayers.remove(player.getUniqueId());
+            }
+        }, () -> openingPlayers.remove(player.getUniqueId()));
     }
 
     private void openMultiple(Player player, Crate crate, int amount) {
@@ -1988,6 +1994,12 @@ public class GuiListener implements Listener {
 
         if (!crateOpenService.hasOpenPermission(player, crate)) {
             plugin.getLanguageManager().send(player, "no-permission");
+            openingPlayers.remove(playerUuid);
+            return;
+        }
+
+        if (!plugin.getAsyncPlayerDataManager().isReady(playerUuid)) {
+            plugin.getLanguageManager().send(player, "player-data-loading");
             openingPlayers.remove(playerUuid);
             return;
         }

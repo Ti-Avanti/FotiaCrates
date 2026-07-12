@@ -50,6 +50,11 @@ public class OpenCommand extends AbstractSubCommand {
             return;
         }
 
+        if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
+            plugin.getLanguageManager().send(player, "player-data-loading");
+            return;
+        }
+
         int amount = 1;
         if (args.length > 1) {
             try {
@@ -87,19 +92,21 @@ public class OpenCommand extends AbstractSubCommand {
             return;
         }
 
-        RewardResult rewardResult = openAttempt.rewardResult();
-        Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-        if (crate.isAnimationEnabled()) {
-            var playerUuid = player.getUniqueId();
-            var playerName = player.getName();
-            AnimationManager animationManager = new AnimationManager(plugin);
-            animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation,
-                    () -> crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation));
-            return;
-        }
+        crateOpenService.commitOpen(player, openAttempt, () -> {
+            RewardResult rewardResult = openAttempt.rewardResult();
+            Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
+            plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
+            if (crate.isAnimationEnabled()) {
+                var playerUuid = player.getUniqueId();
+                var playerName = player.getName();
+                AnimationManager animationManager = new AnimationManager(plugin);
+                animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation,
+                        () -> crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation));
+                return;
+            }
 
-        crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
+            crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
+        }, () -> {});
     }
 
     private void openMultiple(Player player, Crate crate, int amount) {

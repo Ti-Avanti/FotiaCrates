@@ -138,6 +138,11 @@ public class BlockListener implements Listener {
                 return;
             }
 
+            if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
+                plugin.getLanguageManager().send(player, "player-data-loading");
+                return;
+            }
+
             if (!plugin.getKeyManager().hasKeyForCrate(player, crate.getId())) {
                 plugin.getLanguageManager().send(player, "no-key");
                 return;
@@ -184,20 +189,22 @@ public class BlockListener implements Listener {
             return;
         }
 
-        RewardResult rewardResult = openAttempt.rewardResult();
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-        plugin.getHologramManager().hideHologram(crateLocation);
+        crateOpenService.commitOpen(player, openAttempt, () -> {
+            RewardResult rewardResult = openAttempt.rewardResult();
+            plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
+            plugin.getHologramManager().hideHologram(crateLocation);
 
-        boolean hasModel = crate.isModelEnabled() && plugin.getModelEngineManager().hasModel(crateLocation);
-        if (hasModel) {
-            plugin.getModelEngineManager().playOpenAnimation(crate, crateLocation, player);
-            int delay = crate.getModelEngineOpenDelay();
-            plugin.getServer().getScheduler().runTaskLater(plugin,
-                    () -> playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation), delay);
-            return;
-        }
+            boolean hasModel = crate.isModelEnabled() && plugin.getModelEngineManager().hasModel(crateLocation);
+            if (hasModel) {
+                plugin.getModelEngineManager().playOpenAnimation(crate, crateLocation, player);
+                int delay = crate.getModelEngineOpenDelay();
+                plugin.getServer().getScheduler().runTaskLater(plugin,
+                        () -> playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation), delay);
+                return;
+            }
 
-        playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation);
+            playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation);
+        }, () -> openingPlayers.remove(playerUuid));
     }
 
     private void playGuiAnimationAndGiveReward(Player player, Crate crate, RewardResult rewardResult, Location crateLocation) {
@@ -283,6 +290,11 @@ public class BlockListener implements Listener {
             return;
         }
 
+        if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
+            plugin.getLanguageManager().send(player, "player-data-loading");
+            return;
+        }
+
         if (!plugin.getKeyManager().hasKeyForCrate(player, crate.getId())) {
             plugin.getLanguageManager().send(player, "no-key");
             return;
@@ -333,6 +345,11 @@ public class BlockListener implements Listener {
     private void handleShiftRightOpen(Player player, Crate crate, Location location) {
         if (!crateOpenService.hasOpenPermission(player, crate)) {
             plugin.getLanguageManager().send(player, "no-permission");
+            return;
+        }
+
+        if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
+            plugin.getLanguageManager().send(player, "player-data-loading");
             return;
         }
 

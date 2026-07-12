@@ -29,11 +29,15 @@ public final class MultiOpenService {
                 LanguageManager.placeholders("amount", String.valueOf(amount)));
         plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
 
-        List<RewardResult> rewardResults = prepareRewards(player, crate, amount);
-        if (rewardResults.isEmpty()) {
+        List<CrateOpenService.OpenAttempt> openAttempts = prepareRewards(player, crate, amount);
+        if (openAttempts.isEmpty()) {
             onComplete.run();
             return;
         }
+
+        List<RewardResult> rewardResults = openAttempts.stream()
+                .map(CrateOpenService.OpenAttempt::rewardResult)
+                .toList();
 
         UUID playerUuid = player.getUniqueId();
         String playerName = player.getName();
@@ -47,33 +51,34 @@ public final class MultiOpenService {
             onComplete.run();
         };
 
-        if (MultiOpenAnimationPolicy.shouldPlayFirstDrawAnimation(
-                crate.isMultiOpenAnimationEnabled(), rewardResults.size()) && player.isOnline()) {
-            new AnimationManager(plugin).playAnimation(
-                    player,
-                    crate,
-                    rewardResults.get(0).getDisplayReward(),
-                    crateLocation,
-                    finish
-            );
-            return;
-        }
-
-        finish.run();
+        crateOpenService.commitOpen(player, openAttempts.get(0), () -> {
+            if (MultiOpenAnimationPolicy.shouldPlayFirstDrawAnimation(
+                    crate.isMultiOpenAnimationEnabled(), rewardResults.size()) && player.isOnline()) {
+                new AnimationManager(plugin).playAnimation(
+                        player,
+                        crate,
+                        rewardResults.get(0).getDisplayReward(),
+                        crateLocation,
+                        finish
+                );
+                return;
+            }
+            finish.run();
+        }, onComplete);
     }
 
-    private List<RewardResult> prepareRewards(Player player, Crate crate, int amount) {
-        List<RewardResult> rewardResults = new ArrayList<>();
+    private List<CrateOpenService.OpenAttempt> prepareRewards(Player player, Crate crate, int amount) {
+        List<CrateOpenService.OpenAttempt> openAttempts = new ArrayList<>();
         for (int index = 0; index < amount; index++) {
             CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
             if (!openAttempt.isSuccess()) {
-                if (rewardResults.isEmpty()) {
+                if (openAttempts.isEmpty()) {
                     crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
                 }
                 break;
             }
-            rewardResults.add(openAttempt.rewardResult());
+            openAttempts.add(openAttempt);
         }
-        return rewardResults;
+        return openAttempts;
     }
 }

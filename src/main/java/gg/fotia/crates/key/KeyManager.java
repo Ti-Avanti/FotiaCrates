@@ -13,10 +13,6 @@ import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.io.File;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.*;
 
 /**
@@ -163,53 +159,28 @@ public class KeyManager {
      * 获取玩家的虚拟钥匙数量
      */
     public int getVirtualKeys(UUID uuid, String keyId) {
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT amount FROM player_keys WHERE uuid = ? AND key_id = ?")) {
-            stmt.setString(1, uuid.toString());
-            stmt.setString(2, keyId);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("amount");
-            }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to get virtual keys: " + e.getMessage());
-        }
-        return 0;
+        return plugin.getAsyncPlayerDataManager().getVirtualKeys(uuid, keyId);
     }
 
     /**
      * 设置玩家的虚拟钥匙数量
      */
-    public void setVirtualKeys(UUID uuid, String keyId, int amount) {
-        String sql = plugin.getConfigManager().getDatabaseType().equalsIgnoreCase("mysql")
-                ? "INSERT INTO player_keys (uuid, key_id, amount) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE amount = VALUES(amount)"
-                : "INSERT OR REPLACE INTO player_keys (uuid, key_id, amount) VALUES (?, ?, ?)";
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, uuid.toString());
-            stmt.setString(2, keyId);
-            stmt.setInt(3, Math.max(0, amount));
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to set virtual keys: " + e.getMessage());
-        }
+    public boolean setVirtualKeys(UUID uuid, String keyId, int amount) {
+        return plugin.getAsyncPlayerDataManager().setVirtualKeys(uuid, keyId, amount);
     }
 
     /**
      * 添加虚拟钥匙
      */
-    public void addVirtualKeys(UUID uuid, String keyId, int amount) {
-        int current = getVirtualKeys(uuid, keyId);
-        setVirtualKeys(uuid, keyId, current + amount);
+    public boolean addVirtualKeys(UUID uuid, String keyId, int amount) {
+        return plugin.getAsyncPlayerDataManager().addVirtualKeys(uuid, keyId, amount);
     }
 
     /**
      * 移除虚拟钥匙
      */
-    public void removeVirtualKeys(UUID uuid, String keyId, int amount) {
-        int current = getVirtualKeys(uuid, keyId);
-        setVirtualKeys(uuid, keyId, Math.max(0, current - amount));
+    public boolean removeVirtualKeys(UUID uuid, String keyId, int amount) {
+        return plugin.getAsyncPlayerDataManager().removeVirtualKeys(uuid, keyId, amount);
     }
 
     /**
@@ -380,8 +351,7 @@ public class KeyManager {
 
         if (preferredType == KeyType.VIRTUAL || preferredType == KeyType.ALL) {
             if (virtualKeys > 0) {
-                removeVirtualKeys(player.getUniqueId(), keyId, 1);
-                return true;
+                return removeVirtualKeys(player.getUniqueId(), keyId, 1);
             }
         }
 
@@ -396,8 +366,7 @@ public class KeyManager {
             return removePhysicalKeys(player, keyId, 1);
         }
         if (preferredType == KeyType.PHYSICAL && virtualKeys > 0) {
-            removeVirtualKeys(player.getUniqueId(), keyId, 1);
-            return true;
+            return removeVirtualKeys(player.getUniqueId(), keyId, 1);
         }
 
         return false;

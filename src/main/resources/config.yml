@@ -67,6 +67,20 @@ settings:
   # 每个玩家最大历史记录数，0 表示不限制
   max-history-entries: 100
 
+# 异步数据持久化设置
+persistence:
+  # 将缓存中的虚拟钥匙和保底写入数据库的间隔，单位为 tick
+  flush-interval-ticks: 20
+  # 插件关闭时等待异步数据落盘的最长时间，单位为毫秒
+  shutdown-flush-timeout-millis: 5000
+  history:
+    # 单次批量写入的最大历史记录数
+    batch-size: 100
+    # 历史写入队列上限；队列满时跳过新历史以保护服务器 TPS
+    queue-capacity: 10000
+    # 同一玩家历史裁剪的最小间隔，单位为秒
+    cleanup-interval-seconds: 300
+
 # 编辑器设置
 editor:
   rewards:

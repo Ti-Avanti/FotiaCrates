@@ -439,6 +439,15 @@ public class GuiManager {
     }
 
     public void openHistoryGui(Player player, UUID targetUuid, String targetName, String crateId, int page) {
+        plugin.getHistoryManager().getHistoryAsync(targetUuid, crateId, 100,
+                history -> openHistoryGuiLoaded(player, targetUuid, targetName, crateId, page, history));
+    }
+
+    private void openHistoryGuiLoaded(Player player, UUID targetUuid, String targetName, String crateId,
+                                      int page, List<HistoryManager.HistoryEntry> history) {
+        if (!player.isOnline()) {
+            return;
+        }
         GuiConfig config = configManager.getGuiConfig("history");
         if (config == null) {
             plugin.getLogger().warning("History GUI config not found!");
@@ -450,10 +459,6 @@ public class GuiManager {
         String crateDisplayName = historyCrate != null
                 ? MessageUtil.stripColor(historyCrate.getName())
                 : (filterByCrate ? crateId : "");
-
-        List<HistoryManager.HistoryEntry> history = filterByCrate
-                ? plugin.getHistoryManager().getHistory(targetUuid, crateId, 100)
-                : plugin.getHistoryManager().getHistory(targetUuid, 100);
 
         int itemsPerPage = config.getContentSlots().size();
         int totalPages = Math.max(1, (int) Math.ceil((double) history.size() / itemsPerPage));

@@ -8,6 +8,8 @@ messages:
   # 通用消息
   no-permission: "<!i><red>你没有权限执行此操作！"
   no-key: "<!i><red>你没有足够的钥匙！"
+  player-data-loading: "<!i><yellow>玩家数据正在同步，请稍后再试。"
+  player-data-save-failed: "<!i><red>数据保存失败，本次抽奖已取消。"
   reward-received: "<!i><green>恭喜！你获得了 {reward}<!i><green>！"
   broadcast-rare: "<!i><gold>{player} <!i><yellow>从 <!i><gold>{crate} <!i><yellow>中获得了 <!i><gold>{reward}<!i><yellow>！"
   key-given: "<!i><green>你获得了 {amount} 把 {key}<!i><green>！"

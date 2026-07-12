@@ -9,6 +9,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 public class HistoryManager {
 
@@ -19,25 +21,7 @@ public class HistoryManager {
     }
 
     public void addHistory(UUID uuid, String playerName, String crateId, String rewardId, String rewardName) {
-        if (!plugin.getConfigManager().isSaveHistory()) {
-            return;
-        }
-
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
-                     "INSERT INTO crate_history (uuid, player_name, crate_id, reward_id, reward_name, timestamp) VALUES (?, ?, ?, ?, ?, ?)")) {
-            stmt.setString(1, uuid.toString());
-            stmt.setString(2, playerName);
-            stmt.setString(3, crateId);
-            stmt.setString(4, rewardId);
-            stmt.setString(5, rewardName);
-            stmt.setLong(6, System.currentTimeMillis());
-            stmt.executeUpdate();
-
-            cleanupOldHistory(uuid);
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to add history: " + e.getMessage());
-        }
+        plugin.getAsyncPlayerDataManager().queueHistory(uuid, playerName, crateId, rewardId, rewardName);
     }
 
     private void cleanupOldHistory(UUID uuid) {
@@ -81,6 +65,14 @@ public class HistoryManager {
         return getHistory(uuid, null, limit);
     }
 
+    public void getHistoryAsync(UUID uuid, int limit, Consumer<List<HistoryEntry>> callback) {
+        getHistoryAsync(uuid, null, limit, callback);
+    }
+
+    public void getHistoryAsync(UUID uuid, String crateId, int limit, Consumer<List<HistoryEntry>> callback) {
+        plugin.getAsyncPlayerDataManager().getHistoryAsync(uuid, crateId, limit, callback);
+    }
+
     public List<HistoryEntry> getHistory(UUID uuid, String crateId, int limit) {
         List<HistoryEntry> history = new ArrayList<>();
         boolean filterByCrate = crateId != null && !crateId.isBlank();
@@ -108,6 +100,10 @@ public class HistoryManager {
 
     public int clearHistory(UUID uuid) {
         return clearHistory(uuid, null);
+    }
+
+    public void clearHistoryAsync(UUID uuid, String crateId, IntConsumer callback) {
+        plugin.getAsyncPlayerDataManager().clearHistoryAsync(uuid, crateId, callback);
     }
 
     public int clearHistory(UUID uuid, String crateId) {
