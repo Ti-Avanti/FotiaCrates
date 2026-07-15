@@ -795,11 +795,11 @@ public class GuiManager {
                     .filter(candidate -> candidate.getId().equals(altRewardId))
                     .findFirst()
                     .orElse(null);
-            altRewardName = altReward != null ? MessageUtil.stripColor(altReward.getDisplayName()) : altRewardId + " (无效)";
+            altRewardName = altReward != null ? altReward.getDisplayName() : altRewardId + " (无效)";
         }
 
         Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("{reward}", MessageUtil.stripColor(reward.getDisplayName()));
+        placeholders.put("{reward}", reward.getDisplayName());
         placeholders.put("{reward_id}", reward.getId());
         placeholders.put("{reward_type}", reward.getType().name());
         placeholders.put("{reward_item_count}", String.valueOf(totalItems));
@@ -808,7 +808,7 @@ public class GuiManager {
         placeholders.put("{probability}", RewardProbability.format(RewardProbability.percentage(reward, crate.getRewards())));
         placeholders.put("{rarity}", getRarityDisplayName(reward.getRarity()));
         placeholders.put("{broadcast}", yesNo(reward.shouldBroadcast()));
-        placeholders.put("{display_name}", MessageUtil.stripColor(reward.getDisplayName()));
+        placeholders.put("{display_name}", reward.getDisplayName());
         placeholders.put("{auto_icon_status}", autoDisplayStatus(reward.isAutoDisplayIcon(),
                 plugin.getConfigManager().isRewardAutoDisplayIconFromFirstItem()));
         placeholders.put("{auto_name_status}", autoDisplayStatus(reward.isAutoDisplayName(),
@@ -1609,7 +1609,7 @@ public class GuiManager {
         Inventory inventory = Bukkit.createInventory(
                 new CrateGuiHolder(GuiType.ADMIN_REWARD_EDIT, crate),
                 54,
-                MessageUtil.parse("<!i><dark_gray>编辑奖励: " + MessageUtil.stripColor(reward.getDisplayName()))
+                MessageUtil.parse("<!i><dark_gray>编辑奖励: " + reward.getDisplayName())
         );
 
         CrateGuiHolder holder = (CrateGuiHolder) inventory.getHolder();
@@ -1744,7 +1744,7 @@ public class GuiManager {
         ItemStack displayName = new ItemBuilder(Material.NAME_TAG)
                 .name("<!i><yellow>显示名称")
                 .lore(List.of(
-                        "<!i><gray>当前: " + MessageUtil.stripColor(reward.getDisplayName()),
+                        "<!i><gray>当前: " + reward.getDisplayName(),
                         "",
                         "<!i><yellow>点击修改"
                 ))
@@ -1802,7 +1802,7 @@ public class GuiManager {
                     .findFirst()
                     .orElse(null);
             if (altReward != null) {
-                altRewardName = MessageUtil.stripColor(altReward.getDisplayName());
+                altRewardName = altReward.getDisplayName();
             } else {
                 altRewardName = altRewardId + " (无效)";
             }

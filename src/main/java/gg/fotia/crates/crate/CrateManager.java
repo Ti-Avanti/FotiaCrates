@@ -1626,23 +1626,7 @@ public class CrateManager {
     }
 
     private String resolveAutoDisplayName(ItemStack item) {
-        if (item.hasItemMeta()) {
-            ItemMeta meta = item.getItemMeta();
-            if (meta != null && meta.hasDisplayName()) {
-                Component component = meta.displayName();
-                if (component != null) {
-                    String legacyName = MessageUtil.toLegacy(component);
-                    if (legacyName != null && !legacyName.isBlank()) {
-                        return legacyName;
-                    }
-                }
-                String legacyName = meta.getDisplayName();
-                if (legacyName != null && !legacyName.isBlank()) {
-                    return legacyName;
-                }
-            }
-        }
-        return RewardAutoDisplayPolicy.fallbackName(item.getType());
+        return RewardAutoDisplayNameResolver.resolve(item);
     }
 
     /**
