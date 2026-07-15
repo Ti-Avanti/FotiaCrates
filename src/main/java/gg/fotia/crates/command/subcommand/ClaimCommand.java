@@ -1,7 +1,6 @@
 package gg.fotia.crates.command.subcommand;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.reward.PendingRewardManager;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -20,21 +19,23 @@ public class ClaimCommand extends AbstractSubCommand {
             return;
         }
 
-        int pendingCount = plugin.getPendingRewardManager().getPendingRewardCount(player.getUniqueId());
-        if (pendingCount <= 0) {
-            plugin.getLanguageManager().send(player, "no-pending-rewards");
+        boolean started = plugin.getPendingRewardManager().claimAllPendingRewards(player, summary -> {
+            if (!player.isOnline()) {
+                return;
+            }
+            if (summary.claimedCount() == 0 && summary.failedCount() == 0) {
+                plugin.getLanguageManager().send(player, "no-pending-rewards");
+                return;
+            }
+            if (summary.failedCount() > 0) {
+                plugin.getLanguageManager().send(player, "pending-reward-unavailable");
+            }
+        });
+        if (!started) {
+            plugin.getLanguageManager().send(player, "pending-reward-processing");
             return;
         }
-
-        PendingRewardManager.ClaimSummary summary = plugin.getPendingRewardManager().claimAllPendingRewards(player);
-        if (summary.claimedCount() == 0 && summary.failedCount() == 0) {
-            plugin.getLanguageManager().send(player, "no-pending-rewards");
-            return;
-        }
-
-        if (summary.failedCount() > 0) {
-            plugin.getLanguageManager().send(player, "pending-reward-unavailable");
-        }
+        plugin.getLanguageManager().send(player, "pending-reward-processing");
     }
 
     @Override

@@ -87,6 +87,11 @@ public class CrateOpenService {
     }
 
     public void deliverReward(Player player, Crate crate, RewardResult rewardResult, Location crateLocation) {
+        deliverReward(player, crate, rewardResult, crateLocation, true);
+    }
+
+    public void deliverReward(Player player, Crate crate, RewardResult rewardResult, Location crateLocation,
+                              boolean playPresentation) {
         Reward displayReward = rewardResult.getDisplayReward();
         Reward actualReward = rewardResult.getActualReward();
 
@@ -121,11 +126,12 @@ public class CrateOpenService {
                 displayReward.getDisplayName()
         );
 
-        plugin.getParticleManager().playStage(ParticleStage.REWARD, player, crate, crateLocation);
-
-        if (crate.getWinSound() != null) {
-            player.playSound(player.getLocation(), crate.getWinSound(),
-                    crate.getWinVolume(), crate.getWinPitch());
+        if (playPresentation) {
+            plugin.getParticleManager().playStage(ParticleStage.REWARD, player, crate, crateLocation);
+            if (crate.getWinSound() != null) {
+                player.playSound(player.getLocation(), crate.getWinSound(),
+                        crate.getWinVolume(), crate.getWinPitch());
+            }
         }
     }
 
@@ -135,6 +141,12 @@ public class CrateOpenService {
 
     public void deliverRewardSafely(UUID playerUuid, String playerName, Crate crate,
                                     RewardResult rewardResult, Location crateLocation) {
+        deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation, true);
+    }
+
+    public void deliverRewardSafely(UUID playerUuid, String playerName, Crate crate,
+                                    RewardResult rewardResult, Location crateLocation,
+                                    boolean playPresentation) {
         Player player = plugin.getServer().getPlayer(playerUuid);
         Reward displayReward = rewardResult.getDisplayReward();
         Reward actualReward = rewardResult.getActualReward();
@@ -165,7 +177,7 @@ public class CrateOpenService {
 
         Location resolvedCrateLocation = crateLocation != null ? crateLocation
                 : plugin.getParticleManager().resolveCrateLocation(player, crate);
-        deliverReward(player, crate, rewardResult, resolvedCrateLocation);
+        deliverReward(player, crate, rewardResult, resolvedCrateLocation, playPresentation);
     }
 
     private ResolvedReward resolveRewardResult(Player player, Crate crate) {

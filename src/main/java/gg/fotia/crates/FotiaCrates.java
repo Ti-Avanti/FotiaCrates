@@ -1,8 +1,10 @@
 package gg.fotia.crates;
 
 import gg.fotia.crates.command.CrateCommand;
+import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.config.ConfigManager;
 import gg.fotia.crates.crate.CrateManager;
+import gg.fotia.crates.crate.OpenSessionManager;
 import gg.fotia.crates.database.DatabaseManager;
 import gg.fotia.crates.data.AsyncPlayerDataManager;
 import gg.fotia.crates.gui.GuiManager;
@@ -41,6 +43,8 @@ public class FotiaCrates extends JavaPlugin {
     private RewardItemDeliveryService rewardItemDeliveryService;
     private HologramManager hologramManager;
     private ParticleManager particleManager;
+    private AnimationManager animationManager;
+    private OpenSessionManager openSessionManager;
     private EntityInteractPacketListener entityInteractPacketListener;
     private Economy economy;
 
@@ -76,6 +80,8 @@ public class FotiaCrates extends JavaPlugin {
         rewardItemDeliveryService = new RewardItemDeliveryService(this);
         hologramManager = new HologramManager(this);
         particleManager = new ParticleManager(this);
+        animationManager = new AnimationManager(this);
+        openSessionManager = new OpenSessionManager();
         asyncPlayerDataManager.start();
 
         // 加载抽奖箱
@@ -123,6 +129,12 @@ public class FotiaCrates extends JavaPlugin {
     public void onDisable() {
         if (entityInteractPacketListener != null) {
             entityInteractPacketListener.unregister();
+        }
+        if (animationManager != null) {
+            animationManager.cancelAllAnimations();
+        }
+        if (openSessionManager != null) {
+            openSessionManager.clear();
         }
         if (hologramManager != null) {
             hologramManager.cleanup();
@@ -255,6 +267,14 @@ public class FotiaCrates extends JavaPlugin {
 
     public ParticleManager getParticleManager() {
         return particleManager;
+    }
+
+    public AnimationManager getAnimationManager() {
+        return animationManager;
+    }
+
+    public OpenSessionManager getOpenSessionManager() {
+        return openSessionManager;
     }
 
     public Economy getEconomy() {

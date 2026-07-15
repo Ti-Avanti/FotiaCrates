@@ -35,8 +35,12 @@ public class MySQLDatabase implements Database {
             config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database + "?useSSL=false&autoReconnect=true&useUnicode=true&characterEncoding=UTF-8");
             config.setUsername(username);
             config.setPassword(password);
-            config.setMaximumPoolSize(10);
-            config.setMinimumIdle(2);
+            int maximumPoolSize = Math.max(2, plugin.getConfigManager().getConfig()
+                    .getInt("database.mysql.pool.maximum-size", 4));
+            int minimumIdle = Math.max(0, Math.min(maximumPoolSize, plugin.getConfigManager().getConfig()
+                    .getInt("database.mysql.pool.minimum-idle", 1)));
+            config.setMaximumPoolSize(maximumPoolSize);
+            config.setMinimumIdle(minimumIdle);
             config.setIdleTimeout(300000);
             config.setConnectionTimeout(10000);
             config.setMaxLifetime(600000);

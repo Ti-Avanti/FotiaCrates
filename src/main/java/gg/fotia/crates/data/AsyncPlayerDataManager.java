@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -101,6 +102,29 @@ public final class AsyncPlayerDataManager {
                 runOnServerThread(() -> loadingPlayers.remove(playerId));
             }
         });
+    }
+
+    public <T> void executeDatabaseOperation(DatabaseOperation<T> operation,
+                                             Consumer<T> onSuccess,
+                                             Consumer<Exception> onFailure) {
+        try {
+            executor.execute(() -> {
+                try {
+                    T result = operation.execute();
+                    if (onSuccess != null) {
+                        runOnServerThread(() -> onSuccess.accept(result));
+                    }
+                } catch (Exception exception) {
+                    if (onFailure != null) {
+                        runOnServerThread(() -> onFailure.accept(exception));
+                    }
+                }
+            });
+        } catch (RejectedExecutionException exception) {
+            if (onFailure != null) {
+                runOnServerThread(() -> onFailure.accept(exception));
+            }
+        }
     }
 
     public boolean isReady(UUID playerId) {
@@ -548,5 +572,10 @@ public final class AsyncPlayerDataManager {
     }
 
     private record LoadedPlayerData(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts) {
+    }
+
+    @FunctionalInterface
+    public interface DatabaseOperation<T> {
+        T execute() throws Exception;
     }
 }

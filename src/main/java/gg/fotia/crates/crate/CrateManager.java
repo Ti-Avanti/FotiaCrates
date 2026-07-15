@@ -33,7 +33,7 @@ public class CrateManager {
 
     private final FotiaCrates plugin;
     private final Map<String, Crate> crates = new HashMap<>();
-    private final List<CrateLocation> crateLocations = new ArrayList<>();
+    private final CrateLocationIndex crateLocations = new CrateLocationIndex();
 
     public CrateManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -439,7 +439,7 @@ public class CrateManager {
                 int z = rs.getInt("z");
                 String crateId = rs.getString("crate_id");
                 float yaw = rs.getFloat("yaw");
-                crateLocations.add(new CrateLocation(world, x, y, z, crateId, yaw));
+                crateLocations.put(new CrateLocation(world, x, y, z, crateId, yaw));
             }
 
             plugin.getLogger().info("Loaded " + crateLocations.size() + " crate locations.");
@@ -449,7 +449,7 @@ public class CrateManager {
     }
 
     public void addLocation(CrateLocation location) {
-        crateLocations.add(location);
+        crateLocations.put(location);
         String sql = plugin.getConfigManager().getDatabaseType().equalsIgnoreCase("mysql")
                 ? "INSERT INTO crate_locations (world, x, y, z, crate_id, yaw) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE crate_id = VALUES(crate_id), yaw = VALUES(yaw)"
                 : "INSERT OR REPLACE INTO crate_locations (world, x, y, z, crate_id, yaw) VALUES (?, ?, ?, ?, ?, ?)";
@@ -468,7 +468,10 @@ public class CrateManager {
     }
 
     public void removeLocation(Location location) {
-        crateLocations.removeIf(cl -> cl.matches(location));
+        if (location.getWorld() == null) {
+            return;
+        }
+        crateLocations.remove(location.getWorld().getName(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(
                      "DELETE FROM crate_locations WHERE world = ? AND x = ? AND y = ? AND z = ?")) {
@@ -483,12 +486,11 @@ public class CrateManager {
     }
 
     public CrateLocation getLocationAt(Location location) {
-        for (CrateLocation cl : crateLocations) {
-            if (cl.matches(location)) {
-                return cl;
-            }
+        if (location == null || location.getWorld() == null) {
+            return null;
         }
-        return null;
+        return crateLocations.get(location.getWorld().getName(), location.getBlockX(),
+                location.getBlockY(), location.getBlockZ());
     }
 
     public boolean isLocationSet(Location location) {
@@ -498,7 +500,11 @@ public class CrateManager {
     public Crate getCrate(String id) { return crates.get(id); }
     public Collection<Crate> getAllCrates() { return crates.values(); }
     public Set<String> getCrateIds() { return crates.keySet(); }
-    public List<CrateLocation> getCrateLocations() { return new ArrayList<>(crateLocations); }
+    public List<CrateLocation> getCrateLocations() { return crateLocations.values(); }
+
+    public Collection<CrateLocation> getNearbyCrateLocations(String world, int blockX, int blockZ, double radius) {
+        return crateLocations.nearby(world, blockX, blockZ, radius);
+    }
 
     public void setCrateLocation(String crateId, Location location) {
         setCrateLocation(crateId, location, 0f);
@@ -1099,7 +1105,7 @@ public class CrateManager {
             plugin.getLogger().severe("Failed to delete crate locations: " + e.getMessage());
         }
 
-        crateLocations.removeIf(cl -> cl.getCrateId().equals(crateId));
+        crateLocations.removeByCrateId(crateId);
     }
 
     /**

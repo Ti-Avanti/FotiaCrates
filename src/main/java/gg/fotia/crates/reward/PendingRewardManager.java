@@ -12,17 +12,21 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
- * 寰呴鍙栧鍔辩鐞嗗櫒
- * 褰撶帺瀹跺湪鎶藉鍔ㄧ敾鏈熼棿绂荤嚎鏃讹紝濂栧姳浼氬瓨鍏ュ緟棰嗗彇鍒楄〃
+ * 管理玩家离线时暂存的抽奖奖励。
  */
 public class PendingRewardManager {
 
     private final FotiaCrates plugin;
+    private final Set<UUID> claimingPlayers = new HashSet<>();
 
     public PendingRewardManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -63,30 +67,40 @@ public class PendingRewardManager {
         }
     }
 
-    /**
-     * 娣诲姞寰呴鍙栧鍔?
-     */
     public void addPendingReward(UUID playerUuid, String crateId, Reward reward) {
+        String rewardId = reward.getId();
+        String rewardData = serializeReward(reward);
+        plugin.getAsyncPlayerDataManager().executeDatabaseOperation(() -> {
+            insertPendingReward(playerUuid, crateId, rewardId, rewardData);
+            return null;
+        }, ignored -> plugin.getLogger().info("Stored pending reward for offline player: " + playerUuid),
+                exception -> plugin.getLogger().severe("Failed to add pending reward: " + exception.getMessage()));
+    }
+
+    private void insertPendingReward(UUID playerUuid, String crateId, String rewardId, String rewardData)
+            throws SQLException {
         String sql = "INSERT INTO pending_rewards (uuid, crate_id, reward_id, reward_data) VALUES (?, ?, ?, ?)";
 
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, playerUuid.toString());
             stmt.setString(2, crateId);
-            stmt.setString(3, reward.getId());
-            stmt.setString(4, serializeReward(reward));
+            stmt.setString(3, rewardId);
+            stmt.setString(4, rewardData);
             stmt.executeUpdate();
-
-            plugin.getLogger().info("Stored pending reward for offline player: " + playerUuid);
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to add pending reward: " + e.getMessage());
         }
     }
 
-    /**
-     * 鑾峰彇鐜╁鐨勫緟棰嗗彇濂栧姳鏁伴噺
-     */
-    public int getPendingRewardCount(UUID playerUuid) {
+    public void getPendingRewardCountAsync(UUID playerUuid, IntConsumer onSuccess) {
+        plugin.getAsyncPlayerDataManager().executeDatabaseOperation(
+                () -> getPendingRewardCount(playerUuid),
+                onSuccess::accept,
+                exception -> plugin.getLogger().severe(
+                        "Failed to get pending reward count: " + exception.getMessage())
+        );
+    }
+
+    private int getPendingRewardCount(UUID playerUuid) throws SQLException {
         String sql = "SELECT COUNT(*) FROM pending_rewards WHERE uuid = ?";
 
         try (Connection conn = plugin.getDatabaseManager().getConnection();
@@ -96,18 +110,13 @@ public class PendingRewardManager {
             if (rs.next()) {
                 return rs.getInt(1);
             }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to get pending reward count: " + e.getMessage());
         }
         return 0;
     }
 
-    /**
-     * 鑾峰彇鐜╁鐨勫緟棰嗗彇濂栧姳鍒楄〃
-     */
-    public List<PendingReward> getPendingRewards(UUID playerUuid) {
+    private List<PendingReward> getPendingRewards(UUID playerUuid) throws SQLException {
         List<PendingReward> rewards = new ArrayList<>();
-        String sql = "SELECT id, crate_id, reward_id, reward_data FROM pending_rewards WHERE uuid = ?";
+        String sql = "SELECT id, crate_id, reward_id, reward_data FROM pending_rewards WHERE uuid = ? ORDER BY id";
 
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -121,88 +130,117 @@ public class PendingRewardManager {
                         rs.getString("reward_data")
                 ));
             }
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to get pending rewards: " + e.getMessage());
         }
         return rewards;
     }
 
-    /**
-     * 棰嗗彇骞剁Щ闄ゅ緟棰嗗彇濂栧姳
-     */
-    public boolean claimPendingReward(Player player, int rewardId) {
-        String selectSql = "SELECT crate_id, reward_id, reward_data FROM pending_rewards WHERE id = ? AND uuid = ?";
-        String deleteSql = "DELETE FROM pending_rewards WHERE id = ?";
-
-        try (Connection conn = plugin.getDatabaseManager().getConnection()) {
-            String crateId = null;
-            String rewardIdStr = null;
-            String rewardData = null;
-
-            try (PreparedStatement stmt = conn.prepareStatement(selectSql)) {
-                stmt.setInt(1, rewardId);
-                stmt.setString(2, player.getUniqueId().toString());
-                ResultSet rs = stmt.executeQuery();
-                if (rs.next()) {
-                    crateId = rs.getString("crate_id");
-                    rewardIdStr = rs.getString("reward_id");
-                    rewardData = rs.getString("reward_data");
-                }
-            }
-
-            if (crateId == null || rewardIdStr == null) {
-                return false;
-            }
-
-            Reward reward = resolvePendingReward(crateId, rewardIdStr, rewardData);
-            if (reward == null) {
-                plugin.getLogger().warning("Failed to restore pending reward " + rewardIdStr + " for " + player.getUniqueId());
-                return false;
-            }
-
-            reward.give(player);
-            plugin.getLanguageManager().send(player, "pending-reward-claimed",
-                    gg.fotia.crates.lang.LanguageManager.placeholders("reward", reward.getDisplayName()));
-
-            try (PreparedStatement stmt = conn.prepareStatement(deleteSql)) {
-                stmt.setInt(1, rewardId);
-                stmt.executeUpdate();
-            }
-            return true;
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to claim pending reward: " + e.getMessage());
+    public boolean claimAllPendingRewards(Player player, Consumer<ClaimSummary> onComplete) {
+        UUID playerUuid = player.getUniqueId();
+        if (!claimingPlayers.add(playerUuid)) {
             return false;
         }
+
+        plugin.getAsyncPlayerDataManager().executeDatabaseOperation(
+                () -> getPendingRewards(playerUuid),
+                pendingRewards -> givePendingRewards(player, pendingRewards, onComplete),
+                exception -> failClaim(playerUuid, onComplete, exception)
+        );
+        return true;
     }
 
-    /**
-     * 棰嗗彇鎵€鏈夊緟棰嗗彇濂栧姳
-     */
-    public ClaimSummary claimAllPendingRewards(Player player) {
-        List<PendingReward> rewards = getPendingRewards(player.getUniqueId());
+    private void givePendingRewards(Player player, List<PendingReward> pendingRewards,
+                                    Consumer<ClaimSummary> onComplete) {
+        UUID playerUuid = player.getUniqueId();
+        if (!player.isOnline()) {
+            claimingPlayers.remove(playerUuid);
+            return;
+        }
+
+        List<Integer> claimedIds = new ArrayList<>();
         int claimedCount = 0;
         int failedCount = 0;
 
-        for (PendingReward pending : rewards) {
-            if (claimPendingReward(player, pending.id())) {
+        for (PendingReward pending : pendingRewards) {
+            Reward reward = resolvePendingReward(pending.crateId(), pending.rewardId(), pending.rewardData());
+            if (reward == null) {
+                plugin.getLogger().warning("Failed to restore pending reward " + pending.rewardId()
+                        + " for " + playerUuid);
+                failedCount++;
+                continue;
+            }
+
+            try {
+                reward.give(player);
+                plugin.getLanguageManager().send(player, "pending-reward-claimed",
+                        gg.fotia.crates.lang.LanguageManager.placeholders("reward", reward.getDisplayName()));
+                claimedIds.add(pending.id());
                 claimedCount++;
-            } else {
+            } catch (RuntimeException exception) {
+                plugin.getLogger().severe("Failed to give pending reward " + pending.rewardId()
+                        + " to " + playerUuid + ": " + exception.getMessage());
                 failedCount++;
             }
         }
 
-        return new ClaimSummary(claimedCount, failedCount);
+        ClaimSummary summary = new ClaimSummary(claimedCount, failedCount);
+        if (claimedIds.isEmpty()) {
+            claimingPlayers.remove(playerUuid);
+            onComplete.accept(summary);
+            return;
+        }
+
+        plugin.getAsyncPlayerDataManager().executeDatabaseOperation(() -> {
+            deletePendingRewards(playerUuid, claimedIds);
+            return summary;
+        }, completedSummary -> {
+            claimingPlayers.remove(playerUuid);
+            onComplete.accept(completedSummary);
+        }, exception -> {
+            claimingPlayers.remove(playerUuid);
+            plugin.getLogger().severe("Failed to delete claimed pending rewards for " + playerUuid
+                    + ": " + exception.getMessage());
+            onComplete.accept(new ClaimSummary(summary.claimedCount(),
+                    summary.failedCount() + summary.claimedCount()));
+        });
     }
 
-    /**
-     * 鐜╁鐧诲綍鏃舵鏌ュ苟閫氱煡寰呴鍙栧鍔?
-     */
-    public void onPlayerJoin(Player player) {
-        int count = getPendingRewardCount(player.getUniqueId());
-        if (count > 0) {
-            plugin.getLanguageManager().send(player, "pending-rewards-available",
-                    gg.fotia.crates.lang.LanguageManager.placeholders("count", String.valueOf(count)));
+    private void deletePendingRewards(UUID playerUuid, List<Integer> rewardIds) throws SQLException {
+        String sql = "DELETE FROM pending_rewards WHERE id = ? AND uuid = ?";
+        try (Connection connection = plugin.getDatabaseManager().getConnection()) {
+            boolean previousAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                for (int rewardId : rewardIds) {
+                    statement.setInt(1, rewardId);
+                    statement.setString(2, playerUuid.toString());
+                    statement.addBatch();
+                }
+                statement.executeBatch();
+                connection.commit();
+            } catch (SQLException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(previousAutoCommit);
+            }
         }
+    }
+
+    private void failClaim(UUID playerUuid, Consumer<ClaimSummary> onComplete, Exception exception) {
+        claimingPlayers.remove(playerUuid);
+        plugin.getLogger().severe("Failed to load pending rewards for " + playerUuid + ": "
+                + exception.getMessage());
+        onComplete.accept(new ClaimSummary(0, 1));
+    }
+
+    public void onPlayerJoin(Player player) {
+        UUID playerUuid = player.getUniqueId();
+        getPendingRewardCountAsync(playerUuid, count -> {
+            if (count > 0 && player.isOnline() && playerUuid.equals(player.getUniqueId())) {
+                plugin.getLanguageManager().send(player, "pending-rewards-available",
+                        gg.fotia.crates.lang.LanguageManager.placeholders("count", String.valueOf(count)));
+            }
+        });
     }
 
     private String serializeReward(Reward reward) {
@@ -304,7 +342,7 @@ public class PendingRewardManager {
     }
 
     /**
-     * 寰呴鍙栧鍔辫褰?
+     * 数据库中的待领取奖励快照。
      */
     public record PendingReward(int id, String crateId, String rewardId, String rewardData) {}
 

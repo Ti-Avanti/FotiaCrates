@@ -26,6 +26,8 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         // 玩家退出时动画会自动检测玩家是否在线
+        plugin.getGuiManager().cancelInputSession(event.getPlayer());
+        plugin.getOpenSessionManager().clearInteraction(event.getPlayer().getUniqueId());
         plugin.getAsyncPlayerDataManager().flushAndUnload(event.getPlayer().getUniqueId());
     }
 }

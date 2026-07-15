@@ -1,7 +1,6 @@
 package gg.fotia.crates.listener;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateLocation;
 import gg.fotia.crates.crate.CrateOpenService;
@@ -25,10 +24,6 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public class BlockListener implements Listener {
@@ -36,8 +31,6 @@ public class BlockListener implements Listener {
     private final FotiaCrates plugin;
     private final CrateOpenService crateOpenService;
     private final MultiOpenService multiOpenService;
-    private final Set<UUID> openingPlayers = new HashSet<>();
-    private final Map<UUID, Long> interactCooldown = new HashMap<>();
     private static final long INTERACT_COOLDOWN_MS = 500;
 
     public BlockListener(FotiaCrates plugin) {
@@ -169,22 +162,19 @@ public class BlockListener implements Listener {
 
     private void openCrate(Player player, Crate crate, Location crateLocation) {
         UUID playerUuid = player.getUniqueId();
-        if (openingPlayers.contains(playerUuid)) {
+        if (plugin.getOpenSessionManager().isActive(playerUuid)) {
             return;
         }
 
         long now = System.currentTimeMillis();
-        Long lastInteract = interactCooldown.get(playerUuid);
-        if (lastInteract != null && now - lastInteract < INTERACT_COOLDOWN_MS) {
+        if (!plugin.getOpenSessionManager().tryInteract(playerUuid, now, INTERACT_COOLDOWN_MS)
+                || !plugin.getOpenSessionManager().tryBegin(playerUuid)) {
             return;
         }
-        interactCooldown.put(playerUuid, now);
-
-        openingPlayers.add(playerUuid);
 
         CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
         if (!openAttempt.isSuccess()) {
-            openingPlayers.remove(playerUuid);
+            plugin.getOpenSessionManager().finish(playerUuid);
             crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
             return;
         }
@@ -204,7 +194,7 @@ public class BlockListener implements Listener {
             }
 
             playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation);
-        }, () -> openingPlayers.remove(playerUuid));
+        }, () -> plugin.getOpenSessionManager().finish(playerUuid));
     }
 
     private void playGuiAnimationAndGiveReward(Player player, Crate crate, RewardResult rewardResult, Location crateLocation) {
@@ -214,7 +204,7 @@ public class BlockListener implements Listener {
 
         Runnable onComplete = () -> {
             if (!plugin.getCrateManager().isLocationSet(crateLocation)) {
-                openingPlayers.remove(playerUuid);
+                plugin.getOpenSessionManager().finish(playerUuid);
                 crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
                 return;
             }
@@ -224,7 +214,7 @@ public class BlockListener implements Listener {
             }
 
             plugin.getHologramManager().showHologram(crateLocation, crateId);
-            openingPlayers.remove(playerUuid);
+            plugin.getOpenSessionManager().finish(playerUuid);
             crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
         };
 
@@ -233,8 +223,10 @@ public class BlockListener implements Listener {
                 onComplete.run();
                 return;
             }
-            AnimationManager animationManager = new AnimationManager(plugin);
-            animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation, onComplete);
+            if (!plugin.getAnimationManager().playAnimation(
+                    player, crate, rewardResult.getDisplayReward(), crateLocation, onComplete)) {
+                onComplete.run();
+            }
             return;
         }
 
@@ -391,18 +383,17 @@ public class BlockListener implements Listener {
 
     private void openMultiple(Player player, Crate crate, int amount, Location location) {
         UUID playerUuid = player.getUniqueId();
-        if (openingPlayers.contains(playerUuid)) {
+        if (plugin.getOpenSessionManager().isActive(playerUuid)) {
             return;
         }
 
         long now = System.currentTimeMillis();
-        Long lastInteract = interactCooldown.get(playerUuid);
-        if (lastInteract != null && now - lastInteract < INTERACT_COOLDOWN_MS) {
+        if (!plugin.getOpenSessionManager().tryInteract(playerUuid, now, INTERACT_COOLDOWN_MS)
+                || !plugin.getOpenSessionManager().tryBegin(playerUuid)) {
             return;
         }
-        interactCooldown.put(playerUuid, now);
-        openingPlayers.add(playerUuid);
 
-        multiOpenService.open(player, crate, amount, location, () -> openingPlayers.remove(playerUuid));
+        multiOpenService.open(player, crate, amount, location,
+                () -> plugin.getOpenSessionManager().finish(playerUuid));
     }
 }

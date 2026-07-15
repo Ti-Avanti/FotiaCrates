@@ -81,6 +81,7 @@ messages:
   crate-block-placed: "<!i><green>Placed {crate} <!i><green>crate!"
   crate-break-denied: "<!i><red>Cannot break crate! Use sneak + left-click to remove."
   pending-rewards-available: "<!i><gold>You have {count} pending reward(s)! Use /crate claim to collect."
+  pending-reward-processing: "<!i><yellow>Processing pending rewards, please wait."
   pending-reward-claimed: "<!i><green>Claimed reward: {reward}"
   no-pending-rewards: "<!i><gray>You have no pending rewards."
 

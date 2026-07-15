@@ -9,16 +9,23 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 public class ParticleManager {
 
     private final FotiaCrates plugin;
     private final ParticleEffectRenderer renderer = new ParticleEffectRenderer();
     private final Map<String, Long> idleSuppressedUntil = new HashMap<>();
+    private final Map<StageEffectKey, BukkitTask> activeStageTasks = new HashMap<>();
     private BukkitTask idleTask;
     private long tickCounter;
+    private int idleCursor;
 
     public ParticleManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -38,6 +45,12 @@ public class ParticleManager {
             idleTask.cancel();
             idleTask = null;
         }
+        for (BukkitTask task : activeStageTasks.values()) {
+            task.cancel();
+        }
+        activeStageTasks.clear();
+        idleSuppressedUntil.clear();
+        idleCursor = 0;
     }
 
     public void playStage(ParticleStage stage, Player player, Crate crate, Location crateLocation) {
@@ -54,6 +67,16 @@ public class ParticleManager {
             suppressIdle(crateLocation, Math.max(effect.getDuration(), effect.getInterval()) + 20L);
         }
 
+        StageEffectKey taskKey = new StageEffectKey(
+                player != null ? player.getUniqueId() : null,
+                crate.getId(),
+                stage
+        );
+        BukkitTask previousTask = activeStageTasks.remove(taskKey);
+        if (previousTask != null) {
+            previousTask.cancel();
+        }
+
         Location origin = resolveOrigin(effect, player, crateLocation);
         if (origin == null || origin.getWorld() == null) {
             return;
@@ -64,13 +87,19 @@ public class ParticleManager {
             return;
         }
 
-        new BukkitRunnable() {
+        int maxActiveTasks = Math.max(1, plugin.getConfigManager().getConfig()
+                .getInt("performance.particles.max-active-stage-effects", 128));
+        if (activeStageTasks.size() >= maxActiveTasks) {
+            return;
+        }
+
+        BukkitRunnable runnable = new BukkitRunnable() {
             private int elapsed = effect.getInterval();
 
             @Override
             public void run() {
-                if (elapsed >= effect.getDuration()) {
-                    cancel();
+                if (elapsed >= effect.getDuration() || (player != null && !player.isOnline())) {
+                    finish();
                     return;
                 }
                 Location frameOrigin = resolveOrigin(effect, player, crateLocation);
@@ -79,7 +108,14 @@ public class ParticleManager {
                 }
                 elapsed += effect.getInterval();
             }
-        }.runTaskTimer(plugin, effect.getInterval(), effect.getInterval());
+
+            private void finish() {
+                cancel();
+                activeStageTasks.remove(taskKey);
+            }
+        };
+        activeStageTasks.put(taskKey,
+                runnable.runTaskTimer(plugin, effect.getInterval(), effect.getInterval()));
     }
 
     public void previewStage(Player player, Crate crate, ParticleStage stage) {
@@ -94,7 +130,35 @@ public class ParticleManager {
 
     private void tickIdleEffects() {
         tickCounter++;
-        for (CrateLocation crateLocation : plugin.getCrateManager().getCrateLocations()) {
+        if (tickCounter % 200L == 0L) {
+            idleSuppressedUntil.values().removeIf(until -> until <= tickCounter);
+        }
+
+        double viewDistance = Math.max(1.0, plugin.getConfigManager().getConfig()
+                .getDouble("performance.particles.idle-view-distance", 32.0));
+        int maxCratesPerTick = Math.max(1, plugin.getConfigManager().getConfig()
+                .getInt("performance.particles.max-idle-crates-per-tick", 128));
+        Set<CrateLocation> nearbyLocations = new LinkedHashSet<>();
+
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            Location location = player.getLocation();
+            nearbyLocations.addAll(plugin.getCrateManager().getNearbyCrateLocations(
+                    player.getWorld().getName(), location.getBlockX(), location.getBlockZ(), viewDistance));
+        }
+
+        List<CrateLocation> candidates = new ArrayList<>(nearbyLocations);
+        if (candidates.isEmpty()) {
+            return;
+        }
+        int startIndex = Math.floorMod(idleCursor, candidates.size());
+        idleCursor = (startIndex + maxCratesPerTick) % candidates.size();
+        int rendered = 0;
+
+        for (int offset = 0; offset < candidates.size(); offset++) {
+            if (rendered >= maxCratesPerTick) {
+                break;
+            }
+            CrateLocation crateLocation = candidates.get((startIndex + offset) % candidates.size());
             Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
             if (crate == null || !crate.isParticlesEnabled()) {
                 continue;
@@ -109,6 +173,10 @@ public class ParticleManager {
             if (world == null) {
                 continue;
             }
+            if (!world.isChunkLoaded(Math.floorDiv(crateLocation.getX(), 16),
+                    Math.floorDiv(crateLocation.getZ(), 16))) {
+                continue;
+            }
 
             Location blockLocation = crateLocation.toLocation(world);
             if (isIdleSuppressed(blockLocation)) {
@@ -116,6 +184,7 @@ public class ParticleManager {
             }
             Location origin = resolveOrigin(effect, null, blockLocation);
             renderer.render(effect, origin, null, blockLocation, (int) (tickCounter % Integer.MAX_VALUE));
+            rendered++;
         }
     }
 
@@ -135,9 +204,11 @@ public class ParticleManager {
         Location playerLocation = player.getLocation();
         Location nearest = null;
         double nearestDistance = Double.MAX_VALUE;
-        for (CrateLocation crateLocation : plugin.getCrateManager().getCrateLocations()) {
-            if (!crate.getId().equals(crateLocation.getCrateId())
-                    || !player.getWorld().getName().equals(crateLocation.getWorld())) {
+        double searchDistance = Math.max(1.0, plugin.getConfigManager().getConfig()
+                .getDouble("performance.particles.stage-location-search-distance", 64.0));
+        for (CrateLocation crateLocation : plugin.getCrateManager().getNearbyCrateLocations(
+                player.getWorld().getName(), playerLocation.getBlockX(), playerLocation.getBlockZ(), searchDistance)) {
+            if (!crate.getId().equals(crateLocation.getCrateId())) {
                 continue;
             }
 
@@ -220,5 +291,8 @@ public class ParticleManager {
             return null;
         }
         return location.getWorld().getName() + ':' + location.getBlockX() + ':' + location.getBlockY() + ':' + location.getBlockZ();
+    }
+
+    private record StageEffectKey(UUID playerId, String crateId, ParticleStage stage) {
     }
 }

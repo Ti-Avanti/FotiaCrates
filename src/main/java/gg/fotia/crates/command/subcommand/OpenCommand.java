@@ -1,7 +1,6 @@
 package gg.fotia.crates.command.subcommand;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.crate.MultiOpenService;
@@ -13,6 +12,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.List;
+import java.util.UUID;
 
 public class OpenCommand extends AbstractSubCommand {
 
@@ -86,8 +86,14 @@ public class OpenCommand extends AbstractSubCommand {
     }
 
     private void openSingle(Player player, Crate crate) {
+        UUID playerUuid = player.getUniqueId();
+        if (!plugin.getOpenSessionManager().tryBegin(playerUuid)) {
+            return;
+        }
+
         CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
         if (!openAttempt.isSuccess()) {
+            plugin.getOpenSessionManager().finish(playerUuid);
             crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
             return;
         }
@@ -96,22 +102,35 @@ public class OpenCommand extends AbstractSubCommand {
             RewardResult rewardResult = openAttempt.rewardResult();
             Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
             plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-            if (crate.isAnimationEnabled()) {
-                var playerUuid = player.getUniqueId();
+            if (crate.isAnimationEnabled() || crate.isPhysicalAnimationEnabled()) {
                 var playerName = player.getName();
-                AnimationManager animationManager = new AnimationManager(plugin);
-                animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation,
-                        () -> crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation));
+                Runnable finish = () -> {
+                    crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
+                    plugin.getOpenSessionManager().finish(playerUuid);
+                };
+                if (!plugin.getAnimationManager().playAnimation(
+                        player, crate, rewardResult.getDisplayReward(), crateLocation, finish)) {
+                    finish.run();
+                }
                 return;
             }
 
-            crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
-        }, () -> {});
+            try {
+                crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
+            } finally {
+                plugin.getOpenSessionManager().finish(playerUuid);
+            }
+        }, () -> plugin.getOpenSessionManager().finish(playerUuid));
     }
 
     private void openMultiple(Player player, Crate crate, int amount) {
+        UUID playerUuid = player.getUniqueId();
+        if (!plugin.getOpenSessionManager().tryBegin(playerUuid)) {
+            return;
+        }
         Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
-        multiOpenService.open(player, crate, amount, crateLocation, () -> {});
+        multiOpenService.open(player, crate, amount, crateLocation,
+                () -> plugin.getOpenSessionManager().finish(playerUuid));
     }
 
     @Override

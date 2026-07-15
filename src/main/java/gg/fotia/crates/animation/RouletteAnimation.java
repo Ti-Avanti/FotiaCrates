@@ -203,11 +203,6 @@ public class RouletteAnimation implements Animation {
             // 强制确保中心位置显示最终奖励
             inventory.setItem(centerSlot, finalReward.getDisplayItem());
 
-            if (crate.getWinSound() != null) {
-                player.playSound(player.getLocation(), crate.getWinSound(),
-                        crate.getWinVolume(), crate.getWinPitch());
-            }
-
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline()) {
                     player.closeInventory();

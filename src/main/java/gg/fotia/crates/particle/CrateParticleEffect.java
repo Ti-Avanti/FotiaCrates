@@ -41,18 +41,18 @@ public class CrateParticleEffect {
         this.particle = normalizeParticleName(particle);
         this.mode = mode;
         this.target = ParticleTarget.normalizeForStage(stage, target);
-        this.count = Math.max(1, count);
-        this.interval = Math.max(1, interval);
-        this.duration = Math.max(1, duration);
-        this.speed = Math.max(0.0, speed);
-        this.radius = Math.max(0.0, radius);
-        this.height = Math.max(0.0, height);
+        this.count = Math.max(1, Math.min(count, 500));
+        this.interval = Math.max(1, Math.min(interval, 200));
+        this.duration = Math.max(1, Math.min(duration, 400));
+        this.speed = Math.max(0.0, Math.min(speed, 2.0));
+        this.radius = Math.max(0.0, Math.min(radius, 8.0));
+        this.height = Math.max(0.0, Math.min(height, 8.0));
         this.offsetX = Math.max(0.0, offsetX);
         this.offsetY = Math.max(0.0, offsetY);
         this.offsetZ = Math.max(0.0, offsetZ);
         this.color = normalizeColor(color, "#FFD700");
         this.toColor = normalizeColor(toColor, this.color);
-        this.size = Math.max(0.1f, size);
+        this.size = Math.max(0.1f, Math.min(size, 5.0f));
         this.blockMaterial = blockMaterial != null && blockMaterial.isBlock() ? blockMaterial : Material.GOLD_BLOCK;
         this.itemMaterial = itemMaterial != null && !itemMaterial.isAir() ? itemMaterial : Material.GOLD_INGOT;
     }

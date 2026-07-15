@@ -1,7 +1,6 @@
 package gg.fotia.crates.listener;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.crate.MultiOpenAmount;
@@ -30,10 +29,8 @@ import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public class GuiListener implements Listener {
@@ -41,10 +38,6 @@ public class GuiListener implements Listener {
     private final FotiaCrates plugin;
     private final CrateOpenService crateOpenService;
     private final MultiOpenService multiOpenService;
-    // 防止重复开箱的冷却集合
-    private final Set<UUID> openingPlayers = new HashSet<>();
-    // 防止短时间内重复触发的冷却时间戳（毫秒）
-    private final Map<UUID, Long> interactCooldown = new HashMap<>();
     private static final long INTERACT_COOLDOWN_MS = 500; // 500毫秒冷却
 
     public GuiListener(FotiaCrates plugin) {
@@ -1924,36 +1917,32 @@ public class GuiListener implements Listener {
     }
 
     private void openCrate(Player player, Crate crate) {
-        // 防止重复开箱
-        if (openingPlayers.contains(player.getUniqueId())) {
+        UUID playerUuid = player.getUniqueId();
+        if (plugin.getOpenSessionManager().isActive(playerUuid)) {
             return;
         }
 
-        // 检查交互冷却（防止短时间内多次触发）
         long now = System.currentTimeMillis();
-        Long lastInteract = interactCooldown.get(player.getUniqueId());
-        if (lastInteract != null && now - lastInteract < INTERACT_COOLDOWN_MS) {
+        if (!plugin.getOpenSessionManager().tryInteract(playerUuid, now, INTERACT_COOLDOWN_MS)
+                || !plugin.getOpenSessionManager().tryBegin(playerUuid)) {
             return;
         }
-        interactCooldown.put(player.getUniqueId(), now);
-
-        openingPlayers.add(player.getUniqueId());
 
         if (!crateOpenService.hasOpenPermission(player, crate)) {
-            openingPlayers.remove(player.getUniqueId());
+            plugin.getOpenSessionManager().finish(playerUuid);
             plugin.getLanguageManager().send(player, "no-permission");
             return;
         }
 
-        if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
-            openingPlayers.remove(player.getUniqueId());
+        if (!plugin.getAsyncPlayerDataManager().isReady(playerUuid)) {
+            plugin.getOpenSessionManager().finish(playerUuid);
             plugin.getLanguageManager().send(player, "player-data-loading");
             return;
         }
 
         CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
         if (!openAttempt.isSuccess()) {
-            openingPlayers.remove(player.getUniqueId());
+            plugin.getOpenSessionManager().finish(playerUuid);
             crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
             return;
         }
@@ -1963,55 +1952,59 @@ public class GuiListener implements Listener {
             Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
             plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
 
-            if (crate.isAnimationEnabled()) {
-                UUID playerUuid = player.getUniqueId();
+            if (crate.isAnimationEnabled() || crate.isPhysicalAnimationEnabled()) {
                 String playerName = player.getName();
-                AnimationManager animationManager = new AnimationManager(plugin);
-                animationManager.playAnimation(player, crate, rewardResult.getDisplayReward(), crateLocation, () -> {
+                Runnable finish = () -> {
                     crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
-                    openingPlayers.remove(playerUuid);
-                });
+                    plugin.getOpenSessionManager().finish(playerUuid);
+                };
+                if (!plugin.getAnimationManager().playAnimation(
+                        player, crate, rewardResult.getDisplayReward(), crateLocation, finish)) {
+                    finish.run();
+                }
             } else {
-                crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
-                openingPlayers.remove(player.getUniqueId());
+                try {
+                    crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
+                } finally {
+                    plugin.getOpenSessionManager().finish(playerUuid);
+                }
             }
-        }, () -> openingPlayers.remove(player.getUniqueId()));
+        }, () -> plugin.getOpenSessionManager().finish(playerUuid));
     }
 
     private void openMultiple(Player player, Crate crate, int amount) {
         UUID playerUuid = player.getUniqueId();
-        if (openingPlayers.contains(playerUuid)) {
+        if (plugin.getOpenSessionManager().isActive(playerUuid)) {
             return;
         }
 
         long now = System.currentTimeMillis();
-        Long lastInteract = interactCooldown.get(playerUuid);
-        if (lastInteract != null && now - lastInteract < INTERACT_COOLDOWN_MS) {
+        if (!plugin.getOpenSessionManager().tryInteract(playerUuid, now, INTERACT_COOLDOWN_MS)
+                || !plugin.getOpenSessionManager().tryBegin(playerUuid)) {
             return;
         }
-        interactCooldown.put(playerUuid, now);
-        openingPlayers.add(playerUuid);
 
         if (!crateOpenService.hasOpenPermission(player, crate)) {
             plugin.getLanguageManager().send(player, "no-permission");
-            openingPlayers.remove(playerUuid);
+            plugin.getOpenSessionManager().finish(playerUuid);
             return;
         }
 
         if (!plugin.getAsyncPlayerDataManager().isReady(playerUuid)) {
             plugin.getLanguageManager().send(player, "player-data-loading");
-            openingPlayers.remove(playerUuid);
+            plugin.getOpenSessionManager().finish(playerUuid);
             return;
         }
 
         if (plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId()) < amount) {
             plugin.getLanguageManager().send(player, "no-key");
-            openingPlayers.remove(playerUuid);
+            plugin.getOpenSessionManager().finish(playerUuid);
             return;
         }
 
         Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
-        multiOpenService.open(player, crate, amount, crateLocation, () -> openingPlayers.remove(playerUuid));
+        multiOpenService.open(player, crate, amount, crateLocation,
+                () -> plugin.getOpenSessionManager().finish(playerUuid));
     }
 
     @EventHandler

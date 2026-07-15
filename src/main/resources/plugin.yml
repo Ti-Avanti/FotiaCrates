@@ -14,6 +14,10 @@ softdepend:
   - BetterModel
   - CraftEngine
   - SweetMail
+libraries:
+  - com.zaxxer:HikariCP:5.1.0
+  - org.xerial:sqlite-jdbc:3.46.1.0
+  - com.mysql:mysql-connector-j:8.4.0
 
 commands:
   crate:

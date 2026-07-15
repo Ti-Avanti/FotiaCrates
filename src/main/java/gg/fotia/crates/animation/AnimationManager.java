@@ -6,158 +6,121 @@ import gg.fotia.crates.reward.Reward;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 public class AnimationManager {
 
     private final FotiaCrates plugin;
-    private final Map<UUID, Animation> activeAnimations = new HashMap<>();
-    private final Map<UUID, Animation> activePhysicalAnimations = new HashMap<>(); // 物理动画单独存储
+    private final Map<UUID, AnimationSession> activeSessions = new HashMap<>();
 
     public AnimationManager(FotiaCrates plugin) {
         this.plugin = plugin;
     }
 
-    public void playAnimation(Player player, Crate crate, Reward reward, Location crateLocation, Runnable onComplete) {
+    public boolean playAnimation(Player player, Crate crate, Reward reward, Location crateLocation, Runnable onComplete) {
         if (hasActiveAnimation(player)) {
-            return;
+            return false;
         }
 
         boolean guiAnimEnabled = crate.isAnimationEnabled();
         boolean physicalAnimEnabled = crate.isPhysicalAnimationEnabled();
+        List<Animation> animations = new ArrayList<>(2);
 
-        // 如果两者都启用，同时播放
-        if (guiAnimEnabled && physicalAnimEnabled) {
-            playBothAnimations(player, crate, reward, crateLocation, onComplete);
-            return;
-        }
-
-        // 只启用物理动画
-        if (physicalAnimEnabled) {
-            Animation animation = new PhysicalAnimation(plugin);
-            activeAnimations.put(player.getUniqueId(), animation);
-            animation.start(player, crate, reward, crateLocation, () -> {
-                activeAnimations.remove(player.getUniqueId());
-                onComplete.run();
-            });
-            return;
-        }
-
-        // 只启用GUI动画或默认
         if (guiAnimEnabled) {
-            Animation animation;
             switch (crate.getAnimationType()) {
-                case CSGO:
-                    animation = new RouletteAnimation(plugin);
-                    break;
-                case PHYSICAL:
-                    // 如果类型是PHYSICAL但physicalAnimEnabled为false，使用轮盘
-                    animation = new RouletteAnimation(plugin);
-                    break;
-                case INSTANT:
-                    onComplete.run();
-                    return;
-                case ROULETTE:
-                default:
-                    animation = new RouletteAnimation(plugin);
-                    break;
+                case CSGO, ROULETTE, PHYSICAL -> animations.add(new RouletteAnimation(plugin));
+                case INSTANT -> {
+                }
             }
-
-            activeAnimations.put(player.getUniqueId(), animation);
-            animation.start(player, crate, reward, crateLocation, () -> {
-                activeAnimations.remove(player.getUniqueId());
-                onComplete.run();
-            });
-            return;
         }
 
-        // 都没启用，直接完成
-        onComplete.run();
-    }
-
-    /**
-     * 同时播放GUI动画和物理动画
-     */
-    private void playBothAnimations(Player player, Crate crate, Reward reward, Location crateLocation, Runnable onComplete) {
-        // 创建GUI动画
-        Animation guiAnimation;
-        switch (crate.getAnimationType()) {
-            case CSGO:
-                guiAnimation = new RouletteAnimation(plugin);
-                break;
-            case INSTANT:
-                guiAnimation = null;
-                break;
-            case ROULETTE:
-            default:
-                guiAnimation = new RouletteAnimation(plugin);
-                break;
+        if (physicalAnimEnabled) {
+            animations.add(new PhysicalAnimation(plugin));
         }
 
-        // 创建物理动画
-        PhysicalAnimation physicalAnimation = new PhysicalAnimation(plugin);
+        if (animations.isEmpty()) {
+            onComplete.run();
+            return true;
+        }
 
-        // 跟踪完成状态
-        final boolean[] completed = {false, false}; // [gui, physical]
-        final Runnable checkComplete = () -> {
-            if (completed[0] && completed[1]) {
-                activeAnimations.remove(player.getUniqueId());
-                activePhysicalAnimations.remove(player.getUniqueId());
-                onComplete.run();
+        UUID playerId = player.getUniqueId();
+        AnimationSession session = new AnimationSession(playerId, animations, onComplete);
+        activeSessions.put(playerId, session);
+        try {
+            for (Animation animation : animations) {
+                animation.start(player, crate, reward, crateLocation, session::completeOne);
             }
-        };
-
-        // 启动GUI动画
-        if (guiAnimation != null) {
-            activeAnimations.put(player.getUniqueId(), guiAnimation);
-            guiAnimation.start(player, crate, reward, crateLocation, () -> {
-                completed[0] = true;
-                checkComplete.run();
-            });
-        } else {
-            completed[0] = true;
+            return true;
+        } catch (RuntimeException exception) {
+            session.cancelAndComplete();
+            throw exception;
         }
-
-        // 启动物理动画
-        activePhysicalAnimations.put(player.getUniqueId(), physicalAnimation);
-        physicalAnimation.start(player, crate, reward, crateLocation, () -> {
-            completed[1] = true;
-            checkComplete.run();
-        });
     }
 
     public boolean hasActiveAnimation(Player player) {
-        Animation animation = activeAnimations.get(player.getUniqueId());
-        Animation physicalAnimation = activePhysicalAnimations.get(player.getUniqueId());
-        return (animation != null && animation.isRunning()) ||
-               (physicalAnimation != null && physicalAnimation.isRunning());
+        return activeSessions.containsKey(player.getUniqueId());
     }
 
     public void cancelAnimation(Player player) {
-        Animation animation = activeAnimations.remove(player.getUniqueId());
-        if (animation != null) {
-            animation.cancel();
-        }
-        Animation physicalAnimation = activePhysicalAnimations.remove(player.getUniqueId());
-        if (physicalAnimation != null) {
-            physicalAnimation.cancel();
+        AnimationSession session = activeSessions.get(player.getUniqueId());
+        if (session != null) {
+            session.cancelAndComplete();
         }
     }
 
     public void cancelAllAnimations() {
-        for (Animation animation : activeAnimations.values()) {
-            animation.cancel();
+        for (AnimationSession session : List.copyOf(activeSessions.values())) {
+            session.cancelAndComplete();
         }
-        activeAnimations.clear();
-        for (Animation animation : activePhysicalAnimations.values()) {
-            animation.cancel();
-        }
-        activePhysicalAnimations.clear();
     }
 
     public Animation getAnimation(Player player) {
-        return activeAnimations.get(player.getUniqueId());
+        AnimationSession session = activeSessions.get(player.getUniqueId());
+        return session == null || session.animations.isEmpty() ? null : session.animations.get(0);
+    }
+
+    private final class AnimationSession {
+        private final UUID playerId;
+        private final List<Animation> animations;
+        private final Runnable onComplete;
+        private int remaining;
+        private boolean completed;
+
+        private AnimationSession(UUID playerId, List<Animation> animations, Runnable onComplete) {
+            this.playerId = playerId;
+            this.animations = List.copyOf(animations);
+            this.onComplete = onComplete;
+            this.remaining = animations.size();
+        }
+
+        private void completeOne() {
+            if (completed || --remaining > 0) {
+                return;
+            }
+            complete();
+        }
+
+        private void cancelAndComplete() {
+            if (completed) {
+                return;
+            }
+            for (Animation animation : animations) {
+                animation.cancel();
+            }
+            complete();
+        }
+
+        private void complete() {
+            if (completed) {
+                return;
+            }
+            completed = true;
+            activeSessions.remove(playerId, this);
+            onComplete.run();
+        }
     }
 }

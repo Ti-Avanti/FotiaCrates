@@ -1,7 +1,6 @@
 package gg.fotia.crates.crate;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.ParticleStage;
 import org.bukkit.Location;
@@ -42,8 +41,9 @@ public final class MultiOpenService {
         UUID playerUuid = player.getUniqueId();
         String playerName = player.getName();
         Runnable finish = () -> {
-            for (RewardResult rewardResult : rewardResults) {
-                crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
+            for (int index = 0; index < rewardResults.size(); index++) {
+                crateOpenService.deliverRewardSafely(playerUuid, playerName, crate,
+                        rewardResults.get(index), crateLocation, index == 0);
             }
             if (player.isOnline() && crate.isMultiOpenAnimationEnabled() && rewardResults.size() > 1) {
                 plugin.getGuiManager().openMultiOpenResultGui(player, crate, rewardResults);
@@ -54,13 +54,16 @@ public final class MultiOpenService {
         crateOpenService.commitOpen(player, openAttempts.get(0), () -> {
             if (MultiOpenAnimationPolicy.shouldPlayFirstDrawAnimation(
                     crate.isMultiOpenAnimationEnabled(), rewardResults.size()) && player.isOnline()) {
-                new AnimationManager(plugin).playAnimation(
+                boolean started = plugin.getAnimationManager().playAnimation(
                         player,
                         crate,
                         rewardResults.get(0).getDisplayReward(),
                         crateLocation,
                         finish
                 );
+                if (!started) {
+                    finish.run();
+                }
                 return;
             }
             finish.run();

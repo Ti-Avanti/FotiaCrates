@@ -81,6 +81,7 @@ messages:
   crate-block-placed: "<!i><green>已放置 {crate} <!i><green>抽奖箱！"
   crate-break-denied: "<!i><red>无法破坏抽奖箱！请蹲下+左键移除。"
   pending-rewards-available: "<!i><gold>你有 {count} 个待领取的奖励！使用 /crate claim 领取。"
+  pending-reward-processing: "<!i><yellow>正在处理待领取奖励，请稍候。"
   pending-reward-claimed: "<!i><green>已领取奖励: {reward}"
   no-pending-rewards: "<!i><gray>你没有待领取的奖励。"
 

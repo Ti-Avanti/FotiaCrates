@@ -12,6 +12,11 @@ database:
     database: fotiacrates
     username: root
     password: ""
+    pool:
+      # 最大连接数；当前持久化写入保持有序，通常无需设置过大
+      maximum-size: 4
+      # 最小空闲连接数
+      minimum-idle: 1
 
   # SQLite 设置，仅当 type 为 sqlite 时生效
   sqlite:
@@ -80,6 +85,18 @@ persistence:
     queue-capacity: 10000
     # 同一玩家历史裁剪的最小间隔，单位为秒
     cleanup-interval-seconds: 300
+
+# 性能保护设置
+performance:
+  particles:
+    # 只播放玩家附近该距离内的待机粒子，单位为方块
+    idle-view-distance: 32.0
+    # 单个 tick 最多处理的待机粒子箱子数量
+    max-idle-crates-per-tick: 128
+    # 全服同时运行的阶段粒子任务上限；超过时仍播放首帧
+    max-active-stage-effects: 128
+    # 命令或 GUI 开箱时寻找附近实体箱子的位置范围，单位为方块
+    stage-location-search-distance: 64.0
 
 # 编辑器设置
 editor:

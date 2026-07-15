@@ -85,7 +85,7 @@ public class EntityInteractPacketListener {
     private void handleLeftClickEntity(Player player, int entityId) {
         // 通过实体ID找到实体
         Entity entity = null;
-        for (Entity e : player.getWorld().getEntities()) {
+        for (Entity e : player.getNearbyEntities(8.0, 8.0, 8.0)) {
             if (e.getEntityId() == entityId) {
                 entity = e;
                 break;
@@ -134,9 +134,8 @@ public class EntityInteractPacketListener {
         CrateLocation bestMatch = null;
         double bestScore = -1;
 
-        for (var crateLocation : plugin.getCrateManager().getCrateLocations()) {
-            if (!crateLocation.getWorld().equals(player.getWorld().getName())) continue;
-
+        for (var crateLocation : plugin.getCrateManager().getNearbyCrateLocations(
+                player.getWorld().getName(), eyeLoc.getBlockX(), eyeLoc.getBlockZ(), 6.0)) {
             Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
             if (crate == null || !crate.isModelEnabled()) continue;
 
@@ -155,7 +154,7 @@ public class EntityInteractPacketListener {
             double dot = direction.dot(toCrate);
 
             // dot > 0.7 表示大约45度内
-            if (dot > 0.7) {
+            if (dot > 0.7 && distance > 0.0) {
                 // 得分 = 角度准确度 / 距离
                 double score = dot / distance;
                 if (score > bestScore) {

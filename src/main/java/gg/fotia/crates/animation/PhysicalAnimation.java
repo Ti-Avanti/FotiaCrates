@@ -130,13 +130,15 @@ public class PhysicalAnimation implements Animation {
         }
 
         // 动画时长，至少5秒
-        int durationSeconds = Math.max(crate.getAnimationDuration(), MIN_DURATION_SECONDS);
+        int durationSeconds = Math.max(
+                PhysicalAnimationSchedule.clampDurationSeconds(crate.getAnimationDuration()),
+                MIN_DURATION_SECONDS
+        );
         int totalTicks = durationSeconds * 20;
+        PhysicalAnimationSchedule scrollSchedule = new PhysicalAnimationSchedule(totalTicks);
 
         animationTask = new BukkitRunnable() {
             int tick = 0;
-            int lastScrollTick = 0;
-
             // 是否已放入最终奖励
             boolean finalRewardInserted = false;
 
@@ -157,31 +159,8 @@ public class PhysicalAnimation implements Animation {
                     return;
                 }
 
-                float progress = (float) tick / totalTicks;
-
-                // 计算当前滚动间隔（逐渐减速）
-                int ticksPerScroll;
-                if (progress < 0.3f) {
-                    ticksPerScroll = 1;
-                } else if (progress < 0.5f) {
-                    ticksPerScroll = 2;
-                } else if (progress < 0.65f) {
-                    ticksPerScroll = 3;
-                } else if (progress < 0.75f) {
-                    ticksPerScroll = 5;
-                } else if (progress < 0.85f) {
-                    ticksPerScroll = 8;
-                } else if (progress < 0.95f) {
-                    ticksPerScroll = 12;
-                } else {
-                    ticksPerScroll = 20; // 最后阶段几乎不滚动
-                }
-
-                // 检查是否应该滚动
-                boolean shouldScroll = (tick - lastScrollTick) >= ticksPerScroll;
-
-                // 预估剩余可滚动次数
-                int estimatedRemainingScrolls = estimateRemainingScrolls(tick, totalTicks);
+                boolean shouldScroll = scrollSchedule.shouldScroll(tick);
+                int estimatedRemainingScrolls = scrollSchedule.remainingScrolls(tick);
 
                 // 滚动逻辑
                 if (shouldScroll && tick < totalTicks - 10) {
@@ -196,7 +175,6 @@ public class PhysicalAnimation implements Animation {
                         // 已经放入最终奖励，继续滚动但不再放入新的最终奖励
                         doScrollAfterFinal();
                     }
-                    lastScrollTick = tick;
                 }
 
                 // 更新物品位置和大小（浮动效果）
@@ -268,25 +246,6 @@ public class PhysicalAnimation implements Animation {
                 doScroll(false);
             }
 
-            private int estimateRemainingScrolls(int currentTick, int totalTicks) {
-                int scrolls = 0;
-                int t = currentTick;
-                while (t < totalTicks - 10) {
-                    float p = (float) t / totalTicks;
-                    int tps;
-                    if (p < 0.3f) tps = 1;
-                    else if (p < 0.5f) tps = 2;
-                    else if (p < 0.65f) tps = 3;
-                    else if (p < 0.75f) tps = 5;
-                    else if (p < 0.85f) tps = 8;
-                    else if (p < 0.95f) tps = 12;
-                    else tps = 20;
-
-                    if ((t - currentTick) % tps == 0) scrolls++;
-                    t++;
-                }
-                return scrolls;
-            }
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
@@ -335,12 +294,6 @@ public class PhysicalAnimation implements Animation {
                 // 两边物品：移除
                 display.remove();
             }
-        }
-
-        // 播放获胜音效
-        if (crate.getWinSound() != null) {
-            player.playSound(centerLoc, crate.getWinSound(),
-                    crate.getWinVolume(), crate.getWinPitch());
         }
 
         // 延迟后清理
