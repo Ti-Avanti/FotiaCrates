@@ -39,6 +39,8 @@ public class HologramManager {
     private float scale;
     private List<String> lines;
     private double updateRadius = 32.0; // 更新半径
+    private double maxSearchRadius = 32.0;
+    private int searchRadiusRefreshCounter;
 
     public HologramManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -53,6 +55,7 @@ public class HologramManager {
         this.scale = (float) config.getDouble("hologram.scale", 1.0);
         this.lines = config.getStringList("hologram.lines");
         this.updateRadius = config.getDouble("hologram.update-radius", 32.0);
+        refreshMaxSearchRadius();
         if (this.lines.isEmpty()) {
             this.lines = List.of(
                     "<!i><gold>{crate_name}",
@@ -79,40 +82,86 @@ public class HologramManager {
     private void updateAllHolograms() {
         if (!enabled) return;
 
-        for (CrateLocation crateLocation : plugin.getCrateManager().getCrateLocations()) {
-            World world = Bukkit.getWorld(crateLocation.getWorld());
-            if (world == null) continue;
+        if (++searchRadiusRefreshCounter >= 20) {
+            searchRadiusRefreshCounter = 0;
+            refreshMaxSearchRadius();
+        }
 
-            Location loc = crateLocation.toLocation(world);
-            if (loc == null) continue;
-
-            String key = getLocationKey(loc);
-            Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
-            if (crate == null) continue;
-
-            // 使用宝箱配置的可视距离，如果启用了模型则使用模型的可视距离
-            double viewRadius = updateRadius;
-            if (crate.isModelEnabled() && crate.getModelEngineViewRange() > 0) {
-                viewRadius = crate.getModelEngineViewRange();
-            }
-
-            // 获取附近的玩家
-            Collection<Player> nearbyPlayers = loc.getNearbyPlayers(viewRadius);
-
-            if (nearbyPlayers.isEmpty()) {
-                // 没有玩家在可视距离内，移除所有全息显示
-                removePlayerHologramsAt(loc);
-                removeSharedHologram(loc);
-            } else {
-                // 有玩家在附近，移除共享全息，为每个玩家创建/更新专属全息
-                removeSharedHologram(loc);
-                for (Player player : nearbyPlayers) {
-                    updateOrCreatePlayerHologram(loc, crate, player);
+        Map<String, Set<UUID>> visiblePlayers = new HashMap<>();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            Location playerLocation = player.getLocation();
+            Collection<CrateLocation> nearbyCrates = plugin.getCrateManager().getNearbyCrateLocations(
+                    player.getWorld().getName(), playerLocation.getBlockX(), playerLocation.getBlockZ(),
+                    maxSearchRadius);
+            for (CrateLocation crateLocation : nearbyCrates) {
+                World world = player.getWorld();
+                if (!world.isChunkLoaded(Math.floorDiv(crateLocation.getX(), 16),
+                        Math.floorDiv(crateLocation.getZ(), 16))) {
+                    continue;
                 }
-                // 移除不在附近的玩家的全息
-                cleanupDistantPlayerHolograms(loc, nearbyPlayers);
+
+                Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
+                if (crate == null) {
+                    continue;
+                }
+                Location location = crateLocation.toLocation(world);
+                double viewRadius = getViewRadius(crate);
+                if (location.distanceSquared(playerLocation) > viewRadius * viewRadius) {
+                    continue;
+                }
+
+                String key = getLocationKey(location);
+                visiblePlayers.computeIfAbsent(key, ignored -> new HashSet<>()).add(player.getUniqueId());
+                removeSharedHologram(location);
+                updateOrCreatePlayerHologram(location, crate, player);
             }
         }
+
+        cleanupInvisiblePlayerHolograms(visiblePlayers);
+        for (TextDisplay display : sharedHolograms.values()) {
+            if (display != null && !display.isDead()) {
+                display.remove();
+            }
+        }
+        sharedHolograms.clear();
+    }
+
+    private void cleanupInvisiblePlayerHolograms(Map<String, Set<UUID>> visiblePlayers) {
+        Iterator<Map.Entry<String, Map<UUID, TextDisplay>>> locationIterator = playerHolograms.entrySet().iterator();
+        while (locationIterator.hasNext()) {
+            Map.Entry<String, Map<UUID, TextDisplay>> locationEntry = locationIterator.next();
+            Set<UUID> visibleAtLocation = visiblePlayers.getOrDefault(locationEntry.getKey(), Set.of());
+            Iterator<Map.Entry<UUID, TextDisplay>> playerIterator = locationEntry.getValue().entrySet().iterator();
+            while (playerIterator.hasNext()) {
+                Map.Entry<UUID, TextDisplay> playerEntry = playerIterator.next();
+                if (visibleAtLocation.contains(playerEntry.getKey())) {
+                    continue;
+                }
+                TextDisplay display = playerEntry.getValue();
+                if (display != null && !display.isDead()) {
+                    display.remove();
+                }
+                playerIterator.remove();
+            }
+            if (locationEntry.getValue().isEmpty()) {
+                locationIterator.remove();
+            }
+        }
+    }
+
+    private void refreshMaxSearchRadius() {
+        double maximum = Math.max(1.0, updateRadius);
+        for (Crate crate : plugin.getCrateManager().getAllCrates()) {
+            maximum = Math.max(maximum, getViewRadius(crate));
+        }
+        maxSearchRadius = maximum;
+    }
+
+    private double getViewRadius(Crate crate) {
+        if (crate.isModelEnabled() && crate.getModelEngineViewRange() > 0) {
+            return crate.getModelEngineViewRange();
+        }
+        return updateRadius;
     }
 
     /**
@@ -120,16 +169,8 @@ public class HologramManager {
      */
     public void createAllHolograms() {
         if (!enabled) return;
-
-        for (CrateLocation crateLocation : plugin.getCrateManager().getCrateLocations()) {
-            World world = Bukkit.getWorld(crateLocation.getWorld());
-            if (world == null) continue;
-
-            Location loc = crateLocation.toLocation(world);
-            if (loc == null) continue;
-
-            createHologram(loc, crateLocation.getCrateId());
-        }
+        refreshMaxSearchRadius();
+        updateAllHolograms();
     }
 
     /**
@@ -144,12 +185,8 @@ public class HologramManager {
 
         // 检查附近是否有玩家
         Collection<Player> nearbyPlayers = location.getNearbyPlayers(updateRadius);
-        if (nearbyPlayers.isEmpty()) {
-            ensureSharedHologram(location, crate);
-        } else {
-            for (Player player : nearbyPlayers) {
-                updateOrCreatePlayerHologram(location, crate, player);
-            }
+        for (Player player : nearbyPlayers) {
+            updateOrCreatePlayerHologram(location, crate, player);
         }
     }
 
@@ -225,6 +262,7 @@ public class HologramManager {
             existing.text(text);
             existing.teleport(holoLoc);
             existing.setViewRange(finalViewRange);
+            player.showEntity(plugin, existing);
         } else {
             // 创建新全息
             TextDisplay display = location.getWorld().spawn(holoLoc, TextDisplay.class, d -> {
@@ -243,14 +281,9 @@ public class HologramManager {
                 d.setShadowRadius(0);
                 d.setShadowStrength(0);
                 d.setPersistent(false);
+                d.setVisibleByDefault(false);
             });
-
-            // 只对该玩家显示
-            for (Player other : Bukkit.getOnlinePlayers()) {
-                if (!other.equals(player)) {
-                    other.hideEntity(plugin, display);
-                }
-            }
+            player.showEntity(plugin, display);
 
             playerMap.put(player.getUniqueId(), display);
         }

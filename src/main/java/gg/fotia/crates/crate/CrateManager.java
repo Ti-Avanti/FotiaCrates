@@ -66,6 +66,27 @@ public class CrateManager {
         plugin.getLogger().info("Loaded " + crates.size() + " crates.");
     }
 
+    public Crate reloadCrate(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) {
+            crates.remove(crateId);
+            return null;
+        }
+
+        try {
+            Crate crate = loadCrate(crateId, file);
+            if (crate == null) {
+                crates.remove(crateId);
+                return null;
+            }
+            crates.put(crateId, crate);
+            return crate;
+        } catch (RuntimeException exception) {
+            plugin.getLogger().severe("Failed to reload crate " + crateId + ": " + exception.getMessage());
+            return null;
+        }
+    }
+
     private Crate loadCrate(String id, File file) {
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
 
@@ -144,7 +165,8 @@ public class CrateManager {
         boolean resetPityOnEarlyQualifyingReward = config.getBoolean("pity.reset-on-early-qualifying-reward", false);
 
         boolean multiOpenEnabled = config.getBoolean("multi-open.enabled", true);
-        int multiOpenMax = config.getInt("multi-open.max", 10);
+        int multiOpenMax = Math.max(1, Math.min(config.getInt("multi-open.max", 10),
+                plugin.getConfigManager().getMultiOpenHardLimit()));
         boolean multiOpenAnimationEnabled = config.getBoolean("multi-open.animation.enabled", false);
 
         // 权限节点，默认为空（留空则不检测开箱权限）
@@ -506,6 +528,10 @@ public class CrateManager {
         return crateLocations.nearby(world, blockX, blockZ, radius);
     }
 
+    public List<CrateLocation> getCrateLocationsInChunk(String world, int chunkX, int chunkZ) {
+        return crateLocations.inChunk(world, chunkX, chunkZ);
+    }
+
     public void setCrateLocation(String crateId, Location location) {
         setCrateLocation(crateId, location, 0f);
     }
@@ -585,7 +611,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("name", newName);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update crate name: " + e.getMessage());
         }
@@ -602,7 +628,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("block.material", material.name());
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update crate block: " + e.getMessage());
         }
@@ -619,7 +645,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("animation.duration", duration);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update animation duration: " + e.getMessage());
         }
@@ -634,9 +660,10 @@ public class CrateManager {
 
         try {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            config.set("multi-open.max", max);
+            config.set("multi-open.max", Math.max(1,
+                    Math.min(max, plugin.getConfigManager().getMultiOpenHardLimit())));
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update multi-open max: " + e.getMessage());
         }
@@ -654,7 +681,7 @@ public class CrateManager {
             boolean current = config.getBoolean("particles.enabled", true);
             config.set("particles.enabled", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle particles: " + e.getMessage());
         }
@@ -734,7 +761,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             updater.accept(config);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to " + actionName + ": " + e.getMessage());
         }
@@ -768,7 +795,7 @@ public class CrateManager {
             boolean current = config.getBoolean("preview.enabled", true);
             config.set("preview.enabled", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle preview: " + e.getMessage());
         }
@@ -786,7 +813,7 @@ public class CrateManager {
             boolean current = config.getBoolean("multi-open.enabled", true);
             config.set("multi-open.enabled", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle multi-open: " + e.getMessage());
         }
@@ -801,7 +828,7 @@ public class CrateManager {
             boolean current = config.getBoolean("multi-open.animation.enabled", false);
             config.set("multi-open.animation.enabled", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle multi-open animation: " + e.getMessage());
         }
@@ -829,7 +856,7 @@ public class CrateManager {
             applyAutoDisplayFromFirstItem(config, path, item);
 
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to add reward: " + e.getMessage());
         }
@@ -846,7 +873,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("rewards." + rewardId, null);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to remove reward: " + e.getMessage());
         }
@@ -863,7 +890,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("rewards." + rewardId + ".chance", chance);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward chance: " + e.getMessage());
         }
@@ -881,7 +908,7 @@ public class CrateManager {
             config.set("rewards." + rewardId + ".rarity", rarity);
             config.set("rewards." + rewardId + ".broadcast", rarity.equalsIgnoreCase("legendary") || rarity.equalsIgnoreCase("epic"));
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward rarity: " + e.getMessage());
         }
@@ -898,7 +925,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("animation.type", type.name());
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update animation type: " + e.getMessage());
         }
@@ -916,7 +943,7 @@ public class CrateManager {
             boolean current = config.getBoolean("animation.enabled", true);
             config.set("animation.enabled", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle GUI animation: " + e.getMessage());
         }
@@ -934,7 +961,7 @@ public class CrateManager {
             boolean current = config.getBoolean("physical-animation.enabled", false);
             config.set("physical-animation.enabled", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle physical animation: " + e.getMessage());
         }
@@ -951,7 +978,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("physical-animation.height", height);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update physical animation height: " + e.getMessage());
         }
@@ -969,7 +996,7 @@ public class CrateManager {
             boolean current = config.getBoolean("pity.enabled", false);
             config.set("pity.enabled", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle pity: " + e.getMessage());
         }
@@ -984,7 +1011,7 @@ public class CrateManager {
             boolean current = config.getBoolean("pity.reset-on-early-qualifying-reward", false);
             config.set("pity.reset-on-early-qualifying-reward", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle early pity reset: " + e.getMessage());
         }
@@ -1003,7 +1030,7 @@ public class CrateManager {
             config.set("pity.tiers." + tierId + ".count", count);
             config.set("pity.tiers." + tierId + ".rarity", rarity);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to add pity tier: " + e.getMessage());
         }
@@ -1028,7 +1055,7 @@ public class CrateManager {
             config.set("pity.tiers." + tierKey + ".count", count);
             config.set("pity.tiers." + tierKey + ".rarity", rarity);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update pity tier: " + e.getMessage());
         }
@@ -1052,7 +1079,7 @@ public class CrateManager {
             String tierKey = tierKeys.get(tierIndex);
             config.set("pity.tiers." + tierKey, null);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to remove pity tier: " + e.getMessage());
         }
@@ -1072,7 +1099,7 @@ public class CrateManager {
             config.set("pity.count", count);
             config.set("pity.rarity", rarity);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update pity: " + e.getMessage());
         }
@@ -1083,13 +1110,25 @@ public class CrateManager {
      */
     public void saveCrate(String crateId) {
         // 配置已经在每次修改时保存，这里只是重新加载确保同步
-        loadCrates();
+        reloadCrate(crateId);
     }
 
     /**
      * 删除宝箱
      */
     public void deleteCrate(String crateId) {
+        List<CrateLocation> removedLocations = crateLocations.values().stream()
+                .filter(location -> Objects.equals(crateId, location.getCrateId()))
+                .toList();
+        plugin.getModelEngineManager().removeCrateModels(removedLocations);
+        for (CrateLocation crateLocation : removedLocations) {
+            org.bukkit.World world = plugin.getServer().getWorld(crateLocation.getWorld());
+            if (world != null && world.isChunkLoaded(Math.floorDiv(crateLocation.getX(), 16),
+                    Math.floorDiv(crateLocation.getZ(), 16))) {
+                plugin.getHologramManager().removeHologram(crateLocation.toLocation(world));
+            }
+        }
+
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
         if (file.exists()) {
             file.delete();
@@ -1146,7 +1185,7 @@ public class CrateManager {
             config.set("multi-open.max", 10);
             config.set("multi-open.animation.enabled", false);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to create crate: " + e.getMessage());
         }
@@ -1169,7 +1208,7 @@ public class CrateManager {
             boolean current = config.getBoolean("rewards." + rewardId + ".broadcast", false);
             config.set("rewards." + rewardId + ".broadcast", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle reward broadcast: " + e.getMessage());
         }
@@ -1208,7 +1247,7 @@ public class CrateManager {
             }
 
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward item: " + e.getMessage());
         }
@@ -1225,7 +1264,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("rewards." + rewardId + ".type", type);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward type: " + e.getMessage());
         }
@@ -1251,7 +1290,7 @@ public class CrateManager {
                 config.set(basePath + ".display-auto.icon", false);
             }
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward display icon: " + e.getMessage());
         }
@@ -1298,7 +1337,7 @@ public class CrateManager {
             }
 
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward display icon: " + e.getMessage());
         }
@@ -1320,7 +1359,7 @@ public class CrateManager {
             applyAutoDisplayFromFirstItem(config, "rewards." + rewardId, item);
 
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward item: " + e.getMessage());
         }
@@ -1338,7 +1377,7 @@ public class CrateManager {
             config.set("rewards." + rewardId + ".item", null);
             config.set("rewards." + rewardId + ".extra-items", null);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to clear reward item: " + e.getMessage());
         }
@@ -1380,7 +1419,7 @@ public class CrateManager {
             }
 
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward items: " + e.getMessage());
         }
@@ -1397,7 +1436,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("rewards." + rewardId + ".commands", new ArrayList<String>());
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to clear reward commands: " + e.getMessage());
         }
@@ -1416,7 +1455,7 @@ public class CrateManager {
             commands.add(command);
             config.set("rewards." + rewardId + ".commands", commands);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to add reward command: " + e.getMessage());
         }
@@ -1441,7 +1480,7 @@ public class CrateManager {
                 config.set(basePath + ".display-auto.name", false);
             }
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward display name: " + e.getMessage());
         }
@@ -1481,7 +1520,7 @@ public class CrateManager {
                 }
             }
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to reset reward auto display: " + e.getMessage());
         }
@@ -1533,7 +1572,7 @@ public class CrateManager {
             }
 
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
             return newRewardId;
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to copy reward: " + e.getMessage());
@@ -1579,7 +1618,7 @@ public class CrateManager {
             }
 
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to balance reward chances: " + e.getMessage());
         }
@@ -1661,7 +1700,7 @@ public class CrateManager {
             config.set(path + ".display.amount", 1);
 
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
             return rewardId;
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to create empty reward: " + e.getMessage());
@@ -1728,7 +1767,7 @@ public class CrateManager {
             applyAutoDisplayFromFirstItem(config, path, item);
 
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
             return rewardId;
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to add reward: " + e.getMessage());
@@ -1758,7 +1797,7 @@ public class CrateManager {
             boolean current = config.getBoolean("rewards." + rewardId + ".permission-check.enabled", false);
             config.set("rewards." + rewardId + ".permission-check.enabled", !current);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle reward permission check: " + e.getMessage());
         }
@@ -1786,7 +1825,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("rewards." + rewardId + ".permission-check.permission", permission);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward check permission: " + e.getMessage());
         }
@@ -1814,7 +1853,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("rewards." + rewardId + ".permission-check.action", action.name().toLowerCase());
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward permission action: " + e.getMessage());
         }
@@ -1843,7 +1882,7 @@ public class CrateManager {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("rewards." + rewardId + ".permission-check.alternative-reward", alternativeRewardId);
             config.save(file);
-            loadCrates();
+            reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward alternative reward: " + e.getMessage());
         }

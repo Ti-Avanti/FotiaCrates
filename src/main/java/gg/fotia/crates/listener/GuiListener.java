@@ -617,7 +617,8 @@ public class GuiListener implements Listener {
             } else if (event.isRightClick()) {
                 delta = event.isShiftClick() ? -5 : -1;
             }
-            int newMax = Math.max(1, crate.getMultiOpenMax() + delta);
+            int newMax = Math.max(1, Math.min(plugin.getConfigManager().getMultiOpenHardLimit(),
+                    crate.getMultiOpenMax() + delta));
             plugin.getCrateManager().updateMultiOpenMax(crate.getId(), newMax);
             plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             return;
@@ -640,7 +641,8 @@ public class GuiListener implements Listener {
                 } else if (event.isRightClick()) {
                     delta = event.isShiftClick() ? -5 : -1;
                 }
-                int newMax = Math.max(1, crate.getMultiOpenMax() + delta);
+                int newMax = Math.max(1, Math.min(plugin.getConfigManager().getMultiOpenHardLimit(),
+                        crate.getMultiOpenMax() + delta));
                 plugin.getCrateManager().updateMultiOpenMax(crate.getId(), newMax);
                 plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             }

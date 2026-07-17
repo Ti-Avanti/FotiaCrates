@@ -17,10 +17,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
@@ -31,12 +33,13 @@ public final class AsyncPlayerDataManager {
 
     private final FotiaCrates plugin;
     private final PlayerDataCache cache = new PlayerDataCache();
-    private HistoryWriteBuffer historyBuffer;
-    private final ExecutorService executor;
+    private final HistoryWriteBuffer historyBuffer;
+    private final ThreadPoolExecutor executor;
     private final Set<UUID> loadingPlayers = new HashSet<>();
     private final Set<UUID> committingPlayers = new HashSet<>();
-    private final Set<UUID> dirtyPlayers = new HashSet<>();
+    private final Set<UUID> dirtyPlayers = ConcurrentHashMap.newKeySet();
     private final Map<UUID, Long> nextHistoryCleanupAt = new HashMap<>();
+    private final AtomicBoolean periodicFlushQueued = new AtomicBoolean();
     private final boolean mysql;
     private volatile boolean saveHistory;
     private volatile int historyBatchSize;
@@ -50,11 +53,19 @@ public final class AsyncPlayerDataManager {
         this.plugin = plugin;
         refreshSettings();
         this.historyBuffer = new HistoryWriteBuffer(plugin.getConfigManager().getPersistenceHistoryQueueCapacity());
-        this.executor = Executors.newSingleThreadExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "FotiaCrates-Data");
-            thread.setDaemon(true);
-            return thread;
-        });
+        this.executor = new ThreadPoolExecutor(
+                1,
+                1,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(plugin.getConfigManager().getPersistenceExecutorQueueCapacity()),
+                runnable -> {
+                    Thread thread = new Thread(runnable, "FotiaCrates-Data");
+                    thread.setDaemon(true);
+                    return thread;
+                },
+                new ThreadPoolExecutor.AbortPolicy()
+        );
         this.mysql = plugin.getConfigManager().getDatabaseType().equalsIgnoreCase("mysql");
     }
 
@@ -73,12 +84,6 @@ public final class AsyncPlayerDataManager {
     public void reload() {
         refreshSettings();
         flushQueued();
-        List<HistoryWriteBuffer.Record> pendingHistory = historyBuffer.drainAll();
-        historyBuffer = new HistoryWriteBuffer(Math.max(
-                plugin.getConfigManager().getPersistenceHistoryQueueCapacity(), pendingHistory.size()));
-        for (HistoryWriteBuffer.Record record : pendingHistory) {
-            historyBuffer.offer(record);
-        }
         start();
     }
 
@@ -87,7 +92,7 @@ public final class AsyncPlayerDataManager {
             return;
         }
 
-        executor.execute(() -> {
+        submitDatabaseTask(() -> {
             try {
                 LoadedPlayerData loaded = loadPlayerData(playerId);
                 runOnServerThread(() -> {
@@ -101,30 +106,29 @@ public final class AsyncPlayerDataManager {
                 plugin.getLogger().severe("Failed to load player data for " + playerId + ": " + exception.getMessage());
                 runOnServerThread(() -> loadingPlayers.remove(playerId));
             }
-        });
+        }, () -> loadingPlayers.remove(playerId));
     }
 
     public <T> void executeDatabaseOperation(DatabaseOperation<T> operation,
                                              Consumer<T> onSuccess,
                                              Consumer<Exception> onFailure) {
-        try {
-            executor.execute(() -> {
-                try {
-                    T result = operation.execute();
-                    if (onSuccess != null) {
-                        runOnServerThread(() -> onSuccess.accept(result));
-                    }
-                } catch (Exception exception) {
-                    if (onFailure != null) {
-                        runOnServerThread(() -> onFailure.accept(exception));
-                    }
+        submitDatabaseTask(() -> {
+            try {
+                T result = operation.execute();
+                if (onSuccess != null) {
+                    runOnServerThread(() -> onSuccess.accept(result));
                 }
-            });
-        } catch (RejectedExecutionException exception) {
-            if (onFailure != null) {
-                runOnServerThread(() -> onFailure.accept(exception));
+            } catch (Exception exception) {
+                if (onFailure != null) {
+                    runOnServerThread(() -> onFailure.accept(exception));
+                }
             }
-        }
+        }, () -> {
+            if (onFailure != null) {
+                runOnServerThread(() -> onFailure.accept(
+                        new RejectedExecutionException("FotiaCrates database queue is full")));
+            }
+        });
     }
 
     public boolean isReady(UUID playerId) {
@@ -190,7 +194,7 @@ public final class AsyncPlayerDataManager {
 
         PlayerDataCache.Snapshot snapshot = cache.snapshot(playerId);
         dirtyPlayers.remove(playerId);
-        executor.execute(() -> {
+        submitDatabaseTask(() -> {
             try {
                 persistPlayerState(playerId, snapshot);
                 runOnServerThread(() -> {
@@ -200,12 +204,16 @@ public final class AsyncPlayerDataManager {
                 });
             } catch (SQLException exception) {
                 plugin.getLogger().severe("Failed to persist player data for " + playerId + ": " + exception.getMessage());
+                dirtyPlayers.add(playerId);
                 runOnServerThread(() -> {
                     committingPlayers.remove(playerId);
                     onFailure.run();
-                    dirtyPlayers.add(playerId);
                 });
             }
+        }, () -> {
+            committingPlayers.remove(playerId);
+            dirtyPlayers.add(playerId);
+            onFailure.run();
         });
     }
 
@@ -229,7 +237,7 @@ public final class AsyncPlayerDataManager {
 
     public void getHistoryAsync(UUID playerId, String crateId, int limit,
                                 Consumer<List<HistoryManager.HistoryEntry>> callback) {
-        executor.execute(() -> {
+        submitDatabaseTask(() -> {
             List<HistoryManager.HistoryEntry> entries;
             try {
                 entries = readHistory(playerId, crateId, limit);
@@ -239,11 +247,11 @@ public final class AsyncPlayerDataManager {
             }
             List<HistoryManager.HistoryEntry> result = entries;
             runOnServerThread(() -> callback.accept(result));
-        });
+        }, () -> runOnServerThread(() -> callback.accept(List.of())));
     }
 
     public void clearHistoryAsync(UUID playerId, String crateId, IntConsumer callback) {
-        executor.execute(() -> {
+        submitDatabaseTask(() -> {
             int cleared = 0;
             try {
                 cleared = deleteHistory(playerId, crateId);
@@ -252,7 +260,7 @@ public final class AsyncPlayerDataManager {
             }
             int result = cleared;
             runOnServerThread(() -> callback.accept(result));
-        });
+        }, () -> runOnServerThread(() -> callback.accept(0)));
     }
 
     public void flushAndUnload(UUID playerId) {
@@ -262,60 +270,72 @@ public final class AsyncPlayerDataManager {
         PlayerDataCache.Snapshot snapshot = cache.snapshot(playerId);
         dirtyPlayers.remove(playerId);
         loadingPlayers.remove(playerId);
-        executor.execute(() -> {
+        submitDatabaseTask(() -> {
             try {
                 persistPlayerState(playerId, snapshot);
                 runOnServerThread(() -> unloadIfOffline(playerId));
             } catch (SQLException exception) {
                 plugin.getLogger().severe("Failed to flush player data for " + playerId + " on quit: " + exception.getMessage());
-                runOnServerThread(() -> dirtyPlayers.add(playerId));
+                dirtyPlayers.add(playerId);
             }
-        });
+        }, () -> dirtyPlayers.add(playerId));
     }
 
-    public void shutdown() {
+    public boolean shutdown() {
         if (flushTask != null) {
             flushTask.cancel();
             flushTask = null;
         }
         flushAllQueued();
         executor.shutdown();
+        boolean terminated = false;
         try {
-            if (!executor.awaitTermination(shutdownFlushTimeoutMillis, TimeUnit.MILLISECONDS)) {
+            terminated = executor.awaitTermination(shutdownFlushTimeoutMillis, TimeUnit.MILLISECONDS);
+            if (!terminated) {
                 plugin.getLogger().warning("Timed out while flushing player data during shutdown.");
                 executor.shutdownNow();
+                terminated = executor.awaitTermination(
+                        Math.min(shutdownFlushTimeoutMillis, 1_000L), TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             executor.shutdownNow();
         }
+
+        if (terminated) {
+            flushRemainingSynchronously();
+        } else {
+            plugin.getLogger().severe("Persistence worker did not stop; " + dirtyPlayers.size()
+                    + " dirty player states and " + historyBuffer.size()
+                    + " buffered history entries may remain unflushed.");
+        }
+        return terminated;
     }
 
     private void flushQueued() {
+        if (!periodicFlushQueued.compareAndSet(false, true)) {
+            return;
+        }
         Map<UUID, PlayerDataCache.Snapshot> stateSnapshots = createStateSnapshot();
         List<HistoryWriteBuffer.Record> historyBatch = historyBuffer.drain(historyBatchSize);
-        submitFlush(stateSnapshots, historyBatch);
+        submitFlush(stateSnapshots, historyBatch, true);
     }
 
     private void flushAllQueued() {
         Map<UUID, PlayerDataCache.Snapshot> stateSnapshots = createStateSnapshot();
         List<HistoryWriteBuffer.Record> allHistory = historyBuffer.drainAll();
-        if (allHistory.isEmpty()) {
-            submitFlush(stateSnapshots, List.of());
-            return;
-        }
-
-        for (int start = 0; start < allHistory.size(); start += historyBatchSize) {
-            int end = Math.min(start + historyBatchSize, allHistory.size());
-            List<HistoryWriteBuffer.Record> batch = List.copyOf(allHistory.subList(start, end));
-            submitFlush(start == 0 ? stateSnapshots : Map.of(), batch);
-        }
+        submitFlush(stateSnapshots, allHistory, false, true);
     }
 
     private Map<UUID, PlayerDataCache.Snapshot> createStateSnapshot() {
+        return createStateSnapshot(false);
+    }
+
+    private Map<UUID, PlayerDataCache.Snapshot> createStateSnapshot(boolean includeCommittingPlayers) {
         Map<UUID, PlayerDataCache.Snapshot> snapshots = new HashMap<>();
         for (UUID playerId : new HashSet<>(dirtyPlayers)) {
-            if (!cache.isLoaded(playerId) || committingPlayers.contains(playerId)) {
+            if (!cache.isLoaded(playerId)
+                    || (!includeCommittingPlayers && committingPlayers.contains(playerId))) {
                 continue;
             }
             snapshots.put(playerId, cache.snapshot(playerId));
@@ -324,27 +344,88 @@ public final class AsyncPlayerDataManager {
         return snapshots;
     }
 
-    private void submitFlush(Map<UUID, PlayerDataCache.Snapshot> stateSnapshots, List<HistoryWriteBuffer.Record> historyBatch) {
-        if (stateSnapshots.isEmpty() && historyBatch.isEmpty()) {
+    private void flushRemainingSynchronously() {
+        Map<UUID, PlayerDataCache.Snapshot> stateSnapshots = createStateSnapshot(true);
+        List<HistoryWriteBuffer.Record> historyRecords = historyBuffer.drainAll();
+        if (stateSnapshots.isEmpty() && historyRecords.isEmpty()) {
             return;
         }
 
-        executor.execute(() -> {
+        int persistedHistoryCount = 0;
+        try {
+            for (Map.Entry<UUID, PlayerDataCache.Snapshot> entry : stateSnapshots.entrySet()) {
+                persistPlayerState(entry.getKey(), entry.getValue());
+            }
+            for (int start = 0; start < historyRecords.size(); start += historyBatchSize) {
+                int end = Math.min(start + historyBatchSize, historyRecords.size());
+                persistHistory(historyRecords.subList(start, end));
+                persistedHistoryCount = end;
+            }
+        } catch (SQLException exception) {
+            dirtyPlayers.addAll(stateSnapshots.keySet());
+            requeueHistory(historyRecords.subList(persistedHistoryCount, historyRecords.size()));
+            plugin.getLogger().severe("Failed to synchronously flush remaining persistence data during shutdown: "
+                    + exception.getMessage());
+        }
+    }
+
+    private void submitFlush(Map<UUID, PlayerDataCache.Snapshot> stateSnapshots,
+                             List<HistoryWriteBuffer.Record> historyBatch, boolean periodic) {
+        submitFlush(stateSnapshots, historyBatch, periodic, false);
+    }
+
+    private void submitFlush(Map<UUID, PlayerDataCache.Snapshot> stateSnapshots,
+                             List<HistoryWriteBuffer.Record> historyBatch, boolean periodic,
+                             boolean waitForQueueCapacity) {
+        if (stateSnapshots.isEmpty() && historyBatch.isEmpty()) {
+            if (periodic) {
+                periodicFlushQueued.set(false);
+            }
+            return;
+        }
+
+        Runnable flushOperation = () -> {
+            int persistedHistoryCount = 0;
             try {
                 for (Map.Entry<UUID, PlayerDataCache.Snapshot> entry : stateSnapshots.entrySet()) {
                     persistPlayerState(entry.getKey(), entry.getValue());
                 }
-                persistHistory(historyBatch);
+                for (int start = 0; start < historyBatch.size(); start += historyBatchSize) {
+                    int end = Math.min(start + historyBatchSize, historyBatch.size());
+                    persistHistory(historyBatch.subList(start, end));
+                    persistedHistoryCount = end;
+                }
             } catch (SQLException exception) {
                 plugin.getLogger().severe("Failed to flush asynchronous player data: " + exception.getMessage());
-                runOnServerThread(() -> {
-                    dirtyPlayers.addAll(stateSnapshots.keySet());
-                    for (HistoryWriteBuffer.Record record : historyBatch) {
-                        historyBuffer.offer(record);
-                    }
-                });
+                dirtyPlayers.addAll(stateSnapshots.keySet());
+                requeueHistory(historyBatch.subList(persistedHistoryCount, historyBatch.size()));
+            } finally {
+                if (periodic) {
+                    periodicFlushQueued.set(false);
+                }
             }
-        });
+        };
+        Runnable onRejected = () -> {
+            dirtyPlayers.addAll(stateSnapshots.keySet());
+            requeueHistory(historyBatch);
+            if (periodic) {
+                periodicFlushQueued.set(false);
+            }
+        };
+
+        if (waitForQueueCapacity) {
+            submitShutdownFlush(flushOperation, onRejected);
+        } else {
+            submitDatabaseTask(flushOperation, onRejected);
+        }
+    }
+
+    private void requeueHistory(List<HistoryWriteBuffer.Record> records) {
+        int droppedNewest = historyBuffer.requeueFront(records);
+        if (droppedNewest > 0) {
+            plugin.getLogger().warning("Dropped " + droppedNewest
+                    + " newer history entries to preserve an older failed database batch.");
+        }
     }
 
     private LoadedPlayerData loadPlayerData(UUID playerId) throws SQLException {
@@ -542,6 +623,42 @@ public final class AsyncPlayerDataManager {
             delete.setString(1, playerId.toString());
             delete.setLong(2, cutoffId);
             delete.executeUpdate();
+        }
+    }
+
+    private boolean submitDatabaseTask(Runnable task, Runnable onRejected) {
+        try {
+            executor.execute(task);
+            return true;
+        } catch (RejectedExecutionException exception) {
+            plugin.getLogger().warning("Database task rejected because the persistence queue is full or stopping.");
+            if (onRejected != null) {
+                onRejected.run();
+            }
+            return false;
+        }
+    }
+
+    private boolean submitShutdownFlush(Runnable task, Runnable onRejected) {
+        try {
+            executor.execute(task);
+            return true;
+        } catch (RejectedExecutionException exception) {
+            if (!executor.isShutdown()) {
+                try {
+                    if (executor.getQueue().offer(task, shutdownFlushTimeoutMillis, TimeUnit.MILLISECONDS)) {
+                        return true;
+                    }
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+            plugin.getLogger().severe("Could not queue the final persistence flush before shutdown.");
+            if (onRejected != null) {
+                onRejected.run();
+            }
+            return false;
         }
     }
 

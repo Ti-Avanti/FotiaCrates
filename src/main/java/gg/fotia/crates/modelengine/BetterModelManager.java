@@ -118,6 +118,10 @@ public class BetterModelManager {
         removeCrateModelInternal(location.getBlock().getLocation(), true);
     }
 
+    void removeCrateModel(Location location, boolean clearBarrierBlock) {
+        removeCrateModelInternal(location.getBlock().getLocation(), clearBarrierBlock);
+    }
+
     private boolean removeCrateModelInternal(Location blockLoc, boolean clearBarrierBlock) {
         crateModels.remove(blockLoc);
 
@@ -298,13 +302,16 @@ public class BetterModelManager {
         if (plugin.getCrateManager() != null) {
             for (var crateLocation : plugin.getCrateManager().getCrateLocations()) {
                 var world = plugin.getServer().getWorld(crateLocation.getWorld());
-                if (world == null) {
+                if (world == null || !world.isChunkLoaded(Math.floorDiv(crateLocation.getX(), 16),
+                        Math.floorDiv(crateLocation.getZ(), 16))) {
                     continue;
                 }
                 locationsToCleanup.add(crateLocation.toLocation(world).getBlock().getLocation());
             }
         }
 
+        locationsToCleanup.removeIf(location -> location.getWorld() == null
+                || !location.getWorld().isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4));
         for (Location location : locationsToCleanup) {
             removeCrateModelInternal(location, false);
         }

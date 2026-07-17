@@ -1,10 +1,11 @@
 package gg.fotia.crates.database;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import gg.fotia.crates.FotiaCrates;
 
 import java.io.File;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -12,6 +13,7 @@ public class SQLiteDatabase implements Database {
 
     private final FotiaCrates plugin;
     private final String fileName;
+    private HikariDataSource dataSource;
     private boolean initialConnectLogged = false;
 
     public SQLiteDatabase(FotiaCrates plugin, String fileName) {
@@ -21,13 +23,37 @@ public class SQLiteDatabase implements Database {
 
     @Override
     public boolean connect() {
-        try (Connection ignored = openConnection()) {
+        try {
+            File dataFolder = plugin.getDataFolder();
+            if (!dataFolder.exists()) {
+                dataFolder.mkdirs();
+            }
+            File dbFile = new File(dataFolder, fileName);
+
+            HikariConfig config = new HikariConfig();
+            config.setPoolName("FotiaCrates-SQLite");
+            config.setJdbcUrl("jdbc:sqlite:" + dbFile.getAbsolutePath());
+            config.setMaximumPoolSize(1);
+            config.setMinimumIdle(1);
+            config.setConnectionTimeout(10_000L);
+            config.setMaxLifetime(0L);
+            config.setConnectionInitSql("PRAGMA busy_timeout = 5000");
+            dataSource = new HikariDataSource(config);
+
+            try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+                statement.execute("PRAGMA journal_mode = WAL");
+                statement.execute("PRAGMA synchronous = NORMAL");
+            }
             if (!initialConnectLogged) {
                 plugin.getLogger().info("SQLite database connected!");
                 initialConnectLogged = true;
             }
             return true;
-        } catch (SQLException e) {
+        } catch (Exception e) {
+            if (dataSource != null && !dataSource.isClosed()) {
+                dataSource.close();
+            }
+            dataSource = null;
             plugin.getLogger().severe("Failed to connect to SQLite database: " + e.getMessage());
             return false;
         }
@@ -35,12 +61,19 @@ public class SQLiteDatabase implements Database {
 
     @Override
     public void close() {
-        // SQLite connections are operation-scoped and closed by their callers.
+        if (dataSource != null && !dataSource.isClosed()) {
+            dataSource.close();
+        }
     }
 
     @Override
     public Connection getConnection() throws SQLException {
-        return openConnection();
+        if (dataSource == null || dataSource.isClosed()) {
+            if (!connect()) {
+                throw new SQLException("SQLite connection pool is unavailable");
+            }
+        }
+        return dataSource.getConnection();
     }
 
     @Override
@@ -106,23 +139,6 @@ public class SQLiteDatabase implements Database {
             plugin.getLogger().info("Database tables created successfully!");
         } catch (SQLException e) {
             plugin.getLogger().severe("Failed to create database tables: " + e.getMessage());
-        }
-    }
-
-    private Connection openConnection() throws SQLException {
-        File dataFolder = plugin.getDataFolder();
-        if (!dataFolder.exists()) {
-            dataFolder.mkdirs();
-        }
-        File dbFile = new File(dataFolder, fileName);
-        Connection connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile.getAbsolutePath());
-        try (Statement statement = connection.createStatement()) {
-            // Allow the asynchronous writer to wait briefly for another SQLite operation instead of failing immediately.
-            statement.execute("PRAGMA busy_timeout = 5000");
-            return connection;
-        } catch (SQLException exception) {
-            connection.close();
-            throw exception;
         }
     }
 }

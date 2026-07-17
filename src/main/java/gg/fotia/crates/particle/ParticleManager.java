@@ -23,9 +23,15 @@ public class ParticleManager {
     private final ParticleEffectRenderer renderer = new ParticleEffectRenderer();
     private final Map<String, Long> idleSuppressedUntil = new HashMap<>();
     private final Map<StageEffectKey, BukkitTask> activeStageTasks = new HashMap<>();
+    private final Set<CrateLocation> nearbyIdleLocations = new LinkedHashSet<>();
+    private final List<CrateLocation> idleCandidates = new ArrayList<>();
     private BukkitTask idleTask;
     private long tickCounter;
     private int idleCursor;
+    private double idleViewDistance;
+    private int maxIdleCratesPerTick;
+    private int maxActiveStageEffects;
+    private double stageLocationSearchDistance;
 
     public ParticleManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -33,6 +39,7 @@ public class ParticleManager {
 
     public void start() {
         cancel();
+        refreshSettings();
         idleTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tickIdleEffects, 20L, 1L);
     }
 
@@ -50,6 +57,8 @@ public class ParticleManager {
         }
         activeStageTasks.clear();
         idleSuppressedUntil.clear();
+        nearbyIdleLocations.clear();
+        idleCandidates.clear();
         idleCursor = 0;
     }
 
@@ -87,9 +96,7 @@ public class ParticleManager {
             return;
         }
 
-        int maxActiveTasks = Math.max(1, plugin.getConfigManager().getConfig()
-                .getInt("performance.particles.max-active-stage-effects", 128));
-        if (activeStageTasks.size() >= maxActiveTasks) {
+        if (activeStageTasks.size() >= maxActiveStageEffects) {
             return;
         }
 
@@ -134,31 +141,28 @@ public class ParticleManager {
             idleSuppressedUntil.values().removeIf(until -> until <= tickCounter);
         }
 
-        double viewDistance = Math.max(1.0, plugin.getConfigManager().getConfig()
-                .getDouble("performance.particles.idle-view-distance", 32.0));
-        int maxCratesPerTick = Math.max(1, plugin.getConfigManager().getConfig()
-                .getInt("performance.particles.max-idle-crates-per-tick", 128));
-        Set<CrateLocation> nearbyLocations = new LinkedHashSet<>();
+        nearbyIdleLocations.clear();
 
         for (Player player : plugin.getServer().getOnlinePlayers()) {
             Location location = player.getLocation();
-            nearbyLocations.addAll(plugin.getCrateManager().getNearbyCrateLocations(
-                    player.getWorld().getName(), location.getBlockX(), location.getBlockZ(), viewDistance));
+            nearbyIdleLocations.addAll(plugin.getCrateManager().getNearbyCrateLocations(
+                    player.getWorld().getName(), location.getBlockX(), location.getBlockZ(), idleViewDistance));
         }
 
-        List<CrateLocation> candidates = new ArrayList<>(nearbyLocations);
-        if (candidates.isEmpty()) {
+        idleCandidates.clear();
+        idleCandidates.addAll(nearbyIdleLocations);
+        if (idleCandidates.isEmpty()) {
             return;
         }
-        int startIndex = Math.floorMod(idleCursor, candidates.size());
-        idleCursor = (startIndex + maxCratesPerTick) % candidates.size();
+        int startIndex = Math.floorMod(idleCursor, idleCandidates.size());
+        idleCursor = (startIndex + maxIdleCratesPerTick) % idleCandidates.size();
         int rendered = 0;
 
-        for (int offset = 0; offset < candidates.size(); offset++) {
-            if (rendered >= maxCratesPerTick) {
+        for (int offset = 0; offset < idleCandidates.size(); offset++) {
+            if (rendered >= maxIdleCratesPerTick) {
                 break;
             }
-            CrateLocation crateLocation = candidates.get((startIndex + offset) % candidates.size());
+            CrateLocation crateLocation = idleCandidates.get((startIndex + offset) % idleCandidates.size());
             Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
             if (crate == null || !crate.isParticlesEnabled()) {
                 continue;
@@ -204,10 +208,9 @@ public class ParticleManager {
         Location playerLocation = player.getLocation();
         Location nearest = null;
         double nearestDistance = Double.MAX_VALUE;
-        double searchDistance = Math.max(1.0, plugin.getConfigManager().getConfig()
-                .getDouble("performance.particles.stage-location-search-distance", 64.0));
         for (CrateLocation crateLocation : plugin.getCrateManager().getNearbyCrateLocations(
-                player.getWorld().getName(), playerLocation.getBlockX(), playerLocation.getBlockZ(), searchDistance)) {
+                player.getWorld().getName(), playerLocation.getBlockX(), playerLocation.getBlockZ(),
+                stageLocationSearchDistance)) {
             if (!crate.getId().equals(crateLocation.getCrateId())) {
                 continue;
             }
@@ -224,6 +227,13 @@ public class ParticleManager {
             }
         }
         return nearest;
+    }
+
+    private void refreshSettings() {
+        idleViewDistance = plugin.getConfigManager().getParticleIdleViewDistance();
+        maxIdleCratesPerTick = plugin.getConfigManager().getMaxIdleParticleCratesPerTick();
+        maxActiveStageEffects = plugin.getConfigManager().getMaxActiveParticleStageEffects();
+        stageLocationSearchDistance = plugin.getConfigManager().getParticleStageLocationSearchDistance();
     }
 
     private Location resolveOrigin(CrateParticleEffect effect, Player player, Location crateLocation) {

@@ -2,13 +2,17 @@ package gg.fotia.crates.modelengine;
 
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.crate.Crate;
+import gg.fotia.crates.crate.CrateLocation;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,8 +31,12 @@ public class ModelEngineManager {
 
     private final FotiaCrates plugin;
     private final Map<Location, UUID> crateModels = new HashMap<>();
+    private final Map<Location, ModelIdentity> modelIdentities = new HashMap<>();
+    private final Set<ModelPosition> staleModelPositions = new HashSet<>();
     private BetterModelManager betterModelManager;
     private boolean modelEngineAvailable = false;
+    private BukkitTask healthCheckTask;
+    private int healthCheckCursor;
 
     private Object modelEngineAPI;
     private Method createModeledEntityMethod;
@@ -121,12 +129,200 @@ public class ModelEngineManager {
         return betterModelManager != null && betterModelManager.isAvailable();
     }
 
-    public void spawnCrateModel(Crate crate, Location location, Player placer) {
-        if (crate.isBetterModelEnabled() && isBetterModelAvailable()) {
-            betterModelManager.spawnCrateModel(crate, location, placer);
+    public void startHealthCheck() {
+        stopHealthCheck();
+        healthCheckCursor = 0;
+        long interval = plugin.getConfigManager().getModelHealthCheckIntervalTicks();
+        healthCheckTask = plugin.getServer().getScheduler().runTaskTimer(
+                plugin, this::checkModelHealthBatch, interval, interval);
+    }
+
+    public void restartHealthCheck() {
+        startHealthCheck();
+    }
+
+    public void stopHealthCheck() {
+        if (healthCheckTask != null) {
+            healthCheckTask.cancel();
+            healthCheckTask = null;
+        }
+    }
+
+    public boolean ensureCrateModel(Crate crate, Location location, float yaw) {
+        if (crate == null || location == null || location.getWorld() == null || !crate.isModelEnabled()) {
+            return false;
+        }
+
+        Location blockLoc = location.getBlock().getLocation();
+        if (!blockLoc.getWorld().isChunkLoaded(blockLoc.getBlockX() >> 4, blockLoc.getBlockZ() >> 4)) {
+            return false;
+        }
+
+        ModelIdentity desired = ModelIdentity.from(crate);
+        if (desired.equals(modelIdentities.get(blockLoc)) && isProviderModelHealthy(crate, blockLoc)) {
+            return true;
+        }
+
+        removeAllProviderModels(blockLoc, false);
+        spawnCrateModel(crate, blockLoc, yaw);
+        if (!isProviderModelHealthy(crate, blockLoc)) {
+            removeAllProviderModels(blockLoc, false);
+            modelIdentities.remove(blockLoc);
+            if (blockLoc.getBlock().getType() == Material.BARRIER) {
+                blockLoc.getBlock().setType(crate.getBlockMaterial());
+            }
+            return false;
+        }
+
+        modelIdentities.put(blockLoc, desired);
+        return true;
+    }
+
+    public boolean ensureCrateModel(Crate crate, Location location) {
+        return ensureCrateModel(crate, location, resolveSavedYaw(location));
+    }
+
+    public void reconcileLoadedModels(Collection<CrateLocation> previousLocations) {
+        Set<ModelPosition> currentPositions = new HashSet<>();
+        for (CrateLocation crateLocation : plugin.getCrateManager().getCrateLocations()) {
+            currentPositions.add(ModelPosition.of(crateLocation));
+        }
+
+        if (previousLocations != null) {
+            for (CrateLocation previous : previousLocations) {
+                ModelPosition previousPosition = ModelPosition.of(previous);
+                if (currentPositions.contains(previousPosition)) {
+                    continue;
+                }
+                staleModelPositions.add(previousPosition);
+                World world = plugin.getServer().getWorld(previous.getWorld());
+                if (world == null || !world.isChunkLoaded(Math.floorDiv(previous.getX(), 16),
+                        Math.floorDiv(previous.getZ(), 16))) {
+                    continue;
+                }
+                removeCrateModel(previous.toLocation(world));
+                staleModelPositions.remove(previousPosition);
+            }
+        }
+
+        for (CrateLocation crateLocation : plugin.getCrateManager().getCrateLocations()) {
+            reconcileCrateLocation(crateLocation);
+        }
+        healthCheckCursor = 0;
+    }
+
+    public void reconcileChunk(World world, int chunkX, int chunkZ) {
+        if (world == null) {
+            return;
+        }
+        for (ModelPosition position : Set.copyOf(staleModelPositions)) {
+            if (!position.isInChunk(world.getName(), chunkX, chunkZ)) {
+                continue;
+            }
+            removeCrateModel(position.toLocation(world));
+            staleModelPositions.remove(position);
+        }
+        for (CrateLocation crateLocation : plugin.getCrateManager().getCrateLocationsInChunk(
+                world.getName(), chunkX, chunkZ)) {
+            reconcileCrateLocation(crateLocation);
+        }
+    }
+
+    public void removeCrateModels(Collection<CrateLocation> locations) {
+        if (locations == null) {
+            return;
+        }
+        for (CrateLocation crateLocation : locations) {
+            ModelPosition position = ModelPosition.of(crateLocation);
+            World world = plugin.getServer().getWorld(crateLocation.getWorld());
+            if (world == null || !world.isChunkLoaded(Math.floorDiv(crateLocation.getX(), 16),
+                    Math.floorDiv(crateLocation.getZ(), 16))) {
+                staleModelPositions.add(position);
+                continue;
+            }
+            removeCrateModel(crateLocation.toLocation(world));
+            staleModelPositions.remove(position);
+        }
+    }
+
+    private void checkModelHealthBatch() {
+        List<CrateLocation> locations = plugin.getCrateManager().getCrateLocations();
+        if (locations.isEmpty()) {
+            healthCheckCursor = 0;
             return;
         }
 
+        int maxChecks = Math.min(plugin.getConfigManager().getModelHealthChecksPerRun(), locations.size());
+        int start = Math.floorMod(healthCheckCursor, locations.size());
+        for (int offset = 0; offset < maxChecks; offset++) {
+            reconcileCrateLocation(locations.get((start + offset) % locations.size()));
+        }
+        healthCheckCursor = (start + maxChecks) % locations.size();
+    }
+
+    private void reconcileCrateLocation(CrateLocation crateLocation) {
+        World world = plugin.getServer().getWorld(crateLocation.getWorld());
+        if (world == null || !world.isChunkLoaded(Math.floorDiv(crateLocation.getX(), 16),
+                Math.floorDiv(crateLocation.getZ(), 16))) {
+            return;
+        }
+
+        Location location = crateLocation.toLocation(world).getBlock().getLocation();
+        Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
+        if (crate == null) {
+            removeCrateModel(location);
+            return;
+        }
+        if (!crate.isModelEnabled()) {
+            removeAllProviderModels(location, false);
+            modelIdentities.remove(location);
+            if (location.getBlock().getType() == Material.BARRIER) {
+                location.getBlock().setType(crate.getBlockMaterial());
+            }
+            return;
+        }
+
+        ensureCrateModel(crate, location, crateLocation.getYaw());
+    }
+
+    private boolean isProviderModelHealthy(Crate crate, Location blockLoc) {
+        if (crate.isBetterModelEnabled()) {
+            return isBetterModelAvailable() && betterModelManager.hasModel(blockLoc);
+        }
+        return crate.usesModelEngineProvider() && hasHealthyModelEngineModel(blockLoc);
+    }
+
+    private boolean hasHealthyModelEngineModel(Location blockLoc) {
+        if (!modelEngineAvailable || getModeledEntityMethod == null) {
+            return false;
+        }
+
+        Entity entity = resolveModelEntity(blockLoc, true);
+        if (entity == null) {
+            return false;
+        }
+
+        try {
+            Object modeledEntity = getModeledEntityMethod.invoke(null, entity);
+            if (modeledEntity == null) {
+                return false;
+            }
+            Method getModels = modeledEntity.getClass().getMethod("getModels");
+            Object models = getModels.invoke(modeledEntity);
+            return models instanceof Map<?, ?> modelMap && !modelMap.isEmpty();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private void removeAllProviderModels(Location blockLoc, boolean clearBarrierBlock) {
+        if (isBetterModelAvailable()) {
+            betterModelManager.removeCrateModel(blockLoc, false);
+        }
+        removeCrateModelInternal(blockLoc.getBlock().getLocation(), clearBarrierBlock);
+    }
+
+    public void spawnCrateModel(Crate crate, Location location, Player placer) {
         float yaw = 0f;
         if (placer != null) {
             Location spawnLoc = location.clone().add(0.5, 0, 0.5);
@@ -135,7 +331,7 @@ public class ModelEngineManager {
             double dz = playerLoc.getZ() - spawnLoc.getZ();
             yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
         }
-        spawnCrateModel(crate, location, yaw);
+        ensureCrateModel(crate, location, yaw);
     }
 
     public void spawnCrateModel(Crate crate, Location location, float yaw) {
@@ -178,7 +374,7 @@ public class ModelEngineManager {
 
             // Clear any stale model entity before spawning a new one at the same location.
             if (isBetterModelAvailable()) {
-                betterModelManager.removeCrateModel(blockLoc);
+                betterModelManager.removeCrateModel(blockLoc, false);
             }
             removeCrateModelInternal(blockLoc, false);
 
@@ -213,10 +409,9 @@ public class ModelEngineManager {
     }
 
     public void removeCrateModel(Location location) {
-        if (isBetterModelAvailable()) {
-            betterModelManager.removeCrateModel(location);
-        }
-        removeCrateModelInternal(location.getBlock().getLocation(), true);
+        Location blockLoc = location.getBlock().getLocation();
+        removeAllProviderModels(blockLoc, true);
+        modelIdentities.remove(blockLoc);
     }
 
     private boolean removeCrateModelInternal(Location blockLoc, boolean clearBarrierBlock) {
@@ -249,6 +444,9 @@ public class ModelEngineManager {
     }
 
     public void playOpenAnimation(Crate crate, Location location, Player openingPlayer) {
+        if (!ensureCrateModel(crate, location, resolveSavedYaw(location))) {
+            return;
+        }
         if (crate.isBetterModelEnabled()) {
             if (isBetterModelAvailable()) {
                 betterModelManager.playOpenAnimation(crate, location, openingPlayer);
@@ -292,6 +490,9 @@ public class ModelEngineManager {
     }
 
     public void playIdleAnimation(Crate crate, Location location) {
+        if (!ensureCrateModel(crate, location, resolveSavedYaw(location))) {
+            return;
+        }
         if (crate.isBetterModelEnabled()) {
             if (isBetterModelAvailable()) {
                 betterModelManager.playIdleAnimation(crate, location);
@@ -452,9 +653,19 @@ public class ModelEngineManager {
         if (tags.contains(BETTER_MODEL_BASE_TAG)) {
             return false;
         }
+        if (tags.contains(MODEL_ENGINE_BASE_TAG)) {
+            return true;
+        }
 
-        // Keep supporting legacy entities spawned before base tags were added.
-        return tags.contains(MODEL_ENGINE_BASE_TAG) || !tags.contains(BETTER_MODEL_BASE_TAG);
+        // Legacy base entities had no tag; only accept them when ModelEngine still owns them.
+        if (modelEngineAvailable && getModeledEntityMethod != null) {
+            try {
+                return getModeledEntityMethod.invoke(null, armorStand) != null;
+            } catch (Exception ignored) {
+            }
+        }
+        UUID trackedUuid = crateModels.get(blockLoc);
+        return trackedUuid != null && trackedUuid.equals(entity.getUniqueId());
     }
 
     private List<Entity> findNearbyModelBaseEntities(Location blockLoc) {
@@ -516,30 +727,71 @@ public class ModelEngineManager {
     }
 
     public boolean hasModel(Location location) {
-        return resolveModelEntity(location.getBlock().getLocation(), true) != null
+        return hasHealthyModelEngineModel(location.getBlock().getLocation())
                 || (isBetterModelAvailable() && betterModelManager.hasModel(location));
     }
 
     public void cleanup() {
+        stopHealthCheck();
         if (isBetterModelAvailable()) {
             betterModelManager.cleanup();
         }
 
         Set<Location> locationsToCleanup = new HashSet<>(crateModels.keySet());
+        Map<Location, Material> restoreMaterials = new HashMap<>();
 
         if (plugin.getCrateManager() != null) {
             for (var crateLocation : plugin.getCrateManager().getCrateLocations()) {
                 var world = plugin.getServer().getWorld(crateLocation.getWorld());
-                if (world == null) {
+                if (world == null || !world.isChunkLoaded(Math.floorDiv(crateLocation.getX(), 16),
+                        Math.floorDiv(crateLocation.getZ(), 16))) {
                     continue;
                 }
-                locationsToCleanup.add(crateLocation.toLocation(world).getBlock().getLocation());
+                Location location = crateLocation.toLocation(world).getBlock().getLocation();
+                locationsToCleanup.add(location);
+                Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
+                restoreMaterials.put(location, crate != null ? crate.getBlockMaterial() : Material.AIR);
             }
         }
 
+        locationsToCleanup.removeIf(location -> location.getWorld() == null
+                || !location.getWorld().isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4));
         for (Location location : locationsToCleanup) {
             removeCrateModelInternal(location, false);
+            if (location.getBlock().getType() == Material.BARRIER) {
+                location.getBlock().setType(restoreMaterials.getOrDefault(location, Material.AIR));
+            }
         }
         crateModels.clear();
+        modelIdentities.clear();
+        staleModelPositions.clear();
+    }
+
+    private float resolveSavedYaw(Location location) {
+        CrateLocation crateLocation = plugin.getCrateManager().getLocationAt(location);
+        return crateLocation != null ? crateLocation.getYaw() : location.getYaw();
+    }
+
+    private record ModelIdentity(String provider, String modelId, String idleAnimation,
+                                 String openAnimation, int viewRange) {
+        private static ModelIdentity from(Crate crate) {
+            return new ModelIdentity(crate.getModelProvider(), crate.getModelEngineId(),
+                    crate.getModelEngineIdleAnimation(), crate.getModelEngineOpenAnimation(),
+                    crate.getModelEngineViewRange());
+        }
+    }
+
+    private record ModelPosition(String world, int x, int y, int z) {
+        private static ModelPosition of(CrateLocation location) {
+            return new ModelPosition(location.getWorld(), location.getX(), location.getY(), location.getZ());
+        }
+
+        private boolean isInChunk(String worldName, int chunkX, int chunkZ) {
+            return world.equals(worldName) && Math.floorDiv(x, 16) == chunkX && Math.floorDiv(z, 16) == chunkZ;
+        }
+
+        private Location toLocation(World world) {
+            return new Location(world, x, y, z);
+        }
     }
 }

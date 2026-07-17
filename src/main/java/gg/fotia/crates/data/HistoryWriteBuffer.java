@@ -40,8 +40,24 @@ public final class HistoryWriteBuffer {
         return batch;
     }
 
+    public synchronized int requeueFront(List<Record> retryRecords) {
+        int droppedNewest = 0;
+        for (int index = retryRecords.size() - 1; index >= 0; index--) {
+            if (records.size() >= capacity) {
+                records.removeLast();
+                droppedNewest++;
+            }
+            records.addFirst(retryRecords.get(index));
+        }
+        return droppedNewest;
+    }
+
     public synchronized boolean isEmpty() {
         return records.isEmpty();
+    }
+
+    public synchronized int size() {
+        return records.size();
     }
 
     public record Record(UUID playerId, String playerName, String crateId, String rewardId,

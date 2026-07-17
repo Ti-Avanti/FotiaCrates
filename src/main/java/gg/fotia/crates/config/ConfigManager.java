@@ -236,6 +236,10 @@ public class ConfigManager {
         return Math.max(1L, config.getLong("persistence.flush-interval-ticks", 20L));
     }
 
+    public int getPersistenceExecutorQueueCapacity() {
+        return Math.max(16, config.getInt("persistence.executor-queue-capacity", 1024));
+    }
+
     public int getPersistenceHistoryBatchSize() {
         return Math.max(1, config.getInt("persistence.history.batch-size", 100));
     }
@@ -250,6 +254,56 @@ public class ConfigManager {
 
     public long getHistoryCleanupIntervalMillis() {
         return Math.max(1_000L, config.getLong("persistence.history.cleanup-interval-seconds", 300L) * 1_000L);
+    }
+
+    public long getModelHealthCheckIntervalTicks() {
+        return Math.max(20L, config.getLong("performance.models.health-check-interval-ticks", 100L));
+    }
+
+    public int getModelHealthChecksPerRun() {
+        return Math.max(1, config.getInt("performance.models.max-checks-per-run", 16));
+    }
+
+    public int getPendingRewardClaimBatchSize() {
+        return Math.max(1, config.getInt("performance.pending-rewards.claim-batch-size", 10));
+    }
+
+    public int getPendingRewardFinalizeRetryCount() {
+        return Math.max(0, config.getInt("performance.pending-rewards.finalize-retry-count", 5));
+    }
+
+    public long getPendingRewardFinalizeRetryDelayTicks() {
+        return Math.max(1L, config.getLong("performance.pending-rewards.finalize-retry-delay-ticks", 20L));
+    }
+
+    public long getPendingRewardInsertRetryDelayTicks() {
+        return Math.max(1L, config.getLong("performance.pending-rewards.insert-retry-delay-ticks", 100L));
+    }
+
+    public boolean shouldRetryPendingRewardDeliveryErrors() {
+        return !"LOCK".equalsIgnoreCase(
+                config.getString("performance.pending-rewards.delivery-error-policy", "RETRY"));
+    }
+
+    public int getMultiOpenHardLimit() {
+        return Math.max(1, config.getInt("performance.multi-open.hard-limit", 100));
+    }
+
+    public double getParticleIdleViewDistance() {
+        return Math.max(1.0, config.getDouble("performance.particles.idle-view-distance", 32.0));
+    }
+
+    public int getMaxIdleParticleCratesPerTick() {
+        return Math.max(1, config.getInt("performance.particles.max-idle-crates-per-tick", 128));
+    }
+
+    public int getMaxActiveParticleStageEffects() {
+        return Math.max(1, config.getInt("performance.particles.max-active-stage-effects", 128));
+    }
+
+    public double getParticleStageLocationSearchDistance() {
+        return Math.max(1.0,
+                config.getDouble("performance.particles.stage-location-search-distance", 64.0));
     }
 
     public boolean isRewardAutoDisplayFromFirstItemEnabled() {

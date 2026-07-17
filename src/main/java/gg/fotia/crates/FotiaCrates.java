@@ -16,6 +16,7 @@ import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.listener.BlockListener;
 import gg.fotia.crates.listener.EntityInteractPacketListener;
 import gg.fotia.crates.listener.GuiListener;
+import gg.fotia.crates.listener.ModelLifecycleListener;
 import gg.fotia.crates.listener.PlayerListener;
 import gg.fotia.crates.modelengine.ModelEngineManager;
 import gg.fotia.crates.particle.ParticleManager;
@@ -89,6 +90,7 @@ public class FotiaCrates extends JavaPlugin {
 
         // 加载抽奖箱位置
         crateManager.loadLocations();
+        modelEngineManager.startHealthCheck();
         particleManager.start();
 
         // 延迟生成模型和全息显示（等待世界加载完成）
@@ -111,6 +113,7 @@ public class FotiaCrates extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
         getServer().getPluginManager().registerEvents(new GuiListener(this), this);
+        getServer().getPluginManager().registerEvents(new ModelLifecycleListener(this), this);
 
         // 注册PacketEvents数据包监听器（用于模型左键预览）
         entityInteractPacketListener = new EntityInteractPacketListener(this);
@@ -145,11 +148,24 @@ public class FotiaCrates extends JavaPlugin {
         if (modelEngineManager != null) {
             modelEngineManager.cleanup();
         }
+        if (pendingRewardManager != null) {
+            pendingRewardManager.beginShutdown();
+        }
+        boolean persistenceStopped = true;
         if (asyncPlayerDataManager != null) {
-            asyncPlayerDataManager.shutdown();
+            persistenceStopped = asyncPlayerDataManager.shutdown();
+        }
+        if (pendingRewardManager != null) {
+            if (persistenceStopped) {
+                pendingRewardManager.flushPendingInserts();
+            } else if (pendingRewardManager.getUnflushedInsertCount() > 0) {
+                getLogger().severe("Could not safely flush "
+                        + pendingRewardManager.getUnflushedInsertCount()
+                        + " pending reward inserts because the persistence worker is still running.");
+            }
         }
         if (databaseManager != null) {
-            databaseManager.close();;
+            databaseManager.close();
         }
         getLogger().info("FotiaCrates has been disabled!");
     }
@@ -170,6 +186,7 @@ public class FotiaCrates extends JavaPlugin {
     }
 
     public void reload() {
+        var previousLocations = crateManager.getCrateLocations();
         configManager.loadConfigs();
         languageManager.reload();
         keyManager.reload();
@@ -179,34 +196,15 @@ public class FotiaCrates extends JavaPlugin {
         hologramManager.reload();
         particleManager.restart();
         asyncPlayerDataManager.reload();
-        // 重新生成模型
-        spawnAllCrateModels();
+        modelEngineManager.reconcileLoadedModels(previousLocations);
+        modelEngineManager.restartHealthCheck();
     }
 
     /**
      * 为所有已放置的宝箱生成模型
      */
     private void spawnAllCrateModels() {
-        if (!modelEngineManager.isAvailable()) {
-            return;
-        }
-
-        for (var crateLocation : crateManager.getCrateLocations()) {
-            org.bukkit.World world = getServer().getWorld(crateLocation.getWorld());
-            if (world == null) continue;
-
-            org.bukkit.Location loc = crateLocation.toLocation(world);
-            if (loc == null) continue;
-
-            var crate = crateManager.getCrate(crateLocation.getCrateId());
-            if (crate == null || !crate.isModelEnabled()) continue;
-
-            // 检查是否已有模型
-            if (modelEngineManager.hasModel(loc)) continue;
-
-            // 生成模型（使用保存的yaw朝向）
-            modelEngineManager.spawnCrateModel(crate, loc, crateLocation.getYaw());
-        }
+        modelEngineManager.reconcileLoadedModels(null);
     }
 
     public static FotiaCrates getInstance() {

@@ -184,7 +184,8 @@ public class BlockListener implements Listener {
             plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
             plugin.getHologramManager().hideHologram(crateLocation);
 
-            boolean hasModel = crate.isModelEnabled() && plugin.getModelEngineManager().hasModel(crateLocation);
+            boolean hasModel = crate.isModelEnabled()
+                    && plugin.getModelEngineManager().ensureCrateModel(crate, crateLocation);
             if (hasModel) {
                 plugin.getModelEngineManager().playOpenAnimation(crate, crateLocation, player);
                 int delay = crate.getModelEngineOpenDelay();
@@ -209,7 +210,7 @@ public class BlockListener implements Listener {
                 return;
             }
 
-            if (crate.isModelEnabled() && plugin.getModelEngineManager().hasModel(crateLocation)) {
+            if (crate.isModelEnabled()) {
                 plugin.getModelEngineManager().playIdleAnimation(crate, crateLocation);
             }
 
@@ -347,7 +348,7 @@ public class BlockListener implements Listener {
 
         int amount = 1;
         if (crate.isMultiOpenEnabled()) {
-            amount = Math.max(1, Math.min(10, crate.getMultiOpenMax()));
+            amount = crate.getMultiOpenMax();
         }
 
         if (amount <= 1) {

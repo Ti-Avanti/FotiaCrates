@@ -76,18 +76,39 @@ settings:
 persistence:
   # 将缓存中的虚拟钥匙和保底写入数据库的间隔，单位为 tick
   flush-interval-ticks: 20
+  # 异步数据库任务队列上限，防止数据库异常时无限占用内存；修改后需重启生效
+  executor-queue-capacity: 1024
   # 插件关闭时等待异步数据落盘的最长时间，单位为毫秒
   shutdown-flush-timeout-millis: 5000
   history:
     # 单次批量写入的最大历史记录数
     batch-size: 100
-    # 历史写入队列上限；队列满时跳过新历史以保护服务器 TPS
+    # 历史写入队列上限；队列满时跳过新历史以保护服务器 TPS，修改后需重启生效
     queue-capacity: 10000
     # 同一玩家历史裁剪的最小间隔，单位为秒
     cleanup-interval-seconds: 300
 
 # 性能保护设置
 performance:
+  models:
+    # 模型健康检查间隔，单位为 tick
+    health-check-interval-ticks: 100
+    # 每次检查的最大抽奖箱数量，避免大量模型在同一 tick 内处理
+    max-checks-per-run: 16
+  pending-rewards:
+    # 单次在主线程发放的待领取奖励数量
+    claim-batch-size: 10
+    # 离线奖励写入失败后的首次重试间隔，单位为 tick，后续会指数退避
+    insert-retry-delay-ticks: 100
+    # 发奖代码抛出异常后的处理：RETRY=释放并允许下次重领，LOCK=锁定供管理员核查
+    delivery-error-policy: RETRY
+    # 数据库确认失败后的重试次数；超过后锁定记录以避免重复发放
+    finalize-retry-count: 5
+    # 首次重试等待时间，单位为 tick，后续会指数退避
+    finalize-retry-delay-ticks: 20
+  multi-open:
+    # 所有命令、GUI 和实体交互共同遵守的多连抽安全上限
+    hard-limit: 100
   particles:
     # 只播放玩家附近该距离内的待机粒子，单位为方块
     idle-view-distance: 32.0

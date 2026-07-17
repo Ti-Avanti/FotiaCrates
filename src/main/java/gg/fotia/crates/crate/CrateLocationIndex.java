@@ -63,7 +63,7 @@ public final class CrateLocationIndex {
     }
 
     public Collection<CrateLocation> nearby(String world, int blockX, int blockZ, double radius) {
-        if (world == null || radius < 0.0) {
+        if (world == null || radius < 0.0 || !Double.isFinite(radius)) {
             return List.of();
         }
 
@@ -74,17 +74,27 @@ public final class CrateLocationIndex {
         double radiusSquared = radius * radius;
         List<BlockPosition> matches = new ArrayList<>();
 
-        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                Set<BlockPosition> positions = byChunk.get(new ChunkPosition(world, chunkX, chunkZ));
-                if (positions == null) {
-                    continue;
+        long chunkSpanX = (long) maxChunkX - minChunkX + 1L;
+        long chunkSpanZ = (long) maxChunkZ - minChunkZ + 1L;
+        long indexedScanThreshold = Math.max(256L, (long) byChunk.size() * 4L);
+        if (chunkSpanX <= 0L || chunkSpanZ <= 0L
+                || chunkSpanX * chunkSpanZ > indexedScanThreshold) {
+            for (BlockPosition position : byPosition.keySet()) {
+                if (position.world().equals(world) && isInsideRadius(position, blockX, blockZ, radiusSquared)) {
+                    matches.add(position);
                 }
-                for (BlockPosition position : positions) {
-                    long deltaX = (long) position.x() - blockX;
-                    long deltaZ = (long) position.z() - blockZ;
-                    if ((double) deltaX * deltaX + (double) deltaZ * deltaZ <= radiusSquared) {
-                        matches.add(position);
+            }
+        } else {
+            for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+                for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                    Set<BlockPosition> positions = byChunk.get(new ChunkPosition(world, chunkX, chunkZ));
+                    if (positions == null) {
+                        continue;
+                    }
+                    for (BlockPosition position : positions) {
+                        if (isInsideRadius(position, blockX, blockZ, radiusSquared)) {
+                            matches.add(position);
+                        }
                     }
                 }
             }
@@ -93,6 +103,34 @@ public final class CrateLocationIndex {
         matches.sort(Comparator.comparingLong(insertionOrder::get));
         List<CrateLocation> locations = new ArrayList<>(matches.size());
         for (BlockPosition position : matches) {
+            CrateLocation location = byPosition.get(position);
+            if (location != null) {
+                locations.add(location);
+            }
+        }
+        return List.copyOf(locations);
+    }
+
+    private boolean isInsideRadius(BlockPosition position, int blockX, int blockZ, double radiusSquared) {
+        long deltaX = (long) position.x() - blockX;
+        long deltaZ = (long) position.z() - blockZ;
+        return (double) deltaX * deltaX + (double) deltaZ * deltaZ <= radiusSquared;
+    }
+
+    public List<CrateLocation> inChunk(String world, int chunkX, int chunkZ) {
+        if (world == null) {
+            return List.of();
+        }
+
+        Set<BlockPosition> positions = byChunk.get(new ChunkPosition(world, chunkX, chunkZ));
+        if (positions == null || positions.isEmpty()) {
+            return List.of();
+        }
+
+        List<BlockPosition> ordered = new ArrayList<>(positions);
+        ordered.sort(Comparator.comparingLong(insertionOrder::get));
+        List<CrateLocation> locations = new ArrayList<>(ordered.size());
+        for (BlockPosition position : ordered) {
             CrateLocation location = byPosition.get(position);
             if (location != null) {
                 locations.add(location);
