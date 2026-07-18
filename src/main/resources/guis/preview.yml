@@ -3,6 +3,20 @@
 
 title: "<!i><dark_gray>{crate} 预览 ({page}/{total_pages})"
 
+# 动态奖励图标的 Lore 设置
+reward-display:
+  # 是否保留奖励图标原有 Lore，并在其后追加以下内容
+  append-item-lore: true
+  lore:
+    - ''
+    - '<!i><gray>稀有度: {rarity}'
+    - '{chance_line}'
+    - '{broadcast_line}'
+  chance-lines:
+    percentage: '<!i><gray>概率: <!i><yellow>{probability}'
+    weight: '<!i><gray>权重: <!i><yellow>{weight}'
+  broadcast-line: '<!i><gold>★ 稀有奖励'
+
 layout:
   - '####I####'
   - '#CCCCCCC#'

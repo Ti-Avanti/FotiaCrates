@@ -36,13 +36,17 @@ public class CrateOpenService {
     }
 
     public OpenAttempt prepareOpen(Player player, Crate crate) {
+        return prepareOpen(player, crate, new MultiOpenPermissionContext(player::hasPermission));
+    }
+
+    OpenAttempt prepareOpen(Player player, Crate crate, MultiOpenPermissionContext permissionContext) {
         if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
             return OpenAttempt.failure(OpenFailureReason.PLAYER_DATA_PENDING);
         }
 
         PlayerDataCache.Snapshot previousData = plugin.getAsyncPlayerDataManager().snapshot(player.getUniqueId());
         ItemStack[] previousInventory = copyInventory(player.getInventory().getContents());
-        ResolvedReward resolvedReward = resolveRewardResult(player, crate);
+        ResolvedReward resolvedReward = resolveRewardResult(player, crate, permissionContext);
         if (resolvedReward == null) {
             return OpenAttempt.failure(OpenFailureReason.NO_AVAILABLE_REWARD);
         }
@@ -180,17 +184,19 @@ public class CrateOpenService {
         deliverReward(player, crate, rewardResult, resolvedCrateLocation, playPresentation);
     }
 
-    private ResolvedReward resolveRewardResult(Player player, Crate crate) {
+    private ResolvedReward resolveRewardResult(Player player, Crate crate,
+                                               MultiOpenPermissionContext permissionContext) {
         if (crate.isPityEnabled() && !crate.getPityTiers().isEmpty()) {
             int currentCount = plugin.getPityManager().getPityCount(player.getUniqueId(), crate.getId()) + 1;
             Crate.PityTier triggeredTier = crate.getTriggeredPityTier(currentCount);
             if (triggeredTier != null) {
-                RewardResult rewardResult = crate.rollPityRewardWithPermissionCheckResult(player, triggeredTier.getRarity());
+                RewardResult rewardResult = crate.rollPityRewardWithPermissionCheckResult(
+                        permissionContext, triggeredTier.getRarity());
                 return rewardResult != null ? new ResolvedReward(rewardResult, true) : null;
             }
         }
 
-        RewardResult rewardResult = crate.rollRewardWithPermissionCheckResult(player);
+        RewardResult rewardResult = crate.rollRewardWithPermissionCheckResult(permissionContext);
         return rewardResult != null ? new ResolvedReward(rewardResult, false) : null;
     }
 

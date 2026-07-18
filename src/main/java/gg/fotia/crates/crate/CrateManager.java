@@ -112,7 +112,9 @@ public class CrateManager {
         int modelEngineViewRange = getModelInt(config, modelBasePath, legacyBasePath, "view-range", 48);
 
         boolean previewEnabled = config.getBoolean("preview.enabled", true);
-        boolean showChance = config.getBoolean("preview.show-chance", true);
+        boolean legacyShowChance = config.getBoolean("preview.show-chance", true);
+        PreviewChanceDisplayMode previewChanceDisplayMode = PreviewChanceDisplayMode.fromConfig(
+                config.getString("preview.chance-display"), legacyShowChance);
         String previewTitle = config.getString("preview.title", name + " Preview");
 
         boolean animationEnabled = config.getBoolean("animation.enabled", true);
@@ -181,7 +183,7 @@ public class CrateManager {
                 modelEngineOpenDelay, modelEngineViewRange, physicalAnimationHeight,
                 hologramHeight, hologramLines,
                 rewards,
-                previewEnabled, showChance, previewTitle,
+                previewEnabled, previewChanceDisplayMode, previewTitle,
                 animationEnabled, animationType, animationDuration,
                 animationTitle, physicalAnimationEnabled,
                 particlesEnabled, particleType, particleCount, particleEffects,
@@ -819,6 +821,25 @@ public class CrateManager {
         }
     }
 
+    public void cyclePreviewChanceDisplayMode(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            PreviewChanceDisplayMode current = PreviewChanceDisplayMode.fromConfig(
+                    config.getString("preview.chance-display"),
+                    config.getBoolean("preview.show-chance", true));
+            PreviewChanceDisplayMode next = current.next();
+            config.set("preview.chance-display", next.name());
+            config.set("preview.show-chance", next != PreviewChanceDisplayMode.HIDDEN);
+            config.save(file);
+            reloadCrate(crateId);
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update preview chance display mode: " + e.getMessage());
+        }
+    }
+
     public void toggleMultiOpenAnimation(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
         if (!file.exists()) return;
@@ -1162,6 +1183,7 @@ public class CrateManager {
             config.set("block.item.lore", List.of("<!i><gray>放置此方块创建宝箱"));
             config.set("preview.enabled", true);
             config.set("preview.show-chance", true);
+            config.set("preview.chance-display", PreviewChanceDisplayMode.PERCENTAGE.name());
             config.set("animation.enabled", true);
             config.set("animation.type", "ROULETTE");
             config.set("animation.duration", 3);

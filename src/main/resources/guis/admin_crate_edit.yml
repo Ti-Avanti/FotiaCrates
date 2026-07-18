@@ -115,7 +115,12 @@ icons:
         - '<!i><gray>编辑预览功能'
         - ''
         - '<!i><yellow>启用: {preview_enabled}'
-        - '<!i><yellow>显示概率: {show_chance}'
+        - '<!i><gray>左键切换预览开关'
+        - '<!i><gray>右键切换数值显示'
+        - ''
+        - '{chance_mode_percentage}'
+        - '{chance_mode_weight}'
+        - '{chance_mode_hidden}'
     action: edit_preview
 
   'X':

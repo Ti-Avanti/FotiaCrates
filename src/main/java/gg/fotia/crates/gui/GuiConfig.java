@@ -22,11 +22,13 @@ public class GuiConfig {
     private final List<Integer> contentSlots; // 用于放置动态内容的槽位
     private final List<Integer> animationSlots; // 动画滚动槽位
     private final int centerSlot; // 中心槽位（最终奖励显示位置）
+    private final RewardPreviewDisplayConfig rewardPreviewDisplay;
 
     public GuiConfig(String id, String title, int size, boolean fillEnabled,
                      Material fillMaterial, String fillName,
                      Map<Integer, GuiItem> items, List<Integer> contentSlots,
-                     List<Integer> animationSlots, int centerSlot) {
+                     List<Integer> animationSlots, int centerSlot,
+                     RewardPreviewDisplayConfig rewardPreviewDisplay) {
         this.id = id;
         this.title = title;
         this.size = size;
@@ -37,6 +39,9 @@ public class GuiConfig {
         this.contentSlots = contentSlots != null ? contentSlots : new ArrayList<>();
         this.animationSlots = animationSlots != null ? animationSlots : new ArrayList<>();
         this.centerSlot = centerSlot;
+        this.rewardPreviewDisplay = rewardPreviewDisplay != null
+                ? rewardPreviewDisplay
+                : RewardPreviewDisplayConfig.defaults();
     }
 
     public String getId() {
@@ -113,6 +118,10 @@ public class GuiConfig {
 
     public int getCenterSlot() {
         return centerSlot;
+    }
+
+    public RewardPreviewDisplayConfig getRewardPreviewDisplay() {
+        return rewardPreviewDisplay;
     }
 
     public boolean hasItem(int slot) {

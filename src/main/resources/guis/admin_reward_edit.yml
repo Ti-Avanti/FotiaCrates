@@ -118,7 +118,7 @@ items:
     material: ARROW
     name: "<!i><red>返回"
     lore:
-      - "<!i><gray>返回宝箱编辑界面"
+      - "<!i><gray>返回{return_gui}"
     action: back
   copy:
     slot: 47

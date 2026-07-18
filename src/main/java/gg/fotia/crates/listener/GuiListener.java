@@ -10,6 +10,7 @@ import gg.fotia.crates.gui.CrateGuiHolder;
 import gg.fotia.crates.gui.GuiConfig;
 import gg.fotia.crates.gui.GuiItem;
 import gg.fotia.crates.gui.GuiType;
+import gg.fotia.crates.gui.RewardEditContext;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.CrateParticleEffect;
 import gg.fotia.crates.particle.ParticleCompat;
@@ -289,7 +290,7 @@ public class GuiListener implements Listener {
         if (config != null) {
             GuiItem guiItem = config.getItem(slot);
             if (guiItem != null && guiItem.getAction() != null) {
-                handleCrateEditAction(player, guiItem.getAction(), crate, holder, event.isShiftClick());
+                handleCrateEditAction(player, guiItem.getAction(), crate, holder, event);
                 return;
             }
         }
@@ -907,7 +908,8 @@ public class GuiListener implements Listener {
         return plugin.getGuiManager().getConfiguredContentSlots(guiId, fallback);
     }
 
-    private void handleCrateEditAction(Player player, String action, Crate crate, CrateGuiHolder holder, boolean isShiftClick) {
+    private void handleCrateEditAction(Player player, String action, Crate crate,
+                                       CrateGuiHolder holder, InventoryClickEvent event) {
         switch (action.toLowerCase()) {
             case "edit_basic" -> {
                 plugin.getGuiManager().openBasicEditGui(player, crate);
@@ -925,7 +927,11 @@ public class GuiListener implements Listener {
                 plugin.getGuiManager().openPityEditGui(player, crate);
             }
             case "edit_preview" -> {
-                plugin.getCrateManager().togglePreview(crate.getId());
+                if (event.isRightClick()) {
+                    plugin.getCrateManager().cyclePreviewChanceDisplayMode(crate.getId());
+                } else {
+                    plugin.getCrateManager().togglePreview(crate.getId());
+                }
                 Crate updatedCrate = plugin.getCrateManager().getCrate(crate.getId());
                 plugin.getGuiManager().openCrateEditGui(player, updatedCrate);
             }
@@ -957,7 +963,7 @@ public class GuiListener implements Listener {
                 plugin.getLanguageManager().send(player, "admin-crate-saved");
             }
             case "delete_crate" -> {
-                if (isShiftClick) {
+                if (event.isShiftClick()) {
                     plugin.getCrateManager().deleteCrate(crate.getId());
                     plugin.getLanguageManager().send(player, "admin-crate-deleted",
                             LanguageManager.placeholders("crate", crate.getName()));
@@ -977,6 +983,8 @@ public class GuiListener implements Listener {
     private void handleRewardEditClick(InventoryClickEvent event, Player player, CrateGuiHolder holder) {
         int slot = event.getSlot();
         Crate crate = holder.getCrate();
+        RewardEditContext editContext = holder.getData(
+                RewardEditContext.HOLDER_KEY, RewardEditContext.crateEditor());
 
         // 检查是否是奖励管理界面
         Boolean isRewardManager = holder.getData("reward_manager");
@@ -1005,7 +1013,7 @@ public class GuiListener implements Listener {
                 .orElse(null);
 
         if (reward == null) {
-            plugin.getGuiManager().openCrateEditGui(player, crate);
+            openRewardEditReturn(player, crate.getId(), editContext);
             return;
         }
 
@@ -1048,32 +1056,32 @@ public class GuiListener implements Listener {
         }
 
         switch (slot) {
-            case 45 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
+            case 45 -> openRewardEditReturn(player, crate.getId(), editContext); // 返回
             case 4 -> { // 显示图标 - 点击打开物品输入界面
                 if (event.isRightClick()) {
                     plugin.getCrateManager().resetRewardDisplayIconAuto(crate.getId(), rewardId);
                     plugin.getLanguageManager().send(player, "admin-reward-auto-display-icon-reset");
-                    refreshRewardEditGui(player, crate.getId(), rewardId);
+                    refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
                 } else {
-                    plugin.getGuiManager().openItemInputGui(player, crate, rewardId, "display_icon");
+                    plugin.getGuiManager().openItemInputGui(player, crate, rewardId, "display_icon", editContext);
                 }
             }
             case 11 -> { // 奖励物品 - 打开奖励物品管理界面
-                plugin.getGuiManager().openRewardItemsGui(player, crate, rewardId);
+                plugin.getGuiManager().openRewardItemsGui(player, crate, rewardId, editContext);
             }
             case 15 -> { // 命令奖励
                 if (event.isRightClick()) {
                     plugin.getCrateManager().clearRewardCommands(crate.getId(), rewardId);
                     plugin.getLanguageManager().send(player, "admin-reward-command-removed");
-                    refreshRewardEditGui(player, crate.getId(), rewardId);
+                    refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
                 } else {
                     plugin.getLanguageManager().send(player, "admin-input-command");
                     plugin.getGuiManager().startInputSession(player, "reward_command",
-                            new String[]{crate.getId(), rewardId}, (p, input, data) -> {
-                        String[] ids = (String[]) data;
-                        plugin.getCrateManager().addRewardCommand(ids[0], ids[1], input);
+                            new RewardEditInput(crate.getId(), rewardId, editContext), (p, input, data) -> {
+                        RewardEditInput ids = (RewardEditInput) data;
+                        plugin.getCrateManager().addRewardCommand(ids.crateId(), ids.rewardId(), input);
                         plugin.getLanguageManager().send(p, "admin-reward-command-added");
-                        refreshRewardEditGui(p, ids[0], ids[1]);
+                        refreshRewardEditGui(p, ids.crateId(), ids.rewardId(), ids.editContext());
                     });
                 }
             }
@@ -1082,16 +1090,16 @@ public class GuiListener implements Listener {
                     // 中键输入精确数值
                     plugin.getLanguageManager().send(player, "admin-input-chance");
                     plugin.getGuiManager().startInputSession(player, "reward_chance",
-                            new String[]{crate.getId(), rewardId}, (p, input, data) -> {
-                        String[] ids = (String[]) data;
+                            new RewardEditInput(crate.getId(), rewardId, editContext), (p, input, data) -> {
+                        RewardEditInput ids = (RewardEditInput) data;
                         try {
                             double newChance = Double.parseDouble(input);
                             newChance = Math.max(0.01, Math.min(100, newChance));
-                            plugin.getCrateManager().updateRewardChance(ids[0], ids[1], newChance);
-                            refreshRewardEditGui(p, ids[0], ids[1]);
+                            plugin.getCrateManager().updateRewardChance(ids.crateId(), ids.rewardId(), newChance);
+                            refreshRewardEditGui(p, ids.crateId(), ids.rewardId(), ids.editContext());
                         } catch (NumberFormatException e) {
                             plugin.getLanguageManager().send(p, "invalid-number");
-                            refreshRewardEditGui(p, ids[0], ids[1]);
+                            refreshRewardEditGui(p, ids.crateId(), ids.rewardId(), ids.editContext());
                         }
                     });
                 } else {
@@ -1103,33 +1111,33 @@ public class GuiListener implements Listener {
                     }
                     double newChance = Math.max(0.01, Math.min(100, reward.getChance() + delta));
                     plugin.getCrateManager().updateRewardChance(crate.getId(), rewardId, newChance);
-                    refreshRewardEditGui(player, crate.getId(), rewardId);
+                    refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
                 }
             }
             case 30 -> { // 切换稀有度
                 String newRarity = plugin.getConfigManager().getNextRarity(reward.getRarity());
                 plugin.getCrateManager().updateRewardRarity(crate.getId(), rewardId, newRarity);
-                refreshRewardEditGui(player, crate.getId(), rewardId);
+                refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
             }
             case 32 -> { // 切换广播
                 plugin.getCrateManager().toggleRewardBroadcast(crate.getId(), rewardId);
                 String status = reward.shouldBroadcast() ? "关闭" : "开启";
                 plugin.getLanguageManager().send(player, "admin-reward-broadcast-toggled",
                         LanguageManager.placeholders("status", status));
-                refreshRewardEditGui(player, crate.getId(), rewardId);
+                refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
             }
             case 34 -> { // 显示名称
                 if (event.isRightClick()) {
                     plugin.getCrateManager().resetRewardDisplayNameAuto(crate.getId(), rewardId);
                     plugin.getLanguageManager().send(player, "admin-reward-auto-display-name-reset");
-                    refreshRewardEditGui(player, crate.getId(), rewardId);
+                    refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
                 } else {
                     plugin.getLanguageManager().send(player, "admin-input-name");
                     plugin.getGuiManager().startInputSession(player, "reward_name",
-                            new String[]{crate.getId(), rewardId}, (p, input, data) -> {
-                        String[] ids = (String[]) data;
-                        plugin.getCrateManager().updateRewardDisplayName(ids[0], ids[1], input);
-                        refreshRewardEditGui(p, ids[0], ids[1]);
+                            new RewardEditInput(crate.getId(), rewardId, editContext), (p, input, data) -> {
+                        RewardEditInput ids = (RewardEditInput) data;
+                        plugin.getCrateManager().updateRewardDisplayName(ids.crateId(), ids.rewardId(), input);
+                        refreshRewardEditGui(p, ids.crateId(), ids.rewardId(), ids.editContext());
                     });
                 }
             }
@@ -1139,16 +1147,16 @@ public class GuiListener implements Listener {
                 String status = reward.isPermissionCheckEnabled() ? "关闭" : "开启";
                 plugin.getLanguageManager().send(player, "admin-permission-check-toggled",
                         LanguageManager.placeholders("status", status));
-                refreshRewardEditGui(player, crate.getId(), rewardId);
+                refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
             }
             case 39 -> { // 权限节点设置
                 plugin.getLanguageManager().send(player, "admin-input-permission");
                 plugin.getGuiManager().startInputSession(player, "reward_permission",
-                        new String[]{crate.getId(), rewardId}, (p, input, data) -> {
-                    String[] ids = (String[]) data;
-                    plugin.getCrateManager().updateRewardCheckPermission(ids[0], ids[1], input);
+                        new RewardEditInput(crate.getId(), rewardId, editContext), (p, input, data) -> {
+                    RewardEditInput ids = (RewardEditInput) data;
+                    plugin.getCrateManager().updateRewardCheckPermission(ids.crateId(), ids.rewardId(), input);
                     plugin.getLanguageManager().send(p, "admin-permission-updated");
-                    refreshRewardEditGui(p, ids[0], ids[1]);
+                    refreshRewardEditGui(p, ids.crateId(), ids.rewardId(), ids.editContext());
                 });
             }
             case 41 -> { // 行为选择
@@ -1160,10 +1168,10 @@ public class GuiListener implements Listener {
                 String actionName = newAction == gg.fotia.crates.reward.PermissionAction.SKIP ? "跳过" : "替代";
                 plugin.getLanguageManager().send(player, "admin-permission-action-updated",
                         LanguageManager.placeholders("action", actionName));
-                refreshRewardEditGui(player, crate.getId(), rewardId);
+                refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
             }
             case 43 -> { // 替代奖励选择
-                plugin.getGuiManager().openAlternativeRewardSelectGui(player, crate, rewardId);
+                plugin.getGuiManager().openAlternativeRewardSelectGui(player, crate, rewardId, editContext);
             }
             case 47 -> { // 复制奖励
                 String newRewardId = plugin.getCrateManager().copyReward(crate.getId(), rewardId);
@@ -1175,7 +1183,11 @@ public class GuiListener implements Listener {
                             .findFirst()
                             .orElse(null);
                     if (newReward != null) {
-                        plugin.getGuiManager().openRewardEditGui(player, updatedCrate, newReward);
+                        if (editContext.returnTarget() == RewardEditContext.ReturnTarget.REWARD_MANAGER) {
+                            openRewardEditReturn(player, crate.getId(), editContext);
+                        } else {
+                            plugin.getGuiManager().openRewardEditGui(player, updatedCrate, newReward, editContext);
+                        }
                     }
                 }
             }
@@ -1183,7 +1195,7 @@ public class GuiListener implements Listener {
                 if (event.isShiftClick()) {
                     plugin.getCrateManager().removeReward(crate.getId(), rewardId);
                     plugin.getLanguageManager().send(player, "admin-reward-removed");
-                    plugin.getGuiManager().openCrateEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+                    openRewardEditReturn(player, crate.getId(), editContext);
                 } else {
                     plugin.getLanguageManager().send(player, "admin-shift-to-delete");
                 }
@@ -1191,7 +1203,7 @@ public class GuiListener implements Listener {
             case 51 -> { // 保存并返回
                 plugin.getCrateManager().saveCrate(crate.getId());
                 plugin.getLanguageManager().send(player, "admin-crate-saved");
-                plugin.getGuiManager().openCrateEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+                openRewardEditReturn(player, crate.getId(), editContext);
             }
         }
     }
@@ -1203,6 +1215,8 @@ public class GuiListener implements Listener {
         int slot = event.getSlot();
         Crate crate = holder.getCrate();
         String sourceRewardId = holder.getData("source_reward_id");
+        RewardEditContext editContext = holder.getData(
+                RewardEditContext.HOLDER_KEY, RewardEditContext.crateEditor());
 
         if (crate == null || sourceRewardId == null) {
             plugin.getGuiManager().openAdminGui(player);
@@ -1229,7 +1243,7 @@ public class GuiListener implements Listener {
                 plugin.getCrateManager().updateRewardAlternativeReward(crate.getId(), sourceRewardId, selectedReward.getId());
                 plugin.getLanguageManager().send(player, "admin-alternative-reward-set",
                         LanguageManager.placeholders("reward", selectedReward.getDisplayName()));
-                refreshRewardEditGui(player, crate.getId(), sourceRewardId);
+                returnFromRewardChild(player, crate.getId(), sourceRewardId, editContext);
             }
             return;
         }
@@ -1248,12 +1262,12 @@ public class GuiListener implements Listener {
 
         switch (slot) {
             case 45 -> { // 返回
-                refreshRewardEditGui(player, crate.getId(), sourceRewardId);
+                returnFromRewardChild(player, crate.getId(), sourceRewardId, editContext);
             }
             case 49 -> { // 清除替代奖励
                 plugin.getCrateManager().updateRewardAlternativeReward(crate.getId(), sourceRewardId, null);
                 plugin.getLanguageManager().send(player, "admin-alternative-reward-cleared");
-                refreshRewardEditGui(player, crate.getId(), sourceRewardId);
+                returnFromRewardChild(player, crate.getId(), sourceRewardId, editContext);
             }
         }
     }
@@ -1286,7 +1300,8 @@ public class GuiListener implements Listener {
                 Reward reward = rewards.get(rewardIndex);
                 if (event.isLeftClick() && !event.isShiftClick()) {
                     // 左键编辑
-                    plugin.getGuiManager().openRewardEditGui(player, crate, reward);
+                    plugin.getGuiManager().openRewardEditGui(
+                            player, crate, reward, RewardEditContext.rewardManager(page));
                 } else if (event.getClick() == org.bukkit.event.inventory.ClickType.MIDDLE) {
                     // 中键复制
                     String newRewardId = plugin.getCrateManager().copyReward(crate.getId(), reward.getId());
@@ -1298,7 +1313,7 @@ public class GuiListener implements Listener {
                     // Shift+右键删除
                     plugin.getCrateManager().removeReward(crate.getId(), reward.getId());
                     plugin.getLanguageManager().send(player, "admin-reward-removed");
-                    plugin.getGuiManager().openRewardManagerGui(player, plugin.getCrateManager().getCrate(crate.getId()), page);
+                    openRewardEditReturn(player, crate.getId(), RewardEditContext.rewardManager(page));
                 }
             }
             return;
@@ -1351,7 +1366,8 @@ public class GuiListener implements Listener {
                             .findFirst()
                             .orElse(null);
                     if (newReward != null) {
-                        plugin.getGuiManager().openRewardEditGui(player, updatedCrate, newReward);
+                        plugin.getGuiManager().openRewardEditGui(
+                                player, updatedCrate, newReward, RewardEditContext.rewardManager(page));
                     }
                 }
             }
@@ -1359,6 +1375,39 @@ public class GuiListener implements Listener {
     }
 
     private void refreshRewardEditGui(Player player, String crateId, String rewardId) {
+        refreshRewardEditGui(player, crateId, rewardId, RewardEditContext.crateEditor());
+    }
+
+    private void openRewardEditReturn(Player player, String crateId, RewardEditContext editContext) {
+        Crate updatedCrate = plugin.getCrateManager().getCrate(crateId);
+        if (updatedCrate == null) {
+            plugin.getGuiManager().openAdminGui(player);
+            return;
+        }
+
+        RewardEditContext resolvedContext = editContext != null
+                ? editContext
+                : RewardEditContext.crateEditor();
+        if (resolvedContext.returnTarget() == RewardEditContext.ReturnTarget.REWARD_MANAGER) {
+            int itemsPerPage = contentSlots("admin_reward_manager", List.of(
+                    10, 11, 12, 13, 14, 15, 16,
+                    19, 20, 21, 22, 23, 24, 25,
+                    28, 29, 30, 31, 32, 33, 34,
+                    37, 38, 39, 40, 41, 42, 43
+            )).size();
+            plugin.getGuiManager().openRewardManagerGui(
+                    player,
+                    updatedCrate,
+                    resolvedContext.clampReturnPage(updatedCrate.getRewards().size(), itemsPerPage)
+            );
+            return;
+        }
+
+        plugin.getGuiManager().openCrateEditGui(player, updatedCrate);
+    }
+
+    private void refreshRewardEditGui(Player player, String crateId, String rewardId,
+                                      RewardEditContext editContext) {
         Crate updatedCrate = plugin.getCrateManager().getCrate(crateId);
         if (updatedCrate == null) return;
         Reward updatedReward = updatedCrate.getRewards().stream()
@@ -1366,8 +1415,11 @@ public class GuiListener implements Listener {
                 .findFirst()
                 .orElse(null);
         if (updatedReward != null) {
-            plugin.getGuiManager().openRewardEditGui(player, updatedCrate, updatedReward);
+            plugin.getGuiManager().openRewardEditGui(player, updatedCrate, updatedReward, editContext);
         }
+    }
+
+    private record RewardEditInput(String crateId, String rewardId, RewardEditContext editContext) {
     }
 
     /**
@@ -1379,6 +1431,8 @@ public class GuiListener implements Listener {
         Crate crate = holder.getCrate();
         String rewardId = holder.getData("reward_id");
         String inputType = holder.getData("input_type");
+        RewardEditContext editContext = holder.getData(
+                RewardEditContext.HOLDER_KEY, RewardEditContext.crateEditor());
 
         if (crate == null || rewardId == null || inputType == null) {
             event.setCancelled(true);
@@ -1457,23 +1511,28 @@ public class GuiListener implements Listener {
                     plugin.getLanguageManager().send(player, "admin-key-item-updated");
                     topInventory.setItem(inputSlot, null);
                 }
-                returnToRewardEdit(player, crate.getId(), rewardId);
+                returnFromRewardChild(player, crate.getId(), rewardId, editContext);
             }
             case 10, 11 -> { // 取消按钮
-                returnToRewardEdit(player, crate.getId(), rewardId);
+                returnFromRewardChild(player, crate.getId(), rewardId, editContext);
             }
             case 22 -> { // 清除按钮
                 if (inputType.equals("reward_item")) {
                     plugin.getCrateManager().clearRewardItem(crate.getId(), rewardId);
                     plugin.getLanguageManager().send(player, "admin-reward-item-cleared");
                     topInventory.setItem(inputSlot, null);
-                    returnToRewardEdit(player, crate.getId(), rewardId);
+                    returnFromRewardChild(player, crate.getId(), rewardId, editContext);
                 }
             }
         }
     }
 
     private void returnToRewardEdit(Player player, String crateId, String rewardId) {
+        returnToRewardEdit(player, crateId, rewardId, RewardEditContext.crateEditor());
+    }
+
+    private void returnToRewardEdit(Player player, String crateId, String rewardId,
+                                    RewardEditContext editContext) {
         Crate updatedCrate = plugin.getCrateManager().getCrate(crateId);
         if (updatedCrate == null) {
             plugin.getGuiManager().openAdminGui(player);
@@ -1484,10 +1543,22 @@ public class GuiListener implements Listener {
                 .findFirst()
                 .orElse(null);
         if (reward != null) {
-            plugin.getGuiManager().openRewardEditGui(player, updatedCrate, reward);
+            plugin.getGuiManager().openRewardEditGui(player, updatedCrate, reward, editContext);
         } else {
-            plugin.getGuiManager().openCrateEditGui(player, updatedCrate);
+            openRewardEditReturn(player, crateId, editContext);
         }
+    }
+
+    private void returnFromRewardChild(Player player, String crateId, String rewardId,
+                                       RewardEditContext editContext) {
+        RewardEditContext resolvedContext = editContext != null
+                ? editContext
+                : RewardEditContext.crateEditor();
+        if (resolvedContext.returnChildToSource()) {
+            openRewardEditReturn(player, crateId, resolvedContext);
+            return;
+        }
+        returnToRewardEdit(player, crateId, rewardId, resolvedContext);
     }
 
     /**
@@ -1498,6 +1569,8 @@ public class GuiListener implements Listener {
         Inventory topInventory = event.getInventory();
         Crate crate = holder.getCrate();
         String rewardId = holder.getData("reward_id");
+        RewardEditContext editContext = holder.getData(
+                RewardEditContext.HOLDER_KEY, RewardEditContext.crateEditor());
 
         if (crate == null || rewardId == null) {
             event.setCancelled(true);
@@ -1570,7 +1643,7 @@ public class GuiListener implements Listener {
 
         switch (rawSlot) {
             case 45 -> { // 返回
-                returnToRewardEdit(player, crate.getId(), rewardId);
+                returnFromRewardChild(player, crate.getId(), rewardId, editContext);
             }
             case 49 -> { // 清空所有
                 if (event.isShiftClick()) {
@@ -1597,7 +1670,7 @@ public class GuiListener implements Listener {
                 // 保存物品
                 plugin.getCrateManager().updateRewardItems(crate.getId(), rewardId, items);
                 plugin.getLanguageManager().send(player, "admin-key-item-updated");
-                returnToRewardEdit(player, crate.getId(), rewardId);
+                returnFromRewardChild(player, crate.getId(), rewardId, editContext);
             }
         }
     }

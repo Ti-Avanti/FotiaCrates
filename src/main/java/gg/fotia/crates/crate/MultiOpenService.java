@@ -72,8 +72,10 @@ public final class MultiOpenService {
 
     private List<CrateOpenService.OpenAttempt> prepareRewards(Player player, Crate crate, int amount) {
         List<CrateOpenService.OpenAttempt> openAttempts = new ArrayList<>();
+        MultiOpenPermissionContext permissionContext = new MultiOpenPermissionContext(player::hasPermission);
         for (int index = 0; index < amount; index++) {
-            CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
+            CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(
+                    player, crate, permissionContext);
             if (!openAttempt.isSuccess()) {
                 if (openAttempts.isEmpty()) {
                     crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
@@ -81,6 +83,7 @@ public final class MultiOpenService {
                 break;
             }
             openAttempts.add(openAttempt);
+            permissionContext.recordAward(openAttempt.rewardResult());
         }
         return openAttempts;
     }

@@ -154,6 +154,13 @@ public class GuiConfigManager {
             config.set("items.display_name.lore", displayNameLore);
         }
 
+        List<String> backLore = new ArrayList<>(config.getStringList("items.back.lore"));
+        if (replaceLine(backLore, "<!i><gray>返回宝箱编辑界面",
+                List.of("<!i><gray>返回{return_gui}"))) {
+            config.set("items.back.lore", backLore);
+            changed = true;
+        }
+
         if (!changed) {
             return;
         }
@@ -169,6 +176,51 @@ public class GuiConfigManager {
     private void migrateFeatureGuiConfigs(File guisFolder) {
         migratePityEarlyResetGui(guisFolder);
         migrateMultiOpenAnimationGui(guisFolder);
+        migratePreviewRewardDisplayGui(guisFolder);
+        migratePreviewDisplayModeGui(guisFolder);
+    }
+
+    private void migratePreviewRewardDisplayGui(File guisFolder) {
+        File file = new File(guisFolder, "preview.yml");
+        if (!file.exists()) {
+            return;
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        if (config.contains("reward-display")) {
+            return;
+        }
+
+        RewardPreviewDisplayConfig defaults = RewardPreviewDisplayConfig.defaults();
+        config.set("reward-display.append-item-lore", defaults.isAppendItemLore());
+        config.set("reward-display.lore", defaults.getLore());
+        config.set("reward-display.chance-lines.percentage", defaults.getPercentageLine());
+        config.set("reward-display.chance-lines.weight", defaults.getWeightLine());
+        config.set("reward-display.broadcast-line", defaults.getBroadcastLine());
+        saveMigratedGui(file, config, "preview");
+    }
+
+    private void migratePreviewDisplayModeGui(File guisFolder) {
+        File file = new File(guisFolder, "admin_crate_edit.yml");
+        if (!file.exists()) {
+            return;
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        List<String> lore = new ArrayList<>(config.getStringList("icons.M.display.lore"));
+        if (containsLine(lore, "{chance_mode_percentage}")) {
+            return;
+        }
+
+        lore.removeIf(line -> line != null && line.contains("显示概率: {show_chance}"));
+        lore.add("<!i><gray>左键切换预览开关");
+        lore.add("<!i><gray>右键切换数值显示");
+        lore.add("");
+        lore.add("{chance_mode_percentage}");
+        lore.add("{chance_mode_weight}");
+        lore.add("{chance_mode_hidden}");
+        config.set("icons.M.display.lore", lore);
+        saveMigratedGui(file, config, "admin_crate_edit");
     }
 
     private void migratePityEarlyResetGui(File guisFolder) {
@@ -439,7 +491,30 @@ public class GuiConfigManager {
             centerSlot = animationSlots.get(animationSlots.size() / 2);
         }
 
-        return new GuiConfig(id, title, size, fillEnabled, fillMaterial, fillName, items, contentSlots, animationSlots, centerSlot);
+        RewardPreviewDisplayConfig rewardPreviewDisplay = loadRewardPreviewDisplay(config);
+
+        return new GuiConfig(id, title, size, fillEnabled, fillMaterial, fillName,
+                items, contentSlots, animationSlots, centerSlot, rewardPreviewDisplay);
+    }
+
+    private RewardPreviewDisplayConfig loadRewardPreviewDisplay(YamlConfiguration config) {
+        RewardPreviewDisplayConfig defaults = RewardPreviewDisplayConfig.defaults();
+        ConfigurationSection section = config.getConfigurationSection("reward-display");
+        if (section == null) {
+            return defaults;
+        }
+
+        List<String> lore = section.getStringList("lore");
+        if (lore.isEmpty()) {
+            lore = defaults.getLore();
+        }
+        return new RewardPreviewDisplayConfig(
+                section.getBoolean("append-item-lore", defaults.isAppendItemLore()),
+                lore,
+                section.getString("chance-lines.percentage", defaults.getPercentageLine()),
+                section.getString("chance-lines.weight", defaults.getWeightLine()),
+                section.getString("broadcast-line", defaults.getBroadcastLine())
+        );
     }
 
     /**

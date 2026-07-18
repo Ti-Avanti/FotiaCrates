@@ -3,6 +3,7 @@ package gg.fotia.crates.gui;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.MultiOpenAmount;
+import gg.fotia.crates.crate.PreviewChanceDisplayMode;
 import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.history.HistoryManager;
 import gg.fotia.crates.key.Key;
@@ -136,7 +137,8 @@ public class GuiManager {
             if (slotIndex >= contentSlots.size()) break;
             Reward reward = rewards.get(i);
             int slot = contentSlots.get(slotIndex);
-            ItemStack rewardItem = createRewardPreviewItem(reward, rewards, crate.isShowChance());
+            ItemStack rewardItem = createRewardPreviewItem(
+                    reward, rewards, crate.getPreviewChanceDisplayMode(), config.getRewardPreviewDisplay());
             inventory.setItem(slot, rewardItem);
             slotIndex++;
         }
@@ -222,6 +224,11 @@ public class GuiManager {
         placeholders.put("{pity_rarity}", crate.getPityRarity());
         placeholders.put("{preview_enabled}", crate.isPreviewEnabled() ? "是" : "否");
         placeholders.put("{show_chance}", crate.isShowChance() ? "是" : "否");
+        PreviewChanceDisplayMode chanceMode = crate.getPreviewChanceDisplayMode();
+        placeholders.put("{chance_display}", chanceMode.getDisplayName());
+        placeholders.put("{chance_mode_percentage}", chanceModeLine(chanceMode, PreviewChanceDisplayMode.PERCENTAGE));
+        placeholders.put("{chance_mode_weight}", chanceModeLine(chanceMode, PreviewChanceDisplayMode.WEIGHT));
+        placeholders.put("{chance_mode_hidden}", chanceModeLine(chanceMode, PreviewChanceDisplayMode.HIDDEN));
         placeholders.put("{multi_open_enabled}", crate.isMultiOpenEnabled() ? "是" : "否");
         placeholders.put("{multi_open_max}", String.valueOf(crate.getMultiOpenMax()));
 
@@ -779,7 +786,8 @@ public class GuiManager {
         return true;
     }
 
-    private boolean openConfiguredRewardEditGui(Player player, Crate crate, Reward reward) {
+    private boolean openConfiguredRewardEditGui(Player player, Crate crate, Reward reward,
+                                                RewardEditContext editContext) {
         String guiId = "admin_reward_edit";
         GuiConfig config = configManager.getGuiConfig(guiId);
         if (config == null) return false;
@@ -817,16 +825,21 @@ public class GuiManager {
         placeholders.put("{permission_node}", reward.getCheckPermission() == null || reward.getCheckPermission().isEmpty() ? "未设置" : reward.getCheckPermission());
         placeholders.put("{permission_action}", reward.getPermissionAction().name());
         placeholders.put("{alternative_reward}", altRewardName);
+        placeholders.put("{return_gui}", editContext.returnTarget() == RewardEditContext.ReturnTarget.REWARD_MANAGER
+                ? "奖励管理界面"
+                : "宝箱编辑界面");
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_REWARD_EDIT, crate);
         holder.setData("reward_id", reward.getId());
+        holder.setData(RewardEditContext.HOLDER_KEY, editContext);
         Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>编辑奖励: {reward}", 54, placeholders);
         placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         player.openInventory(inventory);
         return true;
     }
 
-    private boolean openConfiguredItemInputGui(Player player, Crate crate, String rewardId, String inputType) {
+    private boolean openConfiguredItemInputGui(Player player, Crate crate, String rewardId, String inputType,
+                                               RewardEditContext editContext) {
         String guiId = "admin_item_input";
         GuiConfig config = configManager.getGuiConfig(guiId);
         if (config == null) return false;
@@ -838,6 +851,7 @@ public class GuiManager {
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ITEM_INPUT, crate);
         holder.setData("reward_id", rewardId);
         holder.setData("input_type", inputType);
+        holder.setData(RewardEditContext.HOLDER_KEY, editContext);
         Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>放入物品", 27, placeholders);
         placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         for (int slot : getConfiguredContentSlots(guiId, List.of(13))) {
@@ -849,7 +863,8 @@ public class GuiManager {
         return true;
     }
 
-    private boolean openConfiguredRewardItemsGui(Player player, Crate crate, String rewardId) {
+    private boolean openConfiguredRewardItemsGui(Player player, Crate crate, String rewardId,
+                                                 RewardEditContext editContext) {
         String guiId = "admin_reward_items";
         GuiConfig config = configManager.getGuiConfig(guiId);
         if (config == null) return false;
@@ -869,6 +884,7 @@ public class GuiManager {
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.REWARD_ITEMS, crate);
         holder.setData("reward_id", rewardId);
+        holder.setData(RewardEditContext.HOLDER_KEY, editContext);
         Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>奖励物品管理", 54, placeholders);
         placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
 
@@ -892,7 +908,8 @@ public class GuiManager {
         return true;
     }
 
-    private boolean openConfiguredAlternativeRewardSelectGui(Player player, Crate crate, String sourceRewardId) {
+    private boolean openConfiguredAlternativeRewardSelectGui(Player player, Crate crate, String sourceRewardId,
+                                                             RewardEditContext editContext) {
         String guiId = "admin_alternative_reward_select";
         GuiConfig config = configManager.getGuiConfig(guiId);
         if (config == null) return false;
@@ -900,6 +917,7 @@ public class GuiManager {
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_REWARD_EDIT, crate);
         holder.setData("source_reward_id", sourceRewardId);
         holder.setData("alternative_select", true);
+        holder.setData(RewardEditContext.HOLDER_KEY, editContext);
         Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>选择替代奖励", 54, Map.of());
         placeFixedItemsWithPlaceholders(inventory, config, player, crate, Map.of());
 
@@ -1155,23 +1173,24 @@ public class GuiManager {
     /**
      * 创建奖励预览物品
      */
-    private ItemStack createRewardPreviewItem(Reward reward, List<? extends Reward> rewards, boolean showChance) {
+    private ItemStack createRewardPreviewItem(Reward reward, List<? extends Reward> rewards,
+                                              PreviewChanceDisplayMode displayMode,
+                                              RewardPreviewDisplayConfig displayConfig) {
         ItemStack item = reward.getDisplayItem();
         ItemBuilder builder = new ItemBuilder(item);
 
-        List<String> lore = new ArrayList<>();
-        lore.add("");
-        lore.add("<!i><gray>稀有度: <!i><yellow>" + reward.getRarity());
-        if (showChance) {
-            lore.add("<!i><gray>概率: <!i><yellow>" + RewardProbability.format(RewardProbability.percentage(reward, rewards)));
-        }
-        if (reward.shouldBroadcast()) {
-            lore.add("<!i><gold>★ 稀有奖励");
-        }
+        RewardPreviewDisplayConfig resolvedConfig = displayConfig != null
+                ? displayConfig
+                : RewardPreviewDisplayConfig.defaults();
+        List<String> lore = RewardPreviewLoreFormatter.render(
+                resolvedConfig,
+                displayMode,
+                reward,
+                rewards,
+                getRarityColor(reward.getRarity()) + getRarityDisplayName(reward.getRarity())
+        );
 
-        replaceRawRarityLine(lore, reward.getRarity());
-
-        if (item.hasItemMeta() && item.getItemMeta().hasLore()) {
+        if (resolvedConfig.isAppendItemLore() && item.hasItemMeta() && item.getItemMeta().hasLore()) {
             List<Component> originalLore = item.getItemMeta().lore();
             List<Component> newLore = new ArrayList<>();
             if (originalLore != null) {
@@ -1186,6 +1205,11 @@ public class GuiManager {
         }
 
         return builder.build();
+    }
+
+    private String chanceModeLine(PreviewChanceDisplayMode current, PreviewChanceDisplayMode option) {
+        String marker = current == option ? "<!i><green>▶ " : "<!i><dark_gray>  ";
+        return marker + option.getDisplayName();
     }
 
     /**
@@ -1603,7 +1627,12 @@ public class GuiManager {
      * 打开奖励编辑界面
      */
     public void openRewardEditGui(Player player, Crate crate, Reward reward) {
-        if (openConfiguredRewardEditGui(player, crate, reward)) {
+        openRewardEditGui(player, crate, reward, RewardEditContext.crateEditor());
+    }
+
+    public void openRewardEditGui(Player player, Crate crate, Reward reward, RewardEditContext editContext) {
+        RewardEditContext resolvedContext = editContext != null ? editContext : RewardEditContext.crateEditor();
+        if (openConfiguredRewardEditGui(player, crate, reward, resolvedContext)) {
             return;
         }
         Inventory inventory = Bukkit.createInventory(
@@ -1614,6 +1643,7 @@ public class GuiManager {
 
         CrateGuiHolder holder = (CrateGuiHolder) inventory.getHolder();
         holder.setData("reward_id", reward.getId());
+        holder.setData(RewardEditContext.HOLDER_KEY, resolvedContext);
 
         // 填充背景
         ItemStack fill = new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
@@ -1624,7 +1654,9 @@ public class GuiManager {
         // 返回按钮
         ItemStack back = new ItemBuilder(Material.ARROW)
                 .name("<!i><red>返回")
-                .lore(List.of("<!i><gray>返回宝箱编辑界面"))
+                .lore(List.of("<!i><gray>返回" + (resolvedContext.returnTarget() == RewardEditContext.ReturnTarget.REWARD_MANAGER
+                        ? "奖励管理界面"
+                        : "宝箱编辑界面")))
                 .build();
         inventory.setItem(45, back);
 
@@ -1861,7 +1893,13 @@ public class GuiManager {
      * @param inputType 输入类型: "display_icon" 或 "reward_item"
      */
     public void openItemInputGui(Player player, Crate crate, String rewardId, String inputType) {
-        if (openConfiguredItemInputGui(player, crate, rewardId, inputType)) {
+        openItemInputGui(player, crate, rewardId, inputType, RewardEditContext.crateEditor());
+    }
+
+    public void openItemInputGui(Player player, Crate crate, String rewardId, String inputType,
+                                 RewardEditContext editContext) {
+        RewardEditContext resolvedContext = editContext != null ? editContext : RewardEditContext.crateEditor();
+        if (openConfiguredItemInputGui(player, crate, rewardId, inputType, resolvedContext)) {
             return;
         }
         Inventory inventory = Bukkit.createInventory(
@@ -1873,6 +1911,7 @@ public class GuiManager {
         CrateGuiHolder holder = (CrateGuiHolder) inventory.getHolder();
         holder.setData("reward_id", rewardId);
         holder.setData("input_type", inputType);
+        holder.setData(RewardEditContext.HOLDER_KEY, resolvedContext);
 
         // 填充背景
         ItemStack fill = new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
@@ -1936,7 +1975,13 @@ public class GuiManager {
      * 打开奖励物品管理界面（支持多个物品）
      */
     public void openRewardItemsGui(Player player, Crate crate, String rewardId) {
-        if (openConfiguredRewardItemsGui(player, crate, rewardId)) {
+        openRewardItemsGui(player, crate, rewardId, RewardEditContext.crateEditor());
+    }
+
+    public void openRewardItemsGui(Player player, Crate crate, String rewardId,
+                                   RewardEditContext editContext) {
+        RewardEditContext resolvedContext = editContext != null ? editContext : RewardEditContext.crateEditor();
+        if (openConfiguredRewardItemsGui(player, crate, rewardId, resolvedContext)) {
             return;
         }
         Inventory inventory = Bukkit.createInventory(
@@ -1947,6 +1992,7 @@ public class GuiManager {
 
         CrateGuiHolder holder = (CrateGuiHolder) inventory.getHolder();
         holder.setData("reward_id", rewardId);
+        holder.setData(RewardEditContext.HOLDER_KEY, resolvedContext);
 
         // 填充背景
         ItemStack fill = new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
@@ -2040,7 +2086,13 @@ public class GuiManager {
      * 打开替代奖励选择界面
      */
     public void openAlternativeRewardSelectGui(Player player, Crate crate, String sourceRewardId) {
-        if (openConfiguredAlternativeRewardSelectGui(player, crate, sourceRewardId)) {
+        openAlternativeRewardSelectGui(player, crate, sourceRewardId, RewardEditContext.crateEditor());
+    }
+
+    public void openAlternativeRewardSelectGui(Player player, Crate crate, String sourceRewardId,
+                                               RewardEditContext editContext) {
+        RewardEditContext resolvedContext = editContext != null ? editContext : RewardEditContext.crateEditor();
+        if (openConfiguredAlternativeRewardSelectGui(player, crate, sourceRewardId, resolvedContext)) {
             return;
         }
         Inventory inventory = Bukkit.createInventory(
@@ -2052,6 +2104,7 @@ public class GuiManager {
         CrateGuiHolder holder = (CrateGuiHolder) inventory.getHolder();
         holder.setData("source_reward_id", sourceRewardId);
         holder.setData("alternative_select", true);
+        holder.setData(RewardEditContext.HOLDER_KEY, resolvedContext);
 
         // 填充背景
         ItemStack fill = new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();

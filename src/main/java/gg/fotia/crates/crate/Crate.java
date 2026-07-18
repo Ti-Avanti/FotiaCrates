@@ -31,7 +31,7 @@ public class Crate {
     private final List<String> hologramLines;
     private final List<Reward> rewards;
     private final boolean previewEnabled;
-    private final boolean showChance;
+    private final PreviewChanceDisplayMode previewChanceDisplayMode;
     private final String previewTitle;
     private final boolean animationEnabled;
     private final AnimationType animationType;
@@ -80,7 +80,8 @@ public class Crate {
                  String modelEngineIdleAnimation, String modelEngineOpenAnimation,
                  int modelEngineOpenDelay, int modelEngineViewRange, double physicalAnimationHeight,
                  double hologramHeight, List<String> hologramLines,
-                 List<Reward> rewards, boolean previewEnabled, boolean showChance, String previewTitle,
+                 List<Reward> rewards, boolean previewEnabled,
+                 PreviewChanceDisplayMode previewChanceDisplayMode, String previewTitle,
                  boolean animationEnabled, AnimationType animationType, int animationDuration,
                  String animationTitle, boolean physicalAnimationEnabled,
                  boolean particlesEnabled, Particle particleType, int particleCount,
@@ -107,7 +108,9 @@ public class Crate {
         this.hologramLines = hologramLines != null ? hologramLines : new ArrayList<>();
         this.rewards = rewards != null ? rewards : new ArrayList<>();
         this.previewEnabled = previewEnabled;
-        this.showChance = showChance;
+        this.previewChanceDisplayMode = previewChanceDisplayMode != null
+                ? previewChanceDisplayMode
+                : PreviewChanceDisplayMode.PERCENTAGE;
         this.previewTitle = previewTitle;
         this.animationEnabled = animationEnabled;
         this.animationType = animationType;
@@ -172,8 +175,9 @@ public class Crate {
             return getRewards();
         }
 
+        MultiOpenPermissionContext permissionContext = new MultiOpenPermissionContext(player::hasPermission);
         return rewards.stream()
-                .filter(reward -> !shouldSkipReward(player, reward, new HashSet<>()))
+                .filter(reward -> !shouldSkipReward(permissionContext, reward))
                 .toList();
     }
 
@@ -183,7 +187,11 @@ public class Crate {
      * @return 抽奖结果（包含显示奖励和实际奖励），如果所有奖励都被跳过则返回null
      */
     public RewardResult rollRewardWithPermissionCheckResult(Player player) {
-        return rollRewardWithPermissionCheckResult(player, new HashSet<>());
+        return rollRewardWithPermissionCheckResult(new MultiOpenPermissionContext(player::hasPermission));
+    }
+
+    RewardResult rollRewardWithPermissionCheckResult(MultiOpenPermissionContext permissionContext) {
+        return rollRewardWithPermissionCheckResult(permissionContext, new HashSet<>());
     }
 
     /**
@@ -192,11 +200,12 @@ public class Crate {
      * @param checkedRewardIds 已检测过的奖励ID集合（防止循环引用）
      * @return 抽奖结果，如果所有奖励都被跳过则返回null
      */
-    private RewardResult rollRewardWithPermissionCheckResult(Player player, Set<String> checkedRewardIds) {
+    private RewardResult rollRewardWithPermissionCheckResult(MultiOpenPermissionContext permissionContext,
+                                                             Set<String> checkedRewardIds) {
         // 过滤掉需要跳过的奖励
         List<Reward> availableRewards = new ArrayList<>();
         for (Reward reward : rewards) {
-            if (shouldSkipReward(player, reward, checkedRewardIds)) {
+            if (shouldSkipReward(permissionContext, reward)) {
                 continue;
             }
             availableRewards.add(reward);
@@ -226,48 +235,32 @@ public class Crate {
         }
 
         // 检查是否需要替代奖励
-        return processPermissionCheckResult(player, selectedReward, selectedReward, checkedRewardIds);
+        return processPermissionCheckResult(
+                permissionContext, selectedReward, selectedReward, checkedRewardIds);
     }
 
     /**
      * 抽取奖励（带权限检测，递归防循环）- 旧方法保留兼容
      */
     private Reward rollRewardWithPermissionCheck(Player player, Set<String> checkedRewardIds) {
-        RewardResult result = rollRewardWithPermissionCheckResult(player, checkedRewardIds);
+        RewardResult result = rollRewardWithPermissionCheckResult(
+                new MultiOpenPermissionContext(player::hasPermission), checkedRewardIds);
         return result != null ? result.getActualReward() : null;
     }
 
     /**
      * 检查是否应该跳过该奖励
      */
-    private boolean shouldSkipReward(Player player, Reward reward, Set<String> checkedRewardIds) {
-        if (!reward.isPermissionCheckEnabled()) {
-            return false;
-        }
-
-        String permission = reward.getCheckPermission();
-        if (permission == null || permission.isEmpty()) {
-            return false;
-        }
-
-        // 检查玩家是否拥有权限
-        if (!player.hasPermission(permission)) {
-            return false;
-        }
-
-        // 玩家拥有权限，检查行为
-        if (reward.getPermissionAction() == PermissionAction.SKIP) {
-            return true; // 跳过该奖励
-        }
-
-        return false; // ALTERNATIVE行为不跳过，后续处理
+    private boolean shouldSkipReward(MultiOpenPermissionContext permissionContext, Reward reward) {
+        return permissionContext.shouldSkip(reward);
     }
 
     /**
      * 处理权限检测，返回最终奖励
      */
     private Reward processPermissionCheck(Player player, Reward reward, Set<String> checkedRewardIds) {
-        RewardResult result = processPermissionCheckResult(player, reward, reward, checkedRewardIds);
+        RewardResult result = processPermissionCheckResult(
+                new MultiOpenPermissionContext(player::hasPermission), reward, reward, checkedRewardIds);
         return result != null ? result.getActualReward() : null;
     }
 
@@ -279,7 +272,9 @@ public class Crate {
      * @param checkedRewardIds 已检测过的奖励ID
      * @return 抽奖结果
      */
-    private RewardResult processPermissionCheckResult(Player player, Reward originalReward, Reward currentReward, Set<String> checkedRewardIds) {
+    private RewardResult processPermissionCheckResult(MultiOpenPermissionContext permissionContext,
+                                                      Reward originalReward, Reward currentReward,
+                                                      Set<String> checkedRewardIds) {
         if (!currentReward.isPermissionCheckEnabled()) {
             return originalReward == currentReward
                     ? RewardResult.normal(currentReward)
@@ -294,7 +289,7 @@ public class Crate {
         }
 
         // 检查玩家是否拥有权限
-        if (!player.hasPermission(permission)) {
+        if (!permissionContext.hasPermission(permission)) {
             return originalReward == currentReward
                     ? RewardResult.normal(currentReward)
                     : RewardResult.replaced(originalReward, currentReward);
@@ -325,7 +320,8 @@ public class Crate {
                 if (alternativeReward != null) {
                     // 递归检测替代奖励，但保持原始奖励用于显示
                     checkedRewardIds.add(currentReward.getId());
-                    return processPermissionCheckResult(player, originalReward, alternativeReward, checkedRewardIds);
+                    return processPermissionCheckResult(
+                            permissionContext, originalReward, alternativeReward, checkedRewardIds);
                 }
             }
         }
@@ -443,23 +439,31 @@ public class Crate {
      * 根据指定稀有度抽取保底奖励（带权限检测），返回完整结果
      */
     public RewardResult rollPityRewardWithPermissionCheckResult(Player player, String targetRarity) {
-        return rollPityRewardWithPermissionCheckResult(player, targetRarity, new HashSet<>());
+        return rollPityRewardWithPermissionCheckResult(
+                new MultiOpenPermissionContext(player::hasPermission), targetRarity);
+    }
+
+    RewardResult rollPityRewardWithPermissionCheckResult(MultiOpenPermissionContext permissionContext,
+                                                         String targetRarity) {
+        return rollPityRewardWithPermissionCheckResult(permissionContext, targetRarity, new HashSet<>());
     }
 
     /**
      * 根据指定稀有度抽取保底奖励（带权限检测，递归防循环）
      */
-    private RewardResult rollPityRewardWithPermissionCheckResult(Player player, String targetRarity, Set<String> checkedRewardIds) {
+    private RewardResult rollPityRewardWithPermissionCheckResult(MultiOpenPermissionContext permissionContext,
+                                                                 String targetRarity,
+                                                                 Set<String> checkedRewardIds) {
         // 过滤出符合稀有度且不需要跳过的奖励
         List<Reward> pityRewards = rewards.stream()
                 .filter(r -> r.getRarity().equalsIgnoreCase(targetRarity) ||
                         isRarityHigherOrEqual(r.getRarity(), targetRarity))
-                .filter(r -> !shouldSkipReward(player, r, checkedRewardIds))
+                .filter(r -> !shouldSkipReward(permissionContext, r))
                 .toList();
 
         if (pityRewards.isEmpty()) {
             // 如果保底奖励都被跳过，尝试普通抽取
-            return rollRewardWithPermissionCheckResult(player);
+            return rollRewardWithPermissionCheckResult(permissionContext);
         }
 
         double totalChance = pityRewards.stream().mapToDouble(Reward::getChance).sum();
@@ -480,14 +484,16 @@ public class Crate {
         }
 
         // 检查是否需要替代奖励
-        return processPermissionCheckResult(player, selectedReward, selectedReward, checkedRewardIds);
+        return processPermissionCheckResult(
+                permissionContext, selectedReward, selectedReward, checkedRewardIds);
     }
 
     /**
      * 根据指定稀有度抽取保底奖励（带权限检测，递归防循环）- 旧方法保留兼容
      */
     private Reward rollPityRewardWithPermissionCheck(Player player, String targetRarity, Set<String> checkedRewardIds) {
-        RewardResult result = rollPityRewardWithPermissionCheckResult(player, targetRarity, checkedRewardIds);
+        RewardResult result = rollPityRewardWithPermissionCheckResult(
+                new MultiOpenPermissionContext(player::hasPermission), targetRarity, checkedRewardIds);
         return result != null ? result.getActualReward() : null;
     }
 
@@ -551,7 +557,8 @@ public class Crate {
     public List<String> getHologramLines() { return new ArrayList<>(hologramLines); }
     public List<Reward> getRewards() { return new ArrayList<>(rewards); }
     public boolean isPreviewEnabled() { return previewEnabled; }
-    public boolean isShowChance() { return showChance; }
+    public boolean isShowChance() { return previewChanceDisplayMode != PreviewChanceDisplayMode.HIDDEN; }
+    public PreviewChanceDisplayMode getPreviewChanceDisplayMode() { return previewChanceDisplayMode; }
     public String getPreviewTitle() { return previewTitle; }
     public boolean isAnimationEnabled() { return animationEnabled; }
     public AnimationType getAnimationType() { return animationType; }
