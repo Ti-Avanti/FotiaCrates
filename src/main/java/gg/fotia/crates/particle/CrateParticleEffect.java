@@ -28,6 +28,9 @@ public class CrateParticleEffect {
     private final float size;
     private final Material blockMaterial;
     private final Material itemMaterial;
+    // 构造时解析并缓存：渲染循环每个粒子点都要用，禁止逐点做字符串解析/对象分配
+    private final org.bukkit.Particle resolvedParticle;
+    private final Object resolvedData;
 
     public CrateParticleEffect(ParticleStage stage, boolean enabled, String particle,
                                ParticleEffectMode mode, ParticleTarget target,
@@ -55,6 +58,14 @@ public class CrateParticleEffect {
         this.size = Math.max(0.1f, Math.min(size, 5.0f));
         this.blockMaterial = blockMaterial != null && blockMaterial.isBlock() ? blockMaterial : Material.GOLD_BLOCK;
         this.itemMaterial = itemMaterial != null && !itemMaterial.isAir() ? itemMaterial : Material.GOLD_INGOT;
+        this.resolvedParticle = ParticleCompat.resolveParticle(this.particle, org.bukkit.Particle.FLAME);
+        Object data = null;
+        try {
+            data = ParticleCompat.createData(this.resolvedParticle, this);
+        } catch (RuntimeException | LinkageError ignored) {
+            // 无服务端环境（单元测试）或不支持的数据类型时留空
+        }
+        this.resolvedData = data;
     }
 
     public static Map<ParticleStage, CrateParticleEffect> loadAll(ConfigurationSection root,
@@ -205,4 +216,6 @@ public class CrateParticleEffect {
     public float getSize() { return size; }
     public Material getBlockMaterial() { return blockMaterial; }
     public Material getItemMaterial() { return itemMaterial; }
+    public org.bukkit.Particle getResolvedParticle() { return resolvedParticle; }
+    public Object getResolvedData() { return resolvedData; }
 }

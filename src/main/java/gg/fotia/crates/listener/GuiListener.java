@@ -50,7 +50,8 @@ public class GuiListener implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         Inventory inventory = event.getInventory();
-        if (!(inventory.getHolder() instanceof CrateGuiHolder holder)) {
+        // getHolder(false)：避免 Paper 对方块容器（普通箱子等）每次点击都创建 BlockState 快照
+        if (!(inventory.getHolder(false) instanceof CrateGuiHolder holder)) {
             return;
         }
 
@@ -432,72 +433,54 @@ public class GuiListener implements Listener {
             return;
         }
 
-        switch (slot) {
-            case 45 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
-            case 4 -> { // 切换启用/禁用
-                plugin.getCrateManager().togglePity(crate.getId());
-                plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
-            case 6 -> {
-                plugin.getCrateManager().togglePityEarlyReset(crate.getId());
-                plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
-            case 53 -> { // 保存并返回
-                plugin.getCrateManager().saveCrate(crate.getId());
-                plugin.getLanguageManager().send(player, "admin-crate-saved");
-                plugin.getGuiManager().openCrateEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
-            default -> {
-                // 检查是否点击了保底等级槽位
-                for (int i = 0; i < tierSlots.size(); i++) {
-                    if (slot == tierSlots.get(i)) {
-                        if (i < tiers.size()) {
-                            // 编辑现有等级
-                            Crate.PityTier tier = tiers.get(i);
-                            if (event.isShiftClick() && event.isRightClick()) {
-                                // 删除
-                                plugin.getCrateManager().removePityTier(crate.getId(), i);
-                                plugin.getLanguageManager().send(player, "admin-pity-tier-removed");
-                                plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-                            } else if (event.isRightClick()) {
-                                // 切换稀有度
-                                String newRarity = plugin.getConfigManager().getNextRarity(tier.getRarity());
-                                plugin.getCrateManager().updatePityTier(crate.getId(), i, tier.getCount(), newRarity);
-                                plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-                            } else if (event.isLeftClick()) {
-                                // 编辑次数
-                                final int tierIndex = i;
-                                plugin.getLanguageManager().send(player, "admin-input-pity-count");
-                                plugin.getGuiManager().startInputSession(player, "pity_count",
-                                        new Object[]{crate.getId(), tierIndex, tier.getRarity()}, (p, input, data) -> {
-                                    Object[] params = (Object[]) data;
-                                    String crateId = (String) params[0];
-                                    int idx = (int) params[1];
-                                    String rarity = (String) params[2];
-                                    try {
-                                        int newCount = Integer.parseInt(input);
-                                        if (newCount > 0) {
-                                            plugin.getCrateManager().updatePityTier(crateId, idx, newCount, rarity);
-                                            plugin.getGuiManager().openPityEditGui(p, plugin.getCrateManager().getCrate(crateId));
-                                        } else {
-                                            plugin.getLanguageManager().send(p, "invalid-number");
-                                        }
-                                    } catch (NumberFormatException e) {
-                                        plugin.getLanguageManager().send(p, "invalid-number");
-                                    }
-                                });
+        // 保底等级槽位点击（动作按钮已在上方统一处理，配置的 action 优先于任何硬编码槽位）
+        for (int i = 0; i < tierSlots.size(); i++) {
+            if (slot == tierSlots.get(i)) {
+                if (i < tiers.size()) {
+                    // 编辑现有等级
+                    Crate.PityTier tier = tiers.get(i);
+                    if (event.isShiftClick() && event.isRightClick()) {
+                        // 删除
+                        plugin.getCrateManager().removePityTier(crate.getId(), i);
+                        plugin.getLanguageManager().send(player, "admin-pity-tier-removed");
+                        plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+                    } else if (event.isRightClick()) {
+                        // 切换稀有度
+                        String newRarity = plugin.getConfigManager().getNextRarity(tier.getRarity());
+                        plugin.getCrateManager().updatePityTier(crate.getId(), i, tier.getCount(), newRarity);
+                        plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
+                    } else if (event.isLeftClick()) {
+                        // 编辑次数
+                        final int tierIndex = i;
+                        plugin.getLanguageManager().send(player, "admin-input-pity-count");
+                        plugin.getGuiManager().startInputSession(player, "pity_count",
+                                new Object[]{crate.getId(), tierIndex, tier.getRarity()}, (p, input, data) -> {
+                            Object[] params = (Object[]) data;
+                            String crateId = (String) params[0];
+                            int idx = (int) params[1];
+                            String rarity = (String) params[2];
+                            try {
+                                int newCount = Integer.parseInt(input);
+                                if (newCount > 0) {
+                                    plugin.getCrateManager().updatePityTier(crateId, idx, newCount, rarity);
+                                    plugin.getGuiManager().openPityEditGui(p, plugin.getCrateManager().getCrate(crateId));
+                                } else {
+                                    plugin.getLanguageManager().send(p, "invalid-number");
+                                }
+                            } catch (NumberFormatException e) {
+                                plugin.getLanguageManager().send(p, "invalid-number");
                             }
-                        } else if (i == tiers.size()) {
-                            // 添加新等级
-                            int defaultCount = tiers.isEmpty() ? 25 : tiers.get(tiers.size() - 1).getCount() + 25;
-                            plugin.getCrateManager().addPityTier(crate.getId(), defaultCount,
-                                    plugin.getConfigManager().getDefaultPityRarityId());
-                            plugin.getLanguageManager().send(player, "admin-pity-tier-added");
-                            plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-                        }
-                        break;
+                        });
                     }
+                } else if (i == tiers.size()) {
+                    // 添加新等级
+                    int defaultCount = tiers.isEmpty() ? 25 : tiers.get(tiers.size() - 1).getCount() + 25;
+                    plugin.getCrateManager().addPityTier(crate.getId(), defaultCount,
+                            plugin.getConfigManager().getDefaultPityRarityId());
+                    plugin.getLanguageManager().send(player, "admin-pity-tier-added");
+                    plugin.getGuiManager().openPityEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
                 }
+                break;
             }
         }
     }
@@ -548,45 +531,6 @@ public class GuiListener implements Listener {
             int newDuration = Math.max(1, crate.getAnimationDuration() + delta);
             plugin.getCrateManager().updateAnimationDuration(crate.getId(), newDuration);
             plugin.getGuiManager().openBasicEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            return;
-        }
-
-        switch (slot) {
-            case 18 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
-            case 11 -> { // 编辑名称
-                plugin.getLanguageManager().send(player, "admin-input-name");
-                plugin.getGuiManager().startInputSession(player, "crate_name", crate.getId(), (p, input, data) -> {
-                    String crateId = (String) data;
-                    plugin.getCrateManager().updateCrateName(crateId, input);
-                    plugin.getLanguageManager().send(p, "admin-crate-name-updated",
-                            LanguageManager.placeholders("name", input));
-                    Crate updatedCrate = plugin.getCrateManager().getCrate(crateId);
-                    if (updatedCrate != null) {
-                        plugin.getGuiManager().openBasicEditGui(p, updatedCrate);
-                    }
-                });
-            }
-            case 13 -> { // 编辑方块
-                org.bukkit.inventory.ItemStack item = player.getInventory().getItemInMainHand();
-                if (item.getType().isAir() || !item.getType().isBlock()) {
-                    plugin.getLanguageManager().send(player, "admin-hold-block");
-                    return;
-                }
-                plugin.getCrateManager().updateCrateBlock(crate.getId(), item.getType());
-                plugin.getLanguageManager().send(player, "admin-block-updated");
-                plugin.getGuiManager().openBasicEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
-            case 15 -> { // 调整动画时长
-                int delta = 0;
-                if (event.isLeftClick()) {
-                    delta = event.isShiftClick() ? 5 : 1;
-                } else if (event.isRightClick()) {
-                    delta = event.isShiftClick() ? -5 : -1;
-                }
-                int newDuration = Math.max(1, crate.getAnimationDuration() + delta);
-                plugin.getCrateManager().updateAnimationDuration(crate.getId(), newDuration);
-                plugin.getGuiManager().openBasicEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
         }
     }
 
@@ -622,31 +566,6 @@ public class GuiListener implements Listener {
                     crate.getMultiOpenMax() + delta));
             plugin.getCrateManager().updateMultiOpenMax(crate.getId(), newMax);
             plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            return;
-        }
-
-        switch (slot) {
-            case 18 -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
-            case 11 -> { // 切换启用/禁用
-                plugin.getCrateManager().toggleMultiOpen(crate.getId());
-                plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
-            case 13 -> {
-                plugin.getCrateManager().toggleMultiOpenAnimation(crate.getId());
-                plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
-            case 15 -> { // 调整最大数量
-                int delta = 0;
-                if (event.isLeftClick()) {
-                    delta = event.isShiftClick() ? 5 : 1;
-                } else if (event.isRightClick()) {
-                    delta = event.isShiftClick() ? -5 : -1;
-                }
-                int newMax = Math.max(1, Math.min(plugin.getConfigManager().getMultiOpenHardLimit(),
-                        crate.getMultiOpenMax() + delta));
-                plugin.getCrateManager().updateMultiOpenMax(crate.getId(), newMax);
-                plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
         }
     }
 
@@ -782,24 +701,15 @@ public class GuiListener implements Listener {
             return;
         }
 
-        switch (slot) {
-            case 45 -> plugin.getGuiManager().openParticleStageEditGui(player, crate, stage);
-            case 48 -> plugin.getGuiManager().openParticleMaterialSelectGui(
-                    player, crate, stage, materialKey, Math.max(0, page - 1));
-            case 50 -> plugin.getGuiManager().openParticleMaterialSelectGui(
-                    player, crate, stage, materialKey,
-                    Math.min(plugin.getGuiManager().getParticleMaterialMaxPage(materialKey), page + 1));
-            default -> {
-                Material material = plugin.getGuiManager().getParticleMaterialSelection(materialKey, page, slot);
-                if (material == null) {
-                    return;
-                }
-                plugin.getCrateManager().updateParticleMaterial(crate.getId(), stage, materialKey, material);
-                sendParticleUpdated(player, "block".equalsIgnoreCase(materialKey) ? "方块粒子材质" : "物品粒子材质");
-                plugin.getGuiManager().openParticleMaterialSelectGui(player,
-                        plugin.getCrateManager().getCrate(crate.getId()), stage, materialKey, page);
-            }
+        // 材质槽位点击（动作按钮已在上方统一处理）
+        Material material = plugin.getGuiManager().getParticleMaterialSelection(materialKey, page, slot);
+        if (material == null) {
+            return;
         }
+        plugin.getCrateManager().updateParticleMaterial(crate.getId(), stage, materialKey, material);
+        sendParticleUpdated(player, "block".equalsIgnoreCase(materialKey) ? "方块粒子材质" : "物品粒子材质");
+        plugin.getGuiManager().openParticleMaterialSelectGui(player,
+                plugin.getCrateManager().getCrate(crate.getId()), stage, materialKey, page);
     }
 
     private void handleParticleMainClick(Player player, Crate crate, int slot) {
@@ -2084,7 +1994,7 @@ public class GuiListener implements Listener {
 
     @EventHandler
     public void onInventoryDrag(InventoryDragEvent event) {
-        if (event.getInventory().getHolder() instanceof CrateGuiHolder holder) {
+        if (event.getInventory().getHolder(false) instanceof CrateGuiHolder holder) {
             // 物品输入界面允许拖拽到slot 13
             if (holder.getGuiType() == GuiType.ITEM_INPUT) {
                 // 只允许拖拽到slot 13
@@ -2114,7 +2024,7 @@ public class GuiListener implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         // 物品输入界面关闭时返还物品
-        if (event.getInventory().getHolder() instanceof CrateGuiHolder holder) {
+        if (event.getInventory().getHolder(false) instanceof CrateGuiHolder holder) {
             if (holder.getGuiType() == GuiType.ITEM_INPUT) {
                 // 如果已保存则不返还
                 Boolean saved = holder.getData("saved");
@@ -2125,7 +2035,7 @@ public class GuiListener implements Listener {
                 org.bukkit.inventory.ItemStack item = event.getInventory().getItem(inputSlot);
                 if (item != null && !item.getType().isAir()) {
                     if (event.getPlayer() instanceof Player player) {
-                        player.getInventory().addItem(item);
+                        returnItemToPlayer(player, item);
                     }
                 }
             }
@@ -2144,12 +2054,20 @@ public class GuiListener implements Listener {
                     for (int slot : itemSlots) {
                         org.bukkit.inventory.ItemStack item = event.getInventory().getItem(slot);
                         if (item != null && !item.getType().isAir()) {
-                            player.getInventory().addItem(item);
+                            returnItemToPlayer(player, item);
                         }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * 返还物品给玩家；背包满时掉落在脚下，避免物品凭空消失
+     */
+    private void returnItemToPlayer(Player player, org.bukkit.inventory.ItemStack item) {
+        player.getInventory().addItem(item).values().forEach(leftover ->
+                player.getWorld().dropItemNaturally(player.getLocation(), leftover));
     }
 
     @EventHandler

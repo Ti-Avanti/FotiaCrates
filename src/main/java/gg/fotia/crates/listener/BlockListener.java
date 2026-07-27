@@ -39,7 +39,7 @@ public class BlockListener implements Listener {
         this.multiOpenService = new MultiOpenService(plugin, crateOpenService);
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
         ItemStack item = event.getItemInHand();
@@ -94,7 +94,8 @@ public class BlockListener implements Listener {
         plugin.getHologramManager().createHologram(location, crateId);
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    // ignoreCancelled：尊重保护插件（领地/区域）已取消的交互，不再绕过保护开箱
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
@@ -136,11 +137,7 @@ public class BlockListener implements Listener {
                 return;
             }
 
-            if (!plugin.getKeyManager().hasKeyForCrate(player, crate.getId())) {
-                plugin.getLanguageManager().send(player, "no-key");
-                return;
-            }
-
+            // 无钥匙的情况由 prepareOpen 统一返回 NO_KEY 并提示，不再预检（省一次背包扫描）
             openCrate(player, crate, location);
             return;
         }
@@ -172,30 +169,37 @@ public class BlockListener implements Listener {
             return;
         }
 
-        CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
-        if (!openAttempt.isSuccess()) {
-            plugin.getOpenSessionManager().finish(playerUuid);
-            crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
-            return;
-        }
-
-        crateOpenService.commitOpen(player, openAttempt, () -> {
-            RewardResult rewardResult = openAttempt.rewardResult();
-            plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-            plugin.getHologramManager().hideHologram(crateLocation);
-
-            boolean hasModel = crate.isModelEnabled()
-                    && plugin.getModelEngineManager().ensureCrateModel(crate, crateLocation);
-            if (hasModel) {
-                plugin.getModelEngineManager().playOpenAnimation(crate, crateLocation, player);
-                int delay = crate.getModelEngineOpenDelay();
-                plugin.getServer().getScheduler().runTaskLater(plugin,
-                        () -> playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation), delay);
+        CrateOpenService.OpenAttempt openAttempt;
+        try {
+            openAttempt = crateOpenService.prepareOpen(player, crate);
+            if (!openAttempt.isSuccess()) {
+                plugin.getOpenSessionManager().finish(playerUuid);
+                crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
                 return;
             }
 
-            playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation);
-        }, () -> plugin.getOpenSessionManager().finish(playerUuid));
+            crateOpenService.commitOpen(player, openAttempt, () -> {
+                RewardResult rewardResult = openAttempt.rewardResult();
+                plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
+                plugin.getHologramManager().hideHologram(crateLocation);
+
+                boolean hasModel = crate.isModelEnabled()
+                        && plugin.getModelEngineManager().ensureCrateModel(crate, crateLocation);
+                if (hasModel) {
+                    plugin.getModelEngineManager().playOpenAnimation(crate, crateLocation, player);
+                    int delay = crate.getModelEngineOpenDelay();
+                    plugin.getServer().getScheduler().runTaskLater(plugin,
+                            () -> playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation), delay);
+                    return;
+                }
+
+                playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation);
+            }, () -> plugin.getOpenSessionManager().finish(playerUuid));
+        } catch (RuntimeException exception) {
+            // 同步段抛异常时必须释放会话，否则该玩家将被永久拦截
+            plugin.getOpenSessionManager().finish(playerUuid);
+            throw exception;
+        }
     }
 
     private void playGuiAnimationAndGiveReward(Player player, Crate crate, RewardResult rewardResult, Location crateLocation) {
@@ -244,7 +248,7 @@ public class BlockListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerInteractAtEntity(PlayerInteractAtEntityEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) {
             return;
@@ -288,15 +292,10 @@ public class BlockListener implements Listener {
             return;
         }
 
-        if (!plugin.getKeyManager().hasKeyForCrate(player, crate.getId())) {
-            plugin.getLanguageManager().send(player, "no-key");
-            return;
-        }
-
         openCrate(player, crate, location);
     }
 
-    @EventHandler(priority = EventPriority.HIGH)
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player player)) {
             return;
@@ -352,10 +351,6 @@ public class BlockListener implements Listener {
         }
 
         if (amount <= 1) {
-            if (!plugin.getKeyManager().hasKeyForCrate(player, crate.getId())) {
-                plugin.getLanguageManager().send(player, "no-key");
-                return;
-            }
             openCrate(player, crate, location);
             return;
         }
@@ -394,7 +389,13 @@ public class BlockListener implements Listener {
             return;
         }
 
-        multiOpenService.open(player, crate, amount, location,
-                () -> plugin.getOpenSessionManager().finish(playerUuid));
+        try {
+            multiOpenService.open(player, crate, amount, location,
+                    () -> plugin.getOpenSessionManager().finish(playerUuid));
+        } catch (RuntimeException exception) {
+            // 同步段抛异常时必须释放会话，否则该玩家将被永久拦截
+            plugin.getOpenSessionManager().finish(playerUuid);
+            throw exception;
+        }
     }
 }

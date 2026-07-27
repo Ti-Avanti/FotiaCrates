@@ -147,12 +147,15 @@ public final class ParticleCompat {
         if (!value.startsWith("#")) {
             value = "#" + value;
         }
-        if (!value.matches("#[0-9a-fA-F]{6}")) {
+        if (!HEX_COLOR_PATTERN.matcher(value).matches()) {
             value = "#FFD700";
         }
         int rgb = Integer.parseInt(value.substring(1), 16);
         return Color.fromRGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
     }
+
+    private static final java.util.regex.Pattern HEX_COLOR_PATTERN =
+            java.util.regex.Pattern.compile("#[0-9a-fA-F]{6}");
 
     private static List<String> candidates(String configuredName) {
         String normalized = configuredName == null || configuredName.isBlank()

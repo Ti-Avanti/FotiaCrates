@@ -34,9 +34,11 @@ public class CrateManager {
     private final FotiaCrates plugin;
     private final Map<String, Crate> crates = new HashMap<>();
     private final CrateLocationIndex crateLocations = new CrateLocationIndex();
+    private final NamespacedKey crateBlockKey;
 
     public CrateManager(FotiaCrates plugin) {
         this.plugin = plugin;
+        this.crateBlockKey = new NamespacedKey(plugin, "crate_block");
     }
 
     public void loadCrates() {
@@ -117,7 +119,8 @@ public class CrateManager {
                 config.getString("preview.chance-display"), legacyShowChance);
         String previewTitle = config.getString("preview.title", name + " Preview");
 
-        boolean animationEnabled = config.getBoolean("animation.enabled", true);
+        boolean animationEnabled = config.getBoolean("animation.enabled",
+                plugin.getConfigManager().isDefaultAnimationEnabled());
         AnimationType animationType = AnimationType.valueOf(config.getString("animation.type", "ROULETTE"));
         int animationDuration = config.getInt("animation.duration", 3);
         String animationTitle = config.getString("animation.title", "<!i><dark_gray>" + name);
@@ -152,17 +155,18 @@ public class CrateManager {
             for (String tierKey : pityTiersSection.getKeys(false)) {
                 ConfigurationSection tierSection = pityTiersSection.getConfigurationSection(tierKey);
                 if (tierSection != null) {
-                    int count = tierSection.getInt("count", 50);
+                    // count 最小为 1，防止 0/负数触发保底取余除零
+                    int count = Math.max(1, tierSection.getInt("count", 50));
                     String rarity = tierSection.getString("rarity", plugin.getConfigManager().getDefaultPityRarityId());
-                    pityTiers.add(new Crate.PityTier(count, rarity));
+                    pityTiers.add(new Crate.PityTier(tierKey, count, rarity));
                 }
             }
         }
         // 兼容旧版单级保底配置
         if (!hasPityTiersNode && pityTiers.isEmpty() && pityEnabled) {
-            int pityCount = config.getInt("pity.count", 50);
+            int pityCount = Math.max(1, config.getInt("pity.count", 50));
             String pityRarity = config.getString("pity.rarity", plugin.getConfigManager().getDefaultPityRarityId());
-            pityTiers.add(new Crate.PityTier(pityCount, pityRarity));
+            pityTiers.add(new Crate.PityTier("legacy", pityCount, pityRarity));
         }
         boolean resetPityOnEarlyQualifyingReward = config.getBoolean("pity.reset-on-early-qualifying-reward", false);
 
@@ -367,49 +371,11 @@ public class CrateManager {
                                       PermissionAction permAction, String alternativeRewardId,
                                       boolean autoDisplayIcon, boolean autoDisplayName) {
         ItemStack item = loadOptionalRewardItem(section, displayName);
-
-        // 首先尝试直接获取序列化的ItemStack
-        Object itemObj = section.get("item");
-        if (itemObj instanceof ItemStack) {
-            item = (ItemStack) itemObj;
-        } else {
-            ConfigurationSection itemSection = section.getConfigurationSection("item");
-            if (itemSection != null) {
-                // 检查是否是序列化的ItemStack格式
-                if (itemSection.contains("==") || itemSection.contains("type") || itemSection.contains("v")) {
-                    ItemStack serializedItem = section.getItemStack("item");
-                    item = serializedItem != null ? serializedItem : displayItem.clone();
-                } else {
-                    item = loadItemFromSection(itemSection, displayName);
-                }
-            } else {
-                item = displayItem.clone();
-            }
+        if (item == null) {
+            // 未配置 item 时回退到显示图标，保证抽中后仍有物品可发
+            item = displayItem.clone();
         }
-
-        List<ItemStack> extraItems = new ArrayList<>();
-        // 尝试加载序列化的extra-items列表
-        List<?> extraList = section.getList("extra-items");
-        if (extraList != null) {
-            for (Object obj : extraList) {
-                if (obj instanceof ItemStack) {
-                    extraItems.add((ItemStack) obj);
-                } else if (obj instanceof Map) {
-                    // 旧格式兼容
-                    Map<?, ?> extraMap = (Map<?, ?>) obj;
-                    if (extraMap.containsKey("material")) {
-                        try {
-                            Material material = Material.valueOf((String) extraMap.get("material"));
-                            ItemStack extraItem = new ItemStack(material);
-                            extraItems.add(extraItem);
-                        } catch (Exception ignored) {}
-                    }
-                }
-            }
-        }
-
-        item = loadOptionalRewardItem(section, displayName);
-        extraItems = loadExtraItems(section);
+        List<ItemStack> extraItems = loadExtraItems(section);
         List<String> commands = section.getStringList("commands");
 
         return new ItemReward(id, displayName, rarity, chance, broadcast, displayItem, item, extraItems, commands,
@@ -473,7 +439,6 @@ public class CrateManager {
     }
 
     public void addLocation(CrateLocation location) {
-        crateLocations.put(location);
         String sql = plugin.getConfigManager().getDatabaseType().equalsIgnoreCase("mysql")
                 ? "INSERT INTO crate_locations (world, x, y, z, crate_id, yaw) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE crate_id = VALUES(crate_id), yaw = VALUES(yaw)"
                 : "INSERT OR REPLACE INTO crate_locations (world, x, y, z, crate_id, yaw) VALUES (?, ?, ?, ?, ?, ?)";
@@ -486,8 +451,9 @@ public class CrateManager {
             stmt.setString(5, location.getCrateId());
             stmt.setFloat(6, location.getYaw());
             stmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to save crate location: " + e.getMessage());
+            crateLocations.put(location);
+        } catch (SQLException exception) {
+            plugin.getLogger().severe("Failed to save crate location: " + exception.getMessage());
         }
     }
 
@@ -495,17 +461,21 @@ public class CrateManager {
         if (location.getWorld() == null) {
             return;
         }
-        crateLocations.remove(location.getWorld().getName(), location.getBlockX(), location.getBlockY(), location.getBlockZ());
+        String world = location.getWorld().getName();
+        int x = location.getBlockX();
+        int y = location.getBlockY();
+        int z = location.getBlockZ();
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(
                      "DELETE FROM crate_locations WHERE world = ? AND x = ? AND y = ? AND z = ?")) {
-            stmt.setString(1, location.getWorld().getName());
-            stmt.setInt(2, location.getBlockX());
-            stmt.setInt(3, location.getBlockY());
-            stmt.setInt(4, location.getBlockZ());
+            stmt.setString(1, world);
+            stmt.setInt(2, x);
+            stmt.setInt(3, y);
+            stmt.setInt(4, z);
             stmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to remove crate location: " + e.getMessage());
+            crateLocations.remove(world, x, y, z);
+        } catch (SQLException exception) {
+            plugin.getLogger().severe("Failed to remove crate location: " + exception.getMessage());
         }
     }
 
@@ -576,7 +546,7 @@ public class CrateManager {
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.getPersistentDataContainer().set(
-                    new NamespacedKey(plugin, "crate_block"),
+                    crateBlockKey,
                     org.bukkit.persistence.PersistentDataType.STRING,
                     crate.getId()
             );
@@ -595,7 +565,7 @@ public class CrateManager {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return null;
         return meta.getPersistentDataContainer().get(
-                new NamespacedKey(plugin, "crate_block"),
+                crateBlockKey,
                 org.bukkit.persistence.PersistentDataType.STRING
         );
     }
@@ -1065,14 +1035,15 @@ public class CrateManager {
         if (!file.exists()) return;
 
         try {
+            Crate crate = crates.get(crateId);
+            if (crate == null || tierIndex < 0 || tierIndex >= crate.getPityTiers().size()) return;
+
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             ConfigurationSection tiersSection = config.getConfigurationSection("pity.tiers");
             if (tiersSection == null) return;
 
-            List<String> tierKeys = new ArrayList<>(tiersSection.getKeys(false));
-            if (tierIndex < 0 || tierIndex >= tierKeys.size()) return;
-
-            String tierKey = tierKeys.get(tierIndex);
+            String tierKey = crate.getPityTiers().get(tierIndex).getId();
+            if (!tiersSection.contains(tierKey)) return;
             config.set("pity.tiers." + tierKey + ".count", count);
             config.set("pity.tiers." + tierKey + ".rarity", rarity);
             config.save(file);
@@ -1090,14 +1061,15 @@ public class CrateManager {
         if (!file.exists()) return;
 
         try {
+            Crate crate = crates.get(crateId);
+            if (crate == null || tierIndex < 0 || tierIndex >= crate.getPityTiers().size()) return;
+
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             ConfigurationSection tiersSection = config.getConfigurationSection("pity.tiers");
             if (tiersSection == null) return;
 
-            List<String> tierKeys = new ArrayList<>(tiersSection.getKeys(false));
-            if (tierIndex < 0 || tierIndex >= tierKeys.size()) return;
-
-            String tierKey = tierKeys.get(tierIndex);
+            String tierKey = crate.getPityTiers().get(tierIndex).getId();
+            if (!tiersSection.contains(tierKey)) return;
             config.set("pity.tiers." + tierKey, null);
             config.save(file);
             reloadCrate(crateId);
@@ -1156,13 +1128,12 @@ public class CrateManager {
         }
         crates.remove(crateId);
 
-        // 删除相关的位置
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement("DELETE FROM crate_locations WHERE crate_id = ?")) {
             stmt.setString(1, crateId);
             stmt.executeUpdate();
-        } catch (SQLException e) {
-            plugin.getLogger().severe("Failed to delete crate locations: " + e.getMessage());
+        } catch (SQLException exception) {
+            plugin.getLogger().severe("Failed to delete crate locations: " + exception.getMessage());
         }
 
         crateLocations.removeByCrateId(crateId);
@@ -1549,25 +1520,32 @@ public class CrateManager {
     }
 
     /**
-     * 获取奖励的广播状态
+     * 获取奖励的广播状态（从内存缓存读取，配置修改会经 reloadCrate 同步）
      */
     public boolean getRewardBroadcast(String crateId, String rewardId) {
-        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return false;
-
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-        return config.getBoolean("rewards." + rewardId + ".broadcast", false);
+        Reward reward = findReward(crateId, rewardId);
+        return reward != null && reward.shouldBroadcast();
     }
 
     /**
      * 获取奖励的命令列表
      */
     public List<String> getRewardCommands(String crateId, String rewardId) {
-        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return new ArrayList<>();
+        Reward reward = findReward(crateId, rewardId);
+        return reward == null ? new ArrayList<>() : new ArrayList<>(reward.getCommands());
+    }
 
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-        return config.getStringList("rewards." + rewardId + ".commands");
+    private Reward findReward(String crateId, String rewardId) {
+        Crate crate = getCrate(crateId);
+        if (crate == null || rewardId == null) {
+            return null;
+        }
+        for (Reward reward : crate.getRewards()) {
+            if (rewardId.equals(reward.getId())) {
+                return reward;
+            }
+        }
+        return null;
     }
 
     /**
@@ -1826,14 +1804,11 @@ public class CrateManager {
     }
 
     /**
-     * 获取奖励权限检测开关状态
+     * 获取奖励权限检测开关状态（内存读取）
      */
     public boolean getRewardPermissionCheckEnabled(String crateId, String rewardId) {
-        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return false;
-
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-        return config.getBoolean("rewards." + rewardId + ".permission-check.enabled", false);
+        Reward reward = findReward(crateId, rewardId);
+        return reward != null && reward.isPermissionCheckEnabled();
     }
 
     /**
@@ -1854,14 +1829,11 @@ public class CrateManager {
     }
 
     /**
-     * 获取奖励权限检测的权限节点
+     * 获取奖励权限检测的权限节点（内存读取）
      */
     public String getRewardCheckPermission(String crateId, String rewardId) {
-        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return null;
-
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-        return config.getString("rewards." + rewardId + ".permission-check.permission", null);
+        Reward reward = findReward(crateId, rewardId);
+        return reward == null ? null : reward.getCheckPermission();
     }
 
     /**
@@ -1882,15 +1854,11 @@ public class CrateManager {
     }
 
     /**
-     * 获取奖励权限检测的行为
+     * 获取奖励权限检测的行为（内存读取）
      */
     public PermissionAction getRewardPermissionAction(String crateId, String rewardId) {
-        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return PermissionAction.SKIP;
-
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-        String action = config.getString("rewards." + rewardId + ".permission-check.action", "skip");
-        return action.equalsIgnoreCase("alternative") ? PermissionAction.ALTERNATIVE : PermissionAction.SKIP;
+        Reward reward = findReward(crateId, rewardId);
+        return reward == null ? PermissionAction.SKIP : reward.getPermissionAction();
     }
 
     /**
@@ -1911,13 +1879,10 @@ public class CrateManager {
     }
 
     /**
-     * 获取奖励权限检测的替代奖励ID
+     * 获取奖励权限检测的替代奖励ID（内存读取）
      */
     public String getRewardAlternativeReward(String crateId, String rewardId) {
-        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return null;
-
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-        return config.getString("rewards." + rewardId + ".permission-check.alternative-reward", null);
+        Reward reward = findReward(crateId, rewardId);
+        return reward == null ? null : reward.getAlternativeRewardId();
     }
 }

@@ -32,6 +32,8 @@ public class PhysicalAnimation implements Animation {
     private final FotiaCrates plugin;
     private boolean running = false;
     private BukkitTask animationTask;
+    private BukkitTask finishTask;
+    private BukkitTask cleanupTask;
     private final List<ItemDisplay> displayEntities = new ArrayList<>();
     private Location crateLocation;
     private Runnable onComplete;
@@ -117,14 +119,11 @@ public class PhysicalAnimation implements Animation {
                 d.setShadowRadius(0);
                 d.setShadowStrength(0);
                 d.setPersistent(false);
+                // 默认对所有人不可见 + 仅对开箱者 showEntity：
+                // 无需遍历全服玩家，动画期间新加入的玩家也不会看到私有动画
+                d.setVisibleByDefault(false);
             });
-
-            // 只对开箱玩家显示，对其他玩家隐藏
-            for (Player other : Bukkit.getOnlinePlayers()) {
-                if (!other.equals(player)) {
-                    other.hideEntity(plugin, display);
-                }
-            }
+            player.showEntity(plugin, display);
 
             displayEntities.add(display);
         }
@@ -177,29 +176,30 @@ public class PhysicalAnimation implements Animation {
                     }
                 }
 
-                // 更新物品位置和大小（浮动效果）
+                // 更新物品位置（浮动效果）；复用同一个 Location 对象避免每实体每 tick 两次分配
                 double yOffset = Math.sin(tick * 0.1) * 0.03;
+                Location scratch = centerLoc.clone();
 
                 for (int i = 0; i < displayEntities.size(); i++) {
                     ItemDisplay display = displayEntities.get(i);
                     if (display == null || display.isDead()) continue;
 
                     double offset = (i - centerIndex) * ITEM_SPACING;
-                    Location newLoc = centerLoc.clone().add(rightX * offset, yOffset, rightZ * offset);
-                    display.teleport(newLoc);
+                    scratch.setX(centerLoc.getX() + rightX * offset);
+                    scratch.setY(centerLoc.getY() + yOffset);
+                    scratch.setZ(centerLoc.getZ() + rightZ * offset);
+                    display.teleport(scratch);
 
-                    float scale = calculateScale(i, centerIndex);
-                    float rotation = 0;
+                    // 非中心物品的缩放/旋转恒定，生成时已设置；仅中心物品每 tick 更新旋转
                     if (i == centerIndex) {
-                        rotation = (tick * 2) % 360;
+                        float rotation = (tick * 2) % 360;
+                        display.setTransformation(new Transformation(
+                                new Vector3f(0, 0, 0),
+                                new AxisAngle4f((float) Math.toRadians(rotation), 0, 1, 0),
+                                new Vector3f(CENTER_SCALE, CENTER_SCALE, CENTER_SCALE),
+                                new AxisAngle4f(0, 0, 1, 0)
+                        ));
                     }
-
-                    display.setTransformation(new Transformation(
-                            new Vector3f(0, 0, 0),
-                            new AxisAngle4f((float) Math.toRadians(rotation), 0, 1, 0),
-                            new Vector3f(scale, scale, scale),
-                            new AxisAngle4f(0, 0, 1, 0)
-                    ));
                 }
 
                 tick++;
@@ -213,7 +213,7 @@ public class PhysicalAnimation implements Animation {
                     }
 
                     // 延迟一点再完成动画
-                    plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    finishTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                         finishAnimation(player, crate, finalReward, centerLoc, centerIndex);
                     }, 10L);
                     cancel();
@@ -296,8 +296,8 @@ public class PhysicalAnimation implements Animation {
             }
         }
 
-        // 延迟后清理
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        // 延迟后清理（任务引用纳入 cancel 管理）
+        cleanupTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             cleanup();
             complete();
         }, 50L);
@@ -345,6 +345,15 @@ public class PhysicalAnimation implements Animation {
         if (animationTask != null && !animationTask.isCancelled()) {
             animationTask.cancel();
             animationTask = null;
+        }
+        // 收尾延迟任务一并取消；完成回调由 AnimationSession.cancelAndComplete 兜底触发
+        if (finishTask != null && !finishTask.isCancelled()) {
+            finishTask.cancel();
+            finishTask = null;
+        }
+        if (cleanupTask != null && !cleanupTask.isCancelled()) {
+            cleanupTask.cancel();
+            cleanupTask = null;
         }
         closeChestLid(targetPlayer, crateLocation);
     }

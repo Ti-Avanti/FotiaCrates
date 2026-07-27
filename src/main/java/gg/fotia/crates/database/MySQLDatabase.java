@@ -29,10 +29,11 @@ public class MySQLDatabase implements Database {
     }
 
     @Override
-    public boolean connect() {
+    public synchronized boolean connect() {
         try {
             HikariConfig config = new HikariConfig();
-            config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database + "?useSSL=false&autoReconnect=true&useUnicode=true&characterEncoding=UTF-8");
+            // 不使用 autoReconnect：其语义与连接池冲突，会掩盖坏连接，交由 Hikari 管理连接生命周期
+            config.setJdbcUrl("jdbc:mysql://" + host + ":" + port + "/" + database + "?useSSL=false&useUnicode=true&characterEncoding=UTF-8");
             config.setUsername(username);
             config.setPassword(password);
             int maximumPoolSize = Math.max(2, plugin.getConfigManager().getConfig()
@@ -55,13 +56,14 @@ public class MySQLDatabase implements Database {
             }
             return true;
         } catch (Exception e) {
+            dataSource = null;
             plugin.getLogger().severe("Failed to connect to MySQL database: " + e.getMessage());
             return false;
         }
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (dataSource != null && !dataSource.isClosed()) {
             dataSource.close();
             plugin.getLogger().info("MySQL database connection closed.");
@@ -70,10 +72,19 @@ public class MySQLDatabase implements Database {
 
     @Override
     public Connection getConnection() throws SQLException {
-        if (dataSource == null || dataSource.isClosed()) {
-            connect();
+        HikariDataSource current = dataSource;
+        if (current != null && !current.isClosed()) {
+            return current.getConnection();
         }
-        return dataSource.getConnection();
+        // 懒重连需要同步：并发触发会各建一个连接池，其中一个永不关闭造成连接泄漏
+        synchronized (this) {
+            if (dataSource == null || dataSource.isClosed()) {
+                if (!connect()) {
+                    throw new SQLException("MySQL connection pool is unavailable");
+                }
+            }
+            return dataSource.getConnection();
+        }
     }
 
     @Override
@@ -133,6 +144,13 @@ public class MySQLDatabase implements Database {
                 stmt.executeUpdate("ALTER TABLE crate_locations ADD COLUMN yaw FLOAT DEFAULT 0");
             } catch (SQLException ignored) {
                 // 列已存在，忽略错误
+            }
+
+            // 分层保底使用 crateId#t<次数> 复合键，加宽列避免长 ID 截断（幂等）
+            try {
+                stmt.executeUpdate("ALTER TABLE pity_counter MODIFY COLUMN crate_id VARCHAR(96) NOT NULL");
+            } catch (SQLException ignored) {
+                // 已是目标宽度或无权限时忽略
             }
 
             try {

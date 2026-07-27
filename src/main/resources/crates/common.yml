@@ -159,6 +159,8 @@ pity:
   # 保底最低稀有度
   rarity: rare
   # 提前获得达到保底稀有度的奖励时，是否重置保底计数
+  # 多级保底（pity.tiers）下各档独立计数：自然抽出某稀有度时，
+  # 仅重置目标稀有度不高于该奖励的档位，更高档位的进度保留
   reset-on-early-qualifying-reward: false
 
 # 多连抽设置

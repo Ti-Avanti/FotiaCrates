@@ -5,12 +5,14 @@ import gg.fotia.crates.particle.CrateParticleEffect;
 import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.reward.PermissionAction;
 import gg.fotia.crates.reward.Reward;
+import gg.fotia.crates.reward.RewardProbability;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Crate {
 
@@ -49,27 +51,34 @@ public class Crate {
     private final float winVolume;
     private final float winPitch;
     private final boolean pityEnabled;
-    private final List<PityTier> pityTiers; // 多级保底
+    private final List<PityTier> pityTiers; // 多级保底，构造时按 count 升序排序的不可变列表
+    private final String minimumPityRarity; // 构造时缓存，避免每次开箱重算
     private final boolean resetPityOnEarlyQualifyingReward;
     private final boolean multiOpenEnabled;
     private final int multiOpenMax;
     private final boolean multiOpenAnimationEnabled;
     private final String permission; // 开箱权限节点
-    private final List<String> rarityOrder;
-    private final Random random = new Random();
+    private final List<String> rarityOrder; // 不可变
 
     /**
      * 保底等级
      */
     public static class PityTier {
+        private final String id;
         private final int count;
         private final String rarity;
 
         public PityTier(int count, String rarity) {
+            this("legacy_" + count, count, rarity);
+        }
+
+        public PityTier(String id, int count, String rarity) {
+            this.id = id == null || id.isBlank() ? "legacy_" + count : id;
             this.count = count;
             this.rarity = rarity;
         }
 
+        public String getId() { return id; }
         public int getCount() { return count; }
         public String getRarity() { return rarity; }
     }
@@ -128,13 +137,31 @@ public class Crate {
         this.winVolume = winVolume;
         this.winPitch = winPitch;
         this.pityEnabled = pityEnabled;
-        this.pityTiers = pityTiers != null ? pityTiers : new ArrayList<>();
+        this.pityTiers = sortedPityTiers(pityTiers);
         this.resetPityOnEarlyQualifyingReward = resetPityOnEarlyQualifyingReward;
         this.multiOpenEnabled = multiOpenEnabled;
         this.multiOpenMax = multiOpenMax;
         this.multiOpenAnimationEnabled = multiOpenAnimationEnabled;
         this.permission = permission;
-        this.rarityOrder = rarityOrder != null ? new ArrayList<>(rarityOrder) : new ArrayList<>();
+        this.rarityOrder = rarityOrder != null ? List.copyOf(rarityOrder) : List.of();
+        this.minimumPityRarity = computeMinimumPityRarity();
+    }
+
+    /**
+     * 按 count 升序排序并剔除 count<=0 的非法等级（防止取余除零）。
+     */
+    private static List<PityTier> sortedPityTiers(List<PityTier> tiers) {
+        if (tiers == null || tiers.isEmpty()) {
+            return List.of();
+        }
+        List<PityTier> sorted = new ArrayList<>(tiers.size());
+        for (PityTier tier : tiers) {
+            if (tier != null && tier.getCount() > 0) {
+                sorted.add(tier);
+            }
+        }
+        sorted.sort(Comparator.comparingInt(PityTier::getCount));
+        return List.copyOf(sorted);
     }
 
     private String normalizeModelProvider(String provider) {
@@ -146,18 +173,7 @@ public class Crate {
     }
 
     public Reward rollReward() {
-        double totalChance = rewards.stream().mapToDouble(Reward::getChance).sum();
-        double roll = random.nextDouble() * totalChance;
-        double cumulative = 0;
-
-        for (Reward reward : rewards) {
-            cumulative += reward.getChance();
-            if (roll < cumulative) {
-                return reward;
-            }
-        }
-
-        return rewards.isEmpty() ? null : rewards.get(rewards.size() - 1);
+        return RewardProbability.select(rewards, ThreadLocalRandom.current());
     }
 
     /**
@@ -216,22 +232,10 @@ public class Crate {
             return null;
         }
 
-        // 从可用奖励中抽取
-        double totalChance = availableRewards.stream().mapToDouble(Reward::getChance).sum();
-        double roll = random.nextDouble() * totalChance;
-        double cumulative = 0;
-
-        Reward selectedReward = null;
-        for (Reward reward : availableRewards) {
-            cumulative += reward.getChance();
-            if (roll < cumulative) {
-                selectedReward = reward;
-                break;
-            }
-        }
-
+        // 从可用奖励中抽取（统一走 RewardProbability，含正权重钳制，与预览显示概率一致）
+        Reward selectedReward = RewardProbability.select(availableRewards, ThreadLocalRandom.current());
         if (selectedReward == null) {
-            selectedReward = availableRewards.get(availableRewards.size() - 1);
+            return null;
         }
 
         // 检查是否需要替代奖励
@@ -339,13 +343,9 @@ public class Crate {
     public PityTier getTriggeredPityTier(int currentCount) {
         if (!pityEnabled || pityTiers.isEmpty()) return null;
 
-        // 按次数从小到大排序
-        List<PityTier> sortedTiers = new ArrayList<>(pityTiers);
-        sortedTiers.sort(Comparator.comparingInt(PityTier::getCount));
-
-        // 检查是否触发某个保底
+        // pityTiers 已在构造时按次数升序排序且 count>0
         PityTier triggeredTier = null;
-        for (PityTier tier : sortedTiers) {
+        for (PityTier tier : pityTiers) {
             if (currentCount > 0 && currentCount % tier.getCount() == 0) {
                 triggeredTier = tier;
             }
@@ -353,13 +353,30 @@ public class Crate {
         return triggeredTier;
     }
 
+    /**
+     * 分层计数模式下选出本次触发的保底档位：
+     * 各档独立计数达到阈值即候选，多档同时到达时取稀有度最高者（同稀有度取更高档位）
+     * @param currentCountFunction 返回某档"本次抽取后"的计数（即已 +1）
+     */
+    public PityTier selectTriggeredTier(java.util.function.ToIntFunction<PityTier> currentCountFunction) {
+        if (!pityEnabled || pityTiers.isEmpty()) return null;
+
+        PityTier best = null;
+        for (PityTier tier : pityTiers) {
+            if (currentCountFunction.applyAsInt(tier) < tier.getCount()) {
+                continue;
+            }
+            if (best == null || getRarityLevel(tier.getRarity()) >= getRarityLevel(best.getRarity())) {
+                best = tier;
+            }
+        }
+        return best;
+    }
+
     public PityTier getNextPityTier(int currentCount) {
         if (!pityEnabled || pityTiers.isEmpty()) return null;
 
-        List<PityTier> sortedTiers = new ArrayList<>(pityTiers);
-        sortedTiers.sort(Comparator.comparingInt(PityTier::getCount));
-
-        for (PityTier tier : sortedTiers) {
+        for (PityTier tier : pityTiers) {
             if (tier.getCount() > currentCount) {
                 return tier;
             }
@@ -381,11 +398,15 @@ public class Crate {
      * 获取最高级保底的次数（用于重置计数）
      */
     public int getMaxPityCount() {
-        if (pityTiers.isEmpty()) return 0;
-        return pityTiers.stream().mapToInt(PityTier::getCount).max().orElse(0);
+        // pityTiers 已按 count 升序排序
+        return pityTiers.isEmpty() ? 0 : pityTiers.get(pityTiers.size() - 1).getCount();
     }
 
     public String getMinimumPityRarity() {
+        return minimumPityRarity;
+    }
+
+    private String computeMinimumPityRarity() {
         String minimumRarity = null;
         int minimumLevel = Integer.MAX_VALUE;
         for (PityTier tier : pityTiers) {
@@ -413,18 +434,7 @@ public class Crate {
             return rollReward();
         }
 
-        double totalChance = pityRewards.stream().mapToDouble(Reward::getChance).sum();
-        double roll = random.nextDouble() * totalChance;
-        double cumulative = 0;
-
-        for (Reward reward : pityRewards) {
-            cumulative += reward.getChance();
-            if (roll < cumulative) {
-                return reward;
-            }
-        }
-
-        return pityRewards.get(pityRewards.size() - 1);
+        return RewardProbability.select(pityRewards, ThreadLocalRandom.current());
     }
 
     /**
@@ -466,21 +476,9 @@ public class Crate {
             return rollRewardWithPermissionCheckResult(permissionContext);
         }
 
-        double totalChance = pityRewards.stream().mapToDouble(Reward::getChance).sum();
-        double roll = random.nextDouble() * totalChance;
-        double cumulative = 0;
-
-        Reward selectedReward = null;
-        for (Reward reward : pityRewards) {
-            cumulative += reward.getChance();
-            if (roll < cumulative) {
-                selectedReward = reward;
-                break;
-            }
-        }
-
+        Reward selectedReward = RewardProbability.select(pityRewards, ThreadLocalRandom.current());
         if (selectedReward == null) {
-            selectedReward = pityRewards.get(pityRewards.size() - 1);
+            return rollRewardWithPermissionCheckResult(permissionContext);
         }
 
         // 检查是否需要替代奖励
@@ -511,7 +509,7 @@ public class Crate {
         return rollPityReward(highestTier.getRarity());
     }
 
-    private boolean isRarityHigherOrEqual(String rarity, String target) {
+    public boolean isRarityHigherOrEqual(String rarity, String target) {
         int rarityLevel = getRarityLevel(rarity);
         int targetLevel = getRarityLevel(target);
         return rarityLevel >= 0 && targetLevel >= 0 && rarityLevel >= targetLevel;
@@ -580,12 +578,13 @@ public class Crate {
     public float getWinVolume() { return winVolume; }
     public float getWinPitch() { return winPitch; }
     public boolean isPityEnabled() { return pityEnabled; }
-    public List<PityTier> getPityTiers() { return new ArrayList<>(pityTiers); }
+    public boolean hasPityTiers() { return !pityTiers.isEmpty(); }
+    public List<PityTier> getPityTiers() { return pityTiers; }
     public boolean isResetPityOnEarlyQualifyingReward() { return resetPityOnEarlyQualifyingReward; }
     public boolean isMultiOpenEnabled() { return multiOpenEnabled; }
     public int getMultiOpenMax() { return multiOpenMax; }
     public boolean isMultiOpenAnimationEnabled() { return multiOpenAnimationEnabled; }
-    public List<String> getRarityOrder() { return new ArrayList<>(rarityOrder); }
+    public List<String> getRarityOrder() { return rarityOrder; }
     public String getPermission() { return permission; }
 
     // 兼容旧版

@@ -24,6 +24,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * GUI管理器
@@ -55,7 +56,8 @@ public class GuiManager {
 
     private final FotiaCrates plugin;
     private final GuiConfigManager configManager;
-    private final Map<UUID, InputSession> inputSessions = new HashMap<>();
+    // 异步聊天线程会读取（GuiListener.onPlayerChat），必须用并发 Map
+    private final Map<UUID, InputSession> inputSessions = new ConcurrentHashMap<>();
 
     public GuiManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -540,6 +542,7 @@ public class GuiManager {
         String title = config != null ? config.getTitle() : fallbackTitle;
         int size = config != null ? config.getSize() : fallbackSize;
         Inventory inventory = Bukkit.createInventory(holder, size, MessageUtil.parse(applyPlaceholders(title, placeholders)));
+        holder.setInventory(inventory);
 
         if (config != null) {
             fillBackground(inventory, config);
@@ -1132,23 +1135,27 @@ public class GuiManager {
     private void placeFixedItemsWithPlaceholders(Inventory inventory, GuiConfig config,
                                                   Player player, Crate crate,
                                                   Map<String, String> extraPlaceholders) {
+        // 公共占位符只算一次：{keys} 触发全背包扫描，不能放进每个物品的循环里；
+        // 调用方已算好的值（extraPlaceholders）优先，不再重复计算
+        Map<String, String> placeholders = new HashMap<>(extraPlaceholders);
+        if (player != null) {
+            placeholders.put("{player}", player.getName());
+        }
+        if (crate != null) {
+            placeholders.put("{crate}", crate.getName());
+            if (player != null) {
+                placeholders.putIfAbsent("{keys}",
+                        String.valueOf(plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId())));
+            }
+            placeholders.put("{reward_count}", String.valueOf(crate.getRewards().size()));
+        }
+
         for (Map.Entry<Integer, GuiItem> entry : config.getItems().entrySet()) {
             int slot = entry.getKey();
             GuiItem guiItem = entry.getValue();
 
             String name = guiItem.getName();
             List<String> lore = new ArrayList<>(guiItem.getLore());
-
-            // 替换占位符
-            Map<String, String> placeholders = new HashMap<>(extraPlaceholders);
-            if (player != null) {
-                placeholders.put("{player}", player.getName());
-            }
-            if (crate != null) {
-                placeholders.put("{crate}", crate.getName());
-                placeholders.put("{keys}", String.valueOf(plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId())));
-                placeholders.put("{reward_count}", String.valueOf(crate.getRewards().size()));
-            }
 
             for (Map.Entry<String, String> ph : placeholders.entrySet()) {
                 name = name.replace(ph.getKey(), ph.getValue());
@@ -1165,6 +1172,7 @@ public class GuiManager {
             if (guiItem.isGlow()) {
                 builder.glow(true);
             }
+            builder.itemModel(guiItem.getItemModel());
 
             inventory.setItem(slot, builder.build());
         }
@@ -1587,30 +1595,8 @@ public class GuiManager {
         }
 
         // 说明信息
-        ItemStack info = new ItemBuilder(Material.BOOK)
-                .name("<!i><gold>多级保底说明")
-                .lore(List.of(
-                        "<!i><gray>可以设置多个保底等级",
-                        "<!i><gray>例如:",
-                        "<!i><white>  25次 → 罕见(uncommon)",
-                        "<!i><white>  50次 → 稀有(rare)",
-                        "<!i><white>  100次 → 传说(legendary)",
-                        "",
-                        "<!i><gray>当玩家抽奖次数达到保底次数时",
-                        "<!i><gray>将保证获得对应稀有度的奖励",
-                        "<!i><gray>达到最高级保底后重置计数"
-                ))
-                .build();
-        inventory.setItem(49, info);
-
-        // 保存按钮
         inventory.setItem(49, new ItemBuilder(Material.BOOK)
                 .name("<!i><gold>多级保底说明")
-                .lore(buildPityInfoLoreSafe(crate))
-                .build());
-
-        inventory.setItem(49, new ItemBuilder(Material.BOOK)
-                .name("<!i><gold>\u591a\u7ea7\u4fdd\u5e95\u8bf4\u660e")
                 .lore(buildPityInfoLoreSafe(crate))
                 .build());
 
@@ -2166,50 +2152,6 @@ public class GuiManager {
         player.openInventory(inventory);
     }
 
-    /**
-     * 获取奖励类型显示名称
-     */
-    /*
-    private List<String> buildPityInfoLore(Crate crate) {
-        ItemBuilder builder = new ItemBuilder(displayItem).name(rewardName);
-        List<Component> lore = new ArrayList<>();
-        lore.add("<!i><gray>可以设置多个保底等级");
-
-        List<Crate.PityTier> tiers = new ArrayList<>(crate.getPityTiers());
-        tiers.sort(Comparator.comparingInt(Crate.PityTier::getCount));
-        if (!tiers.isEmpty()) {
-            lore.add("<!i><gray>当前保底档位:");
-            int maxLines = Math.min(3, tiers.size());
-            for (int i = 0; i < maxLines; i++) {
-                Crate.PityTier tier = tiers.get(i);
-                lore.add("<!i><white>  " + tier.getCount() + "次 -> "
-                        + getRarityColor(tier.getRarity()) + getRarityDisplayName(tier.getRarity()));
-            }
-            if (tiers.size() > maxLines) {
-                lore.add("<!i><gray>  ...");
-            }
-        } else {
-            List<String> rarityIds = plugin.getConfigManager().getRarityIds();
-            if (!rarityIds.isEmpty()) {
-                lore.add("<!i><gray>当前稀有度顺序:");
-                int maxLines = Math.min(3, rarityIds.size());
-                for (int i = 0; i < maxLines; i++) {
-                    String rarityId = rarityIds.get(i);
-                    lore.add("<!i><white>  " + (i + 1) + ". "
-                            + getRarityColor(rarityId) + getRarityDisplayName(rarityId));
-                }
-            }
-        }
-
-        lore.add("");
-        lore.add("<!i><gray>达到对应次数后");
-        lore.add("<!i><gray>将保证获得该稀有度或更高稀有度奖励");
-        lore.add("<!i><gray>达到最高档位后重置保底计数");
-        return lore;
-    }
-
-    */
-
     private List<String> buildPityInfoLoreSafe(Crate crate) {
         List<String> lore = new ArrayList<>();
         lore.add("<!i><gray>\u53ef\u4ee5\u8bbe\u7f6e\u591a\u4e2a\u4fdd\u5e95\u7b49\u7ea7");
@@ -2764,8 +2706,11 @@ public class GuiManager {
         return Math.max(0, (size - 1) / pageSize);
     }
 
-    private List<Material> getParticleMaterialOptions(String materialKey) {
-        boolean blockMode = "block".equalsIgnoreCase(materialKey);
+    // Material 枚举不可变，两种过滤结果启动后恒定；缓存避免每次 GUI 点击都全量枚举约 1400 个材质
+    private static final List<Material> BLOCK_MATERIAL_OPTIONS = buildParticleMaterialOptions(true);
+    private static final List<Material> ITEM_MATERIAL_OPTIONS = buildParticleMaterialOptions(false);
+
+    private static List<Material> buildParticleMaterialOptions(boolean blockMode) {
         return Arrays.stream(Material.values())
                 .filter(material -> !material.isAir())
                 .filter(material -> !material.name().startsWith("LEGACY_"))
@@ -2773,6 +2718,10 @@ public class GuiManager {
                 .filter(material -> !blockMode || material.isBlock())
                 .sorted(Comparator.comparing(Material::name))
                 .toList();
+    }
+
+    private List<Material> getParticleMaterialOptions(String materialKey) {
+        return "block".equalsIgnoreCase(materialKey) ? BLOCK_MATERIAL_OPTIONS : ITEM_MATERIAL_OPTIONS;
     }
 
     private Material displayMaterial(Material material, Material fallback) {

@@ -35,6 +35,7 @@ messages:
   not-crate-location: "<!i><red>This is not a crate location!"
   already-crate-location: "<!i><red>There is already a crate at this location!"
   multi-open-start: "<!i><yellow>Opening {amount} crates..."
+  multi-open-partial: "<!i><yellow>Not enough available rewards, opened <gold>{actual}</gold>/<gray>{requested}</gray> crates."
   must-be-player: "<!i><red>This command can only be used by players!"
   usage: "<!i><yellow>Usage: {usage}"
   key-not-for-crate: "<!i><red>This key cannot open this crate!"

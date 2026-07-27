@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -38,7 +39,19 @@ public final class AsyncPlayerDataManager {
     private final Set<UUID> loadingPlayers = new HashSet<>();
     private final Set<UUID> committingPlayers = new HashSet<>();
     private final Set<UUID> dirtyPlayers = ConcurrentHashMap.newKeySet();
-    private final Map<UUID, Long> nextHistoryCleanupAt = new HashMap<>();
+    /**
+     * 落库失败后保留的快照；即使玩家已卸载也能在下轮 flush 重试，避免数据丢失。
+     */
+    private final Map<UUID, PlayerDataCache.Snapshot> pendingRetrySnapshots = new ConcurrentHashMap<>();
+    /**
+     * 仅持久化 worker 线程访问；LRU 上限防止随历史玩家数无界增长。
+     */
+    private final Map<UUID, Long> nextHistoryCleanupAt = new LinkedHashMap<>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<UUID, Long> eldest) {
+            return size() > 2048;
+        }
+    };
     private final AtomicBoolean periodicFlushQueued = new AtomicBoolean();
     private final boolean mysql;
     private volatile boolean saveHistory;
@@ -168,6 +181,14 @@ public final class AsyncPlayerDataManager {
         return cache.getPityCount(playerId, crateId);
     }
 
+    public boolean hasPityCount(UUID playerId, String crateId) {
+        return cache.hasPityCount(playerId, crateId);
+    }
+
+    public Map<String, Integer> getPityCountsByPrefix(UUID playerId, String prefix) {
+        return cache.getPityCountsByPrefix(playerId, prefix);
+    }
+
     public boolean setPityCount(UUID playerId, String crateId, int count) {
         if (!cache.isLoaded(playerId)) {
             return false;
@@ -183,7 +204,9 @@ public final class AsyncPlayerDataManager {
 
     public void restore(UUID playerId, PlayerDataCache.Snapshot snapshot) {
         cache.restore(playerId, snapshot);
-        dirtyPlayers.remove(playerId);
+        // 回滚后的状态重新标脏：即使与 DB 一致，幂等 upsert 也无害；
+        // 反之若快照里有尚未落库的早前变更（如动画期间的 give），不标脏会漏写
+        dirtyPlayers.add(playerId);
     }
 
     public void commitNow(UUID playerId, Runnable onSuccess, Runnable onFailure) {
@@ -198,9 +221,10 @@ public final class AsyncPlayerDataManager {
             try {
                 persistPlayerState(playerId, snapshot);
                 runOnServerThread(() -> {
+                    cache.markPersisted(playerId, snapshot);
                     committingPlayers.remove(playerId);
                     onSuccess.run();
-                    unloadIfOffline(playerId);
+                    finishFlushOrUnload(playerId);
                 });
             } catch (SQLException exception) {
                 plugin.getLogger().severe("Failed to persist player data for " + playerId + ": " + exception.getMessage());
@@ -273,12 +297,30 @@ public final class AsyncPlayerDataManager {
         submitDatabaseTask(() -> {
             try {
                 persistPlayerState(playerId, snapshot);
-                runOnServerThread(() -> unloadIfOffline(playerId));
+                runOnServerThread(() -> {
+                    cache.markPersisted(playerId, snapshot);
+                    finishFlushOrUnload(playerId);
+                });
             } catch (SQLException exception) {
                 plugin.getLogger().severe("Failed to flush player data for " + playerId + " on quit: " + exception.getMessage());
-                dirtyPlayers.add(playerId);
+                // 保留快照本身重试；仅标脏依赖缓存仍加载，缓存卸载后会丢数据
+                pendingRetrySnapshots.put(playerId, snapshot);
             }
-        }, () -> dirtyPlayers.add(playerId));
+        }, () -> pendingRetrySnapshots.put(playerId, snapshot));
+    }
+
+    /**
+     * 落库成功后的收尾：若期间又产生了新变更且玩家已离线，先补一次 flush 再卸载，避免丢失。
+     */
+    private void finishFlushOrUnload(UUID playerId) {
+        if (isPlayerOnline(playerId)) {
+            return;
+        }
+        if (cache.isLoaded(playerId) && dirtyPlayers.contains(playerId) && !committingPlayers.contains(playerId)) {
+            flushAndUnload(playerId);
+            return;
+        }
+        unloadIfOffline(playerId);
     }
 
     public boolean shutdown() {
@@ -333,11 +375,26 @@ public final class AsyncPlayerDataManager {
 
     private Map<UUID, PlayerDataCache.Snapshot> createStateSnapshot(boolean includeCommittingPlayers) {
         Map<UUID, PlayerDataCache.Snapshot> snapshots = new HashMap<>();
-        for (UUID playerId : new HashSet<>(dirtyPlayers)) {
-            if (!cache.isLoaded(playerId)
-                    || (!includeCommittingPlayers && committingPlayers.contains(playerId))) {
+        // 先取上次落库失败保留的快照：玩家即使已卸载也要重试，防止数据丢失
+        for (UUID playerId : new HashSet<>(pendingRetrySnapshots.keySet())) {
+            if (!includeCommittingPlayers && committingPlayers.contains(playerId)) {
                 continue;
             }
+            PlayerDataCache.Snapshot retry = pendingRetrySnapshots.remove(playerId);
+            if (retry != null) {
+                snapshots.put(playerId, retry);
+            }
+        }
+        for (UUID playerId : new HashSet<>(dirtyPlayers)) {
+            if (!cache.isLoaded(playerId)) {
+                // 缓存已卸载且无实时数据可取（可重试的数据已在上方通过保留快照覆盖），防止集合永久残留
+                dirtyPlayers.remove(playerId);
+                continue;
+            }
+            if (!includeCommittingPlayers && committingPlayers.contains(playerId)) {
+                continue;
+            }
+            // 实时快照覆盖重试快照：缓存数据更新且其变更集为重试快照的超集
             snapshots.put(playerId, cache.snapshot(playerId));
             dirtyPlayers.remove(playerId);
         }
@@ -395,9 +452,19 @@ public final class AsyncPlayerDataManager {
                     persistHistory(historyBatch.subList(start, end));
                     persistedHistoryCount = end;
                 }
+                if (!stateSnapshots.isEmpty()) {
+                    runOnServerThread(() -> {
+                        stateSnapshots.forEach(cache::markPersisted);
+                        // 周期 flush 成功后卸载已离线玩家的缓存，否则退出时落库失败过的玩家会永久留在内存
+                        if (periodic) {
+                            stateSnapshots.keySet().forEach(this::finishFlushOrUnload);
+                        }
+                    });
+                }
             } catch (SQLException exception) {
                 plugin.getLogger().severe("Failed to flush asynchronous player data: " + exception.getMessage());
-                dirtyPlayers.addAll(stateSnapshots.keySet());
+                // 保留失败快照供下轮直接重试，不依赖缓存仍加载（单线程 FIFO，此刻已有条目必然更旧，覆盖安全）
+                pendingRetrySnapshots.putAll(stateSnapshots);
                 requeueHistory(historyBatch.subList(persistedHistoryCount, historyBatch.size()));
             } finally {
                 if (periodic) {
@@ -406,7 +473,7 @@ public final class AsyncPlayerDataManager {
             }
         };
         Runnable onRejected = () -> {
-            dirtyPlayers.addAll(stateSnapshots.keySet());
+            pendingRetrySnapshots.putAll(stateSnapshots);
             requeueHistory(historyBatch);
             if (periodic) {
                 periodicFlushQueued.set(false);
@@ -455,12 +522,18 @@ public final class AsyncPlayerDataManager {
     }
 
     private void persistPlayerState(UUID playerId, PlayerDataCache.Snapshot snapshot) throws SQLException {
+        // 仅写入本会话变更过的条目，避免每次开箱全量重写所有钥匙/保底行
+        Map<String, Integer> changedKeys = filterChanged(snapshot.virtualKeys(), snapshot.changedKeys());
+        Map<String, Integer> changedPity = filterChanged(snapshot.pityCounts(), snapshot.changedCrates());
+        if (changedKeys.isEmpty() && changedPity.isEmpty()) {
+            return;
+        }
         try (Connection connection = plugin.getDatabaseManager().getConnection()) {
             boolean originalAutoCommit = connection.getAutoCommit();
             connection.setAutoCommit(false);
             try {
-                upsertVirtualKeys(connection, playerId, snapshot.virtualKeys());
-                upsertPityCounts(connection, playerId, snapshot.pityCounts());
+                upsertVirtualKeys(connection, playerId, changedKeys);
+                upsertPityCounts(connection, playerId, changedPity);
                 connection.commit();
             } catch (SQLException exception) {
                 connection.rollback();
@@ -469,6 +542,20 @@ public final class AsyncPlayerDataManager {
                 connection.setAutoCommit(originalAutoCommit);
             }
         }
+    }
+
+    private Map<String, Integer> filterChanged(Map<String, Integer> values, Set<String> changed) {
+        if (changed.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Integer> filtered = new HashMap<>();
+        for (String key : changed) {
+            Integer value = values.get(key);
+            if (value != null) {
+                filtered.put(key, value);
+            }
+        }
+        return filtered;
     }
 
     private void upsertVirtualKeys(Connection connection, UUID playerId, Map<String, Integer> virtualKeys) throws SQLException {

@@ -19,6 +19,11 @@ import java.util.UUID;
 
 public class ParticleManager {
 
+    /**
+     * 附近宝箱扫描的刷新周期；渲染门控仍逐 tick 判定，仅空间查询降频
+     */
+    private static final long IDLE_SCAN_REFRESH_TICKS = 5L;
+
     private final FotiaCrates plugin;
     private final ParticleEffectRenderer renderer = new ParticleEffectRenderer();
     private final Map<String, Long> idleSuppressedUntil = new HashMap<>();
@@ -27,6 +32,7 @@ public class ParticleManager {
     private final List<CrateLocation> idleCandidates = new ArrayList<>();
     private BukkitTask idleTask;
     private long tickCounter;
+    private long lastIdleScanTick;
     private int idleCursor;
     private double idleViewDistance;
     private int maxIdleCratesPerTick;
@@ -60,6 +66,7 @@ public class ParticleManager {
         nearbyIdleLocations.clear();
         idleCandidates.clear();
         idleCursor = 0;
+        lastIdleScanTick = 0L;
     }
 
     public void playStage(ParticleStage stage, Player player, Crate crate, Location crateLocation) {
@@ -141,16 +148,20 @@ public class ParticleManager {
             idleSuppressedUntil.values().removeIf(until -> until <= tickCounter);
         }
 
-        nearbyIdleLocations.clear();
-
-        for (Player player : plugin.getServer().getOnlinePlayers()) {
-            Location location = player.getLocation();
-            nearbyIdleLocations.addAll(plugin.getCrateManager().getNearbyCrateLocations(
-                    player.getWorld().getName(), location.getBlockX(), location.getBlockZ(), idleViewDistance));
+        // 每 tick 对全部在线玩家做空间查询开销过高，且大多数 tick 的结果会被 interval 门控丢弃；
+        // 候选列表按周期刷新（32 格视距下 5 tick 的滞后不可感知）
+        if (lastIdleScanTick == 0L || tickCounter - lastIdleScanTick >= IDLE_SCAN_REFRESH_TICKS) {
+            lastIdleScanTick = tickCounter;
+            nearbyIdleLocations.clear();
+            for (Player player : plugin.getServer().getOnlinePlayers()) {
+                Location location = player.getLocation();
+                nearbyIdleLocations.addAll(plugin.getCrateManager().getNearbyCrateLocations(
+                        player.getWorld().getName(), location.getBlockX(), location.getBlockZ(), idleViewDistance));
+            }
+            idleCandidates.clear();
+            idleCandidates.addAll(nearbyIdleLocations);
         }
 
-        idleCandidates.clear();
-        idleCandidates.addAll(nearbyIdleLocations);
         if (idleCandidates.isEmpty()) {
             return;
         }

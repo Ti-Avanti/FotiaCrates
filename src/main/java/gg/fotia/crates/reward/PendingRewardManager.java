@@ -123,6 +123,27 @@ public class PendingRewardManager {
         submitPendingInsert(pendingInsert, 0);
     }
 
+    public void addPendingPhysicalKeyRefund(UUID playerUuid, String keyId,
+                                            String displayName, ItemStack keyItem) {
+        if (keyItem == null || keyItem.getType().isAir()) {
+            return;
+        }
+        String rewardId = "key_refund_" + Integer.toUnsignedString(keyId.hashCode(), 36);
+        String resolvedName = displayName == null || displayName.isBlank() ? keyId : displayName;
+        ItemStack itemSnapshot = keyItem.clone();
+        Reward reward = new ItemReward(
+                rewardId,
+                resolvedName,
+                plugin.getConfigManager().getDefaultRarityId(),
+                0D,
+                false,
+                itemSnapshot,
+                itemSnapshot,
+                List.of()
+        );
+        addPendingReward(playerUuid, "__key_refund", reward);
+    }
+
     private void submitPendingInsert(PendingInsert pendingInsert, int attempt) {
         if (shuttingDown) {
             return;

@@ -1,6 +1,7 @@
 package gg.fotia.crates.gui;
 
 import gg.fotia.crates.crate.Crate;
+import org.bukkit.Bukkit;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.jetbrains.annotations.NotNull;
@@ -18,6 +19,7 @@ public class CrateGuiHolder implements InventoryHolder {
     private final Crate crate;
     private final Map<String, Object> data;
     private int currentPage = 0;
+    private Inventory inventory;
 
     public CrateGuiHolder(GuiType guiType, Crate crate) {
         this.guiType = guiType;
@@ -66,8 +68,16 @@ public class CrateGuiHolder implements InventoryHolder {
         data.remove(key);
     }
 
+    public void setInventory(Inventory inventory) {
+        this.inventory = inventory;
+    }
+
     @Override
     public @NotNull Inventory getInventory() {
-        return null;
+        // InventoryHolder 契约要求非 null；未绑定时兜底创建，避免第三方插件调用时 NPE
+        if (inventory == null) {
+            inventory = Bukkit.createInventory(this, 9);
+        }
+        return inventory;
     }
 }

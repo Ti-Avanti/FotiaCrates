@@ -41,6 +41,11 @@ public class EntityInteractPacketListener {
         packetListener = new SimplePacketListenerAbstract(PacketListenerPriority.HIGH) {
             @Override
             public void onPacketPlayReceive(PacketPlayReceiveEvent event) {
+                // 包类型判断放最前：移动等高频数据包立即返回，不做任何额外调用
+                if (event.getPacketType() != PacketType.Play.Client.ATTACK
+                        && event.getPacketType() != PacketType.Play.Client.INTERACT_ENTITY) {
+                    return;
+                }
                 if (event.isCancelled()) return;
 
                 Player player = event.<Player>getPlayer();
@@ -83,6 +88,16 @@ public class EntityInteractPacketListener {
      * 处理左键点击实体
      */
     private void handleLeftClickEntity(Player player, int entityId) {
+        if (!player.isOnline()) {
+            return;
+        }
+
+        // 附近没有任何启用模型的宝箱时直接返回：
+        // 每次战斗挥击（ATTACK 包）都会走到这里，必须避免无关场景下的实体盒扫描
+        if (!hasNearbyModelCrate(player)) {
+            return;
+        }
+
         // 通过实体ID找到实体
         Entity entity = null;
         for (Entity e : player.getNearbyEntities(8.0, 8.0, 8.0)) {
@@ -122,6 +137,21 @@ public class EntityInteractPacketListener {
         }
 
         plugin.getGuiManager().openPreview(player, crate);
+    }
+
+    /**
+     * 判断玩家附近是否存在启用模型的宝箱（空间索引查询，开销极低）
+     */
+    private boolean hasNearbyModelCrate(Player player) {
+        Location playerLoc = player.getLocation();
+        for (CrateLocation crateLocation : plugin.getCrateManager().getNearbyCrateLocations(
+                player.getWorld().getName(), playerLoc.getBlockX(), playerLoc.getBlockZ(), 10.0)) {
+            Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
+            if (crate != null && crate.isModelEnabled()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

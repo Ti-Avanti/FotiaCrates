@@ -52,6 +52,8 @@ hologram:
   height-offset: 1.5
   # 全息显示缩放
   scale: 1.0
+  # 全息显示的更新/可见半径，单位为方块（启用模型的宝箱会取模型 view-range 与此值中的较大者）
+  update-radius: 32.0
   # 全息显示内容
   # 可用占位符: {crate_name} {crate_id} {keys}
   lines:

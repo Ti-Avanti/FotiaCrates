@@ -27,6 +27,7 @@ public class RouletteAnimation implements Animation {
 
     private final FotiaCrates plugin;
     private BukkitTask task;
+    private BukkitTask closeTask;
     private boolean running = false;
     private Inventory inventory;
     private Player player;
@@ -203,7 +204,7 @@ public class RouletteAnimation implements Animation {
             // 强制确保中心位置显示最终奖励
             inventory.setItem(centerSlot, finalReward.getDisplayItem());
 
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            closeTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline()) {
                     player.closeInventory();
                 }
@@ -253,6 +254,14 @@ public class RouletteAnimation implements Animation {
         running = false;
         if (task != null && !task.isCancelled()) {
             task.cancel();
+        }
+        if (closeTask != null && !closeTask.isCancelled()) {
+            closeTask.cancel();
+        }
+        // 取消时关闭仍停留的抽奖界面，避免玩家卡在不再滚动的 GUI 上
+        if (player != null && player.isOnline() && inventory != null
+                && player.getOpenInventory().getTopInventory() == inventory) {
+            player.closeInventory();
         }
     }
 

@@ -229,24 +229,28 @@ public class KeyManager {
      * 检查物品是否是钥匙
      */
     public boolean isPhysicalKey(ItemStack item) {
-        if (item == null || !item.hasItemMeta()) {
-            return false;
-        }
-        ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        return pdc.has(keyIdentifier, PersistentDataType.STRING);
+        return readKeyId(item) != null;
     }
 
     /**
      * 获取物品的钥匙ID
      */
     public String getKeyId(ItemStack item) {
-        if (!isPhysicalKey(item)) {
+        return readKeyId(item);
+    }
+
+    /**
+     * 单次 getItemMeta 读取钥匙ID（getItemMeta 每次调用都会克隆整份 meta，禁止重复调用）
+     */
+    private String readKeyId(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
             return null;
         }
         ItemMeta meta = item.getItemMeta();
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        return pdc.get(keyIdentifier, PersistentDataType.STRING);
+        if (meta == null) {
+            return null;
+        }
+        return meta.getPersistentDataContainer().get(keyIdentifier, PersistentDataType.STRING);
     }
 
     /**
@@ -255,11 +259,8 @@ public class KeyManager {
     public int getPhysicalKeys(Player player, String keyId) {
         int count = 0;
         for (ItemStack item : player.getInventory().getContents()) {
-            if (item != null && isPhysicalKey(item)) {
-                String itemKeyId = getKeyId(item);
-                if (keyId.equals(itemKeyId)) {
-                    count += item.getAmount();
-                }
+            if (item != null && keyId.equals(readKeyId(item))) {
+                count += item.getAmount();
             }
         }
         return count;
@@ -286,17 +287,14 @@ public class KeyManager {
 
         for (int i = 0; i < contents.length && remaining > 0; i++) {
             ItemStack item = contents[i];
-            if (item != null && isPhysicalKey(item)) {
-                String itemKeyId = getKeyId(item);
-                if (keyId.equals(itemKeyId)) {
-                    int itemAmount = item.getAmount();
-                    if (itemAmount <= remaining) {
-                        player.getInventory().setItem(i, null);
-                        remaining -= itemAmount;
-                    } else {
-                        item.setAmount(itemAmount - remaining);
-                        remaining = 0;
-                    }
+            if (item != null && keyId.equals(readKeyId(item))) {
+                int itemAmount = item.getAmount();
+                if (itemAmount <= remaining) {
+                    player.getInventory().setItem(i, null);
+                    remaining -= itemAmount;
+                } else {
+                    item.setAmount(itemAmount - remaining);
+                    remaining = 0;
                 }
             }
         }
@@ -326,50 +324,66 @@ public class KeyManager {
      * 消耗一把可以打开指定宝箱的钥匙
      */
     public boolean consumeKeyForCrate(Player player, String crateId, KeyType preferredType) {
-        // 获取可以打开此宝箱的所有钥匙
-        List<Key> validKeys = getKeysForCrate(crateId);
-        if (validKeys.isEmpty()) {
-            return false;
-        }
+        return consumeKeyForCrateDetailed(player, crateId, preferredType) != null;
+    }
 
-        // 尝试消耗钥匙
-        for (Key key : validKeys) {
-            if (consumeKey(player, key.getId(), preferredType)) {
-                return true;
+    /**
+     * 消耗一把可以打开指定宝箱的钥匙，返回消耗明细（用于开箱失败时精确退还）
+     * @return 消耗明细，没有可消耗的钥匙时返回 null
+     */
+    public ConsumedKey consumeKeyForCrateDetailed(Player player, String crateId, KeyType preferredType) {
+        for (Key key : getKeysForCrate(crateId)) {
+            ConsumedKey consumed = consumeKeyDetailed(player, key.getId(), preferredType);
+            if (consumed != null) {
+                return consumed;
             }
         }
-
-        return false;
+        return null;
     }
 
     /**
      * 消耗指定钥匙
      */
     public boolean consumeKey(Player player, String keyId, KeyType preferredType) {
-        int virtualKeys = getVirtualKeys(player.getUniqueId(), keyId);
-        int physicalKeys = getPhysicalKeys(player, keyId);
+        return consumeKeyDetailed(player, keyId, preferredType) != null;
+    }
 
+    /**
+     * 消耗指定钥匙并返回明细；物理数量仅在需要时才扫描背包
+     */
+    public ConsumedKey consumeKeyDetailed(Player player, String keyId, KeyType preferredType) {
         if (preferredType == KeyType.VIRTUAL || preferredType == KeyType.ALL) {
-            if (virtualKeys > 0) {
-                return removeVirtualKeys(player.getUniqueId(), keyId, 1);
+            if (getVirtualKeys(player.getUniqueId(), keyId) > 0
+                    && removeVirtualKeys(player.getUniqueId(), keyId, 1)) {
+                return new ConsumedKey(keyId, false);
             }
         }
 
         if (preferredType == KeyType.PHYSICAL || preferredType == KeyType.ALL) {
-            if (physicalKeys > 0) {
-                return removePhysicalKeys(player, keyId, 1);
+            if (removePhysicalKeys(player, keyId, 1)) {
+                return new ConsumedKey(keyId, true);
             }
         }
 
         // 回退逻辑
-        if (preferredType == KeyType.VIRTUAL && physicalKeys > 0) {
-            return removePhysicalKeys(player, keyId, 1);
+        if (preferredType == KeyType.VIRTUAL && removePhysicalKeys(player, keyId, 1)) {
+            return new ConsumedKey(keyId, true);
         }
-        if (preferredType == KeyType.PHYSICAL && virtualKeys > 0) {
-            return removeVirtualKeys(player.getUniqueId(), keyId, 1);
+        if (preferredType == KeyType.PHYSICAL
+                && getVirtualKeys(player.getUniqueId(), keyId) > 0
+                && removeVirtualKeys(player.getUniqueId(), keyId, 1)) {
+            return new ConsumedKey(keyId, false);
         }
 
-        return false;
+        return null;
+    }
+
+    /**
+     * 单次钥匙消耗明细
+     * @param keyId 钥匙ID
+     * @param physical true 表示消耗的是背包中的物理钥匙
+     */
+    public record ConsumedKey(String keyId, boolean physical) {
     }
 
     /**

@@ -24,15 +24,22 @@ public final class MultiOpenService {
     }
 
     public void open(Player player, Crate crate, int amount, Location crateLocation, Runnable onComplete) {
-        plugin.getLanguageManager().send(player, "multi-open-start",
-                LanguageManager.placeholders("amount", String.valueOf(amount)));
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-
         List<CrateOpenService.OpenAttempt> openAttempts = prepareRewards(player, crate, amount);
         if (openAttempts.isEmpty()) {
             onComplete.run();
             return;
         }
+
+        // 校验通过后才播放开箱演出，避免首抽即失败时误导玩家；部分成功时告知实际抽数
+        plugin.getLanguageManager().send(player, "multi-open-start",
+                LanguageManager.placeholders("amount", String.valueOf(openAttempts.size())));
+        if (openAttempts.size() < amount) {
+            plugin.getLanguageManager().send(player, "multi-open-partial",
+                    LanguageManager.placeholders(
+                            "actual", String.valueOf(openAttempts.size()),
+                            "requested", String.valueOf(amount)));
+        }
+        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
 
         List<RewardResult> rewardResults = openAttempts.stream()
                 .map(CrateOpenService.OpenAttempt::rewardResult)
@@ -51,7 +58,8 @@ public final class MultiOpenService {
             onComplete.run();
         };
 
-        crateOpenService.commitOpen(player, openAttempts.get(0), () -> {
+        // 合并提交：回滚时数据快照取首抽（整批开始前），物理钥匙退还取全批消耗并集
+        crateOpenService.commitOpen(player, CrateOpenService.OpenAttempt.mergeForCommit(openAttempts), () -> {
             if (MultiOpenAnimationPolicy.shouldPlayFirstDrawAnimation(
                     crate.isMultiOpenAnimationEnabled(), rewardResults.size()) && player.isOnline()) {
                 boolean started = plugin.getAnimationManager().playAnimation(

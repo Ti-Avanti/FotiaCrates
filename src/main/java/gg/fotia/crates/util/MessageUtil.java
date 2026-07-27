@@ -13,6 +13,11 @@ public class MessageUtil {
     private static final MiniMessage MINI_MESSAGE = MiniMessage.miniMessage();
     private static final LegacyComponentSerializer LEGACY_SECTION = LegacyComponentSerializer.legacySection();
     private static final char SECTION_CHAR = '\u00A7';
+    // \u9884\u7F16\u8BD1\uFF1AstripColor \u88AB ItemBuilder \u5BF9\u6BCF\u4E2A\u540D\u79F0/lore \u884C\u8C03\u7528\uFF0C\u4E0D\u80FD\u6BCF\u6B21\u73B0\u573A\u7F16\u8BD1\u6B63\u5219
+    private static final java.util.regex.Pattern LEGACY_COLOR_PATTERN =
+            java.util.regex.Pattern.compile("(?i)[&" + SECTION_CHAR + "][0-9a-fk-or]");
+    private static final java.util.regex.Pattern TAG_PATTERN =
+            java.util.regex.Pattern.compile("<[^>]+>");
 
     private static Object craftEngineMiniMessage = null;
     private static Method craftEngineDeserializeMethod = null;
@@ -123,8 +128,7 @@ public class MessageUtil {
         if (message == null) {
             return null;
         }
-        return message.replaceAll("(?i)[&" + SECTION_CHAR + "][0-9a-fk-or]", "")
-                .replaceAll("<[^>]+>", "");
+        return TAG_PATTERN.matcher(LEGACY_COLOR_PATTERN.matcher(message).replaceAll("")).replaceAll("");
     }
 
     public static String toLegacy(Component component) {

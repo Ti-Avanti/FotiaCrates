@@ -187,6 +187,7 @@ public class FotiaCrates extends JavaPlugin {
 
     public void reload() {
         var previousLocations = crateManager.getCrateLocations();
+        openSessionManager.clear();
         configManager.loadConfigs();
         languageManager.reload();
         keyManager.reload();

@@ -35,6 +35,7 @@ messages:
   not-crate-location: "<!i><red>这不是一个抽奖箱位置！"
   already-crate-location: "<!i><red>这个位置已经有抽奖箱了！"
   multi-open-start: "<!i><yellow>正在打开 {amount} 个抽奖箱..."
+  multi-open-partial: "<!i><yellow>可用奖励不足，实际开启 <gold>{actual}</gold>/<gray>{requested}</gray> 次。"
   must-be-player: "<!i><red>此命令只能由玩家使用！"
   usage: "<!i><yellow>用法: {usage}"
   key-not-for-crate: "<!i><red>这把钥匙不能打开这个抽奖箱！"

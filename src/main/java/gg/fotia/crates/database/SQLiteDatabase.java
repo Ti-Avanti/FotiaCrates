@@ -22,7 +22,7 @@ public class SQLiteDatabase implements Database {
     }
 
     @Override
-    public boolean connect() {
+    public synchronized boolean connect() {
         try {
             File dataFolder = plugin.getDataFolder();
             if (!dataFolder.exists()) {
@@ -60,7 +60,7 @@ public class SQLiteDatabase implements Database {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (dataSource != null && !dataSource.isClosed()) {
             dataSource.close();
         }
@@ -68,12 +68,19 @@ public class SQLiteDatabase implements Database {
 
     @Override
     public Connection getConnection() throws SQLException {
-        if (dataSource == null || dataSource.isClosed()) {
-            if (!connect()) {
-                throw new SQLException("SQLite connection pool is unavailable");
-            }
+        HikariDataSource current = dataSource;
+        if (current != null && !current.isClosed()) {
+            return current.getConnection();
         }
-        return dataSource.getConnection();
+        // 懒重连需要同步：主线程与持久化 worker 并发触发会各建一个连接池
+        synchronized (this) {
+            if (dataSource == null || dataSource.isClosed()) {
+                if (!connect()) {
+                    throw new SQLException("SQLite connection pool is unavailable");
+                }
+            }
+            return dataSource.getConnection();
+        }
     }
 
     @Override

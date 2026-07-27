@@ -249,8 +249,9 @@ public class ParticleEffectRenderer {
             return;
         }
 
-        Particle particle = ParticleCompat.resolveParticle(effect.getParticle(), Particle.FLAME);
-        Object data = ParticleCompat.createData(particle, effect);
+        // 粒子类型与数据对象已在 CrateParticleEffect 构造时解析缓存，逐点调用零解析开销
+        Particle particle = effect.getResolvedParticle();
+        Object data = effect.getResolvedData();
         try {
             if (particle.getDataType() != Void.class && data == null) {
                 return;

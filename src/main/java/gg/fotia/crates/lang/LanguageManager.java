@@ -23,6 +23,7 @@ public class LanguageManager {
 
     private final FotiaCrates plugin;
     private final Map<String, FileConfiguration> languages = new HashMap<>();
+    private final Map<String, FileConfiguration> bundledLanguages = new HashMap<>();
     private String defaultLanguage = "zh_CN";
     private String prefix = "";
 
@@ -36,6 +37,7 @@ public class LanguageManager {
      */
     public void loadLanguages() {
         languages.clear();
+        bundledLanguages.clear();
 
         File langFolder = new File(plugin.getDataFolder(), "lang");
         if (!langFolder.exists()) {
@@ -52,7 +54,10 @@ public class LanguageManager {
             for (File file : files) {
                 String langCode = file.getName().replace(".yml", "");
                 FileConfiguration config = YamlConfiguration.loadConfiguration(file);
-                applyBundledDefaults(config, file.getName());
+                FileConfiguration bundledConfig = loadBundledLanguage(file.getName());
+                if (bundledConfig != null) {
+                    bundledLanguages.put(langCode, bundledConfig);
+                }
                 languages.put(langCode, config);
                 plugin.getLogger().info("Loaded language: " + langCode);
             }
@@ -62,10 +67,8 @@ public class LanguageManager {
         defaultLanguage = plugin.getConfig().getString("settings.default-language", "zh_CN");
 
         // 加载前缀
-        FileConfiguration defaultConfig = languages.get(defaultLanguage);
-        if (defaultConfig != null) {
-            prefix = defaultConfig.getString("prefix", "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> ");
-        }
+        prefix = resolveLanguageValue(defaultLanguage, "prefix",
+                "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> ");
 
         plugin.getLogger().info("Loaded " + languages.size() + " languages. Default: " + defaultLanguage);
     }
@@ -80,20 +83,48 @@ public class LanguageManager {
         }
     }
 
-    /**
-     * Preserve administrator-owned language files while allowing new bundled messages to fall back at runtime.
-     */
-    private void applyBundledDefaults(FileConfiguration config, String fileName) {
+    private FileConfiguration loadBundledLanguage(String fileName) {
         try (InputStream stream = plugin.getResource("lang/" + fileName)) {
             if (stream == null) {
-                return;
+                return null;
             }
             try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
-                config.setDefaults(YamlConfiguration.loadConfiguration(reader));
+                return YamlConfiguration.loadConfiguration(reader);
             }
         } catch (IOException exception) {
             plugin.getLogger().warning("Failed to load bundled language defaults for " + fileName + ": " + exception.getMessage());
+            return null;
         }
+    }
+
+    private String resolveLanguageValue(String langCode, String path, String fallback) {
+        String value = getString(languages.get(langCode), path);
+        if (value != null) {
+            return value;
+        }
+
+        value = getString(bundledLanguages.get(langCode), path);
+        if (value != null) {
+            return value;
+        }
+
+        if (!defaultLanguage.equals(langCode)) {
+            value = getString(languages.get(defaultLanguage), path);
+            if (value != null) {
+                return value;
+            }
+
+            value = getString(bundledLanguages.get(defaultLanguage), path);
+            if (value != null) {
+                return value;
+            }
+        }
+
+        return fallback;
+    }
+
+    private String getString(FileConfiguration config, String path) {
+        return config != null ? config.getString(path) : null;
     }
 
     /**
@@ -139,9 +170,9 @@ public class LanguageManager {
      * 获取消息（带前缀）
      */
     public Component getMessage(Player player, String key) {
-        FileConfiguration config = getPlayerConfig(player);
-        String message = config.getString("messages." + key, key);
-        String langPrefix = config.getString("prefix", prefix);
+        String langCode = getPlayerLanguage(player);
+        String message = resolveLanguageValue(langCode, "messages." + key, key);
+        String langPrefix = resolveLanguageValue(langCode, "prefix", prefix);
         return MessageUtil.parse(langPrefix + message);
     }
 
@@ -149,9 +180,8 @@ public class LanguageManager {
      * 获取消息（带前缀，无玩家参数，使用默认语言）
      */
     public Component getMessage(String key) {
-        FileConfiguration config = getLanguageConfig(defaultLanguage);
-        String message = config.getString("messages." + key, key);
-        String langPrefix = config.getString("prefix", prefix);
+        String message = resolveLanguageValue(defaultLanguage, "messages." + key, key);
+        String langPrefix = resolveLanguageValue(defaultLanguage, "prefix", prefix);
         return MessageUtil.parse(langPrefix + message);
     }
 
@@ -159,9 +189,9 @@ public class LanguageManager {
      * 获取消息（带前缀和占位符）
      */
     public Component getMessage(Player player, String key, Map<String, String> placeholders) {
-        FileConfiguration config = getPlayerConfig(player);
-        String message = config.getString("messages." + key, key);
-        String langPrefix = config.getString("prefix", prefix);
+        String langCode = getPlayerLanguage(player);
+        String message = resolveLanguageValue(langCode, "messages." + key, key);
+        String langPrefix = resolveLanguageValue(langCode, "prefix", prefix);
         return MessageUtil.parse(langPrefix + message, placeholders);
     }
 
@@ -169,9 +199,8 @@ public class LanguageManager {
      * 获取消息（带前缀和占位符，无玩家参数，使用默认语言）
      */
     public Component getMessage(String key, Map<String, String> placeholders) {
-        FileConfiguration config = getLanguageConfig(defaultLanguage);
-        String message = config.getString("messages." + key, key);
-        String langPrefix = config.getString("prefix", prefix);
+        String message = resolveLanguageValue(defaultLanguage, "messages." + key, key);
+        String langPrefix = resolveLanguageValue(defaultLanguage, "prefix", prefix);
         return MessageUtil.parse(langPrefix + message, placeholders);
     }
 
@@ -179,8 +208,7 @@ public class LanguageManager {
      * 获取消息（无前缀）
      */
     public Component getMessageNoPrefix(Player player, String key) {
-        FileConfiguration config = getPlayerConfig(player);
-        String message = config.getString("messages." + key, key);
+        String message = resolveLanguageValue(getPlayerLanguage(player), "messages." + key, key);
         return MessageUtil.parse(message);
     }
 
@@ -188,8 +216,7 @@ public class LanguageManager {
      * 获取消息（无前缀，带占位符）
      */
     public Component getMessageNoPrefix(Player player, String key, Map<String, String> placeholders) {
-        FileConfiguration config = getPlayerConfig(player);
-        String message = config.getString("messages." + key, key);
+        String message = resolveLanguageValue(getPlayerLanguage(player), "messages." + key, key);
         return MessageUtil.parse(message, placeholders);
     }
 
@@ -197,8 +224,7 @@ public class LanguageManager {
      * 获取原始消息字符串
      */
     public String getRawMessage(Player player, String key) {
-        FileConfiguration config = getPlayerConfig(player);
-        return config.getString("messages." + key, key);
+        return resolveLanguageValue(getPlayerLanguage(player), "messages." + key, key);
     }
 
     /**

@@ -30,8 +30,9 @@ public class ModelEngineManager {
     private static final String BETTER_MODEL_BASE_TAG = "fotiacrates_bettermodel";
 
     private final FotiaCrates plugin;
-    private final Map<Location, UUID> crateModels = new HashMap<>();
-    private final Map<Location, ModelIdentity> modelIdentities = new HashMap<>();
+    // 以世界名+坐标为键：Location 作长期键会强引用 World，世界卸载后条目残留且查找失配
+    private final Map<ModelPosition, UUID> crateModels = new HashMap<>();
+    private final Map<ModelPosition, ModelIdentity> modelIdentities = new HashMap<>();
     private final Set<ModelPosition> staleModelPositions = new HashSet<>();
     private BetterModelManager betterModelManager;
     private boolean modelEngineAvailable = false;
@@ -42,6 +43,13 @@ public class ModelEngineManager {
     private Method createModeledEntityMethod;
     private Method getBlueprintMethod;
     private Method getModeledEntityMethod;
+    // 以下方法按运行期实际类懒解析并缓存（ModelEngine 版本运行期不变），避免热路径逐次 getMethod 字符串查找
+    private Method getModelsMethod;
+    private Method removeModeledEntityMethod;
+    private Method getAnimationHandlerMethod;
+    private Method stopAnimationMethod;
+    private Method playAnimationExtendedMethod;
+    private Method playAnimationSimpleMethod;
 
     public ModelEngineManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -159,7 +167,7 @@ public class ModelEngineManager {
         }
 
         ModelIdentity desired = ModelIdentity.from(crate);
-        if (desired.equals(modelIdentities.get(blockLoc)) && isProviderModelHealthy(crate, blockLoc)) {
+        if (desired.equals(modelIdentities.get(positionOf(blockLoc))) && isProviderModelHealthy(crate, blockLoc)) {
             return true;
         }
 
@@ -167,14 +175,14 @@ public class ModelEngineManager {
         spawnCrateModel(crate, blockLoc, yaw);
         if (!isProviderModelHealthy(crate, blockLoc)) {
             removeAllProviderModels(blockLoc, false);
-            modelIdentities.remove(blockLoc);
+            modelIdentities.remove(positionOf(blockLoc));
             if (blockLoc.getBlock().getType() == Material.BARRIER) {
                 blockLoc.getBlock().setType(crate.getBlockMaterial());
             }
             return false;
         }
 
-        modelIdentities.put(blockLoc, desired);
+        modelIdentities.put(positionOf(blockLoc), desired);
         return true;
     }
 
@@ -228,6 +236,18 @@ public class ModelEngineManager {
         }
     }
 
+    /**
+     * 该区块内是否存在等待清理的残留模型位置（供区块加载监听器做空短路判断）
+     */
+    public boolean hasStaleModelsInChunk(String worldName, int chunkX, int chunkZ) {
+        for (ModelPosition position : staleModelPositions) {
+            if (position.isInChunk(worldName, chunkX, chunkZ)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public void removeCrateModels(Collection<CrateLocation> locations) {
         if (locations == null) {
             return;
@@ -275,7 +295,7 @@ public class ModelEngineManager {
         }
         if (!crate.isModelEnabled()) {
             removeAllProviderModels(location, false);
-            modelIdentities.remove(location);
+            modelIdentities.remove(positionOf(location));
             if (location.getBlock().getType() == Material.BARRIER) {
                 location.getBlock().setType(crate.getBlockMaterial());
             }
@@ -307,12 +327,18 @@ public class ModelEngineManager {
             if (modeledEntity == null) {
                 return false;
             }
-            Method getModels = modeledEntity.getClass().getMethod("getModels");
-            Object models = getModels.invoke(modeledEntity);
+            Object models = invokeGetModels(modeledEntity);
             return models instanceof Map<?, ?> modelMap && !modelMap.isEmpty();
         } catch (Exception ignored) {
             return false;
         }
+    }
+
+    private Object invokeGetModels(Object modeledEntity) throws Exception {
+        if (getModelsMethod == null) {
+            getModelsMethod = modeledEntity.getClass().getMethod("getModels");
+        }
+        return getModelsMethod.invoke(modeledEntity);
     }
 
     private void removeAllProviderModels(Location blockLoc, boolean clearBarrierBlock) {
@@ -401,7 +427,7 @@ public class ModelEngineManager {
             setModelViewRange(modeledEntity, crate.getModelEngineViewRange());
             playAnimation(activeModel, crate.getModelEngineIdleAnimation(), true);
 
-            crateModels.put(blockLoc, baseEntity.getUniqueId());
+            crateModels.put(positionOf(blockLoc), baseEntity.getUniqueId());
             plugin.getLogger().info("Spawned ModelEngine model for crate: " + crate.getId());
         } catch (Exception e) {
             plugin.getLogger().warning("Failed to spawn ModelEngine model: " + e.getMessage());
@@ -411,11 +437,11 @@ public class ModelEngineManager {
     public void removeCrateModel(Location location) {
         Location blockLoc = location.getBlock().getLocation();
         removeAllProviderModels(blockLoc, true);
-        modelIdentities.remove(blockLoc);
+        modelIdentities.remove(positionOf(blockLoc));
     }
 
     private boolean removeCrateModelInternal(Location blockLoc, boolean clearBarrierBlock) {
-        crateModels.remove(blockLoc);
+        crateModels.remove(positionOf(blockLoc));
 
         boolean removedAny = false;
         for (Entity entity : findNearbyModelBaseEntities(blockLoc)) {
@@ -437,8 +463,10 @@ public class ModelEngineManager {
         }
 
         try {
-            Method removeMethod = modelEngineAPI.getClass().getMethod("removeModeledEntity", Entity.class);
-            removeMethod.invoke(modelEngineAPI, entity);
+            if (removeModeledEntityMethod == null) {
+                removeModeledEntityMethod = modelEngineAPI.getClass().getMethod("removeModeledEntity", Entity.class);
+            }
+            removeModeledEntityMethod.invoke(modelEngineAPI, entity);
         } catch (Exception ignored) {
         }
     }
@@ -469,8 +497,7 @@ public class ModelEngineManager {
                 return;
             }
 
-            Method getModels = modeledEntity.getClass().getMethod("getModels");
-            Object models = getModels.invoke(modeledEntity);
+            Object models = invokeGetModels(modeledEntity);
 
             if (models instanceof Map<?, ?> modelMap && !modelMap.isEmpty()) {
                 Object activeModel = modelMap.values().iterator().next();
@@ -515,8 +542,7 @@ public class ModelEngineManager {
                 return;
             }
 
-            Method getModels = modeledEntity.getClass().getMethod("getModels");
-            Object models = getModels.invoke(modeledEntity);
+            Object models = invokeGetModels(modeledEntity);
 
             if (models instanceof Map<?, ?> modelMap && !modelMap.isEmpty()) {
                 Object activeModel = modelMap.values().iterator().next();
@@ -554,38 +580,50 @@ public class ModelEngineManager {
 
     private void stopAnimation(Object activeModel, String animationName) {
         try {
-            Method getAnimationHandler = activeModel.getClass().getMethod("getAnimationHandler");
-            Object animationHandler = getAnimationHandler.invoke(activeModel);
+            Object animationHandler = resolveAnimationHandler(activeModel);
 
-            try {
-                Method stopAnimation = animationHandler.getClass().getMethod("stopAnimation", String.class);
-                stopAnimation.invoke(animationHandler, animationName);
-            } catch (NoSuchMethodException e) {
+            if (stopAnimationMethod == null) {
                 try {
-                    Method forceStop = animationHandler.getClass().getMethod("forceStopAnimation", String.class);
-                    forceStop.invoke(animationHandler, animationName);
-                } catch (NoSuchMethodException ignored) {
+                    stopAnimationMethod = animationHandler.getClass().getMethod("stopAnimation", String.class);
+                } catch (NoSuchMethodException e) {
+                    try {
+                        stopAnimationMethod = animationHandler.getClass().getMethod("forceStopAnimation", String.class);
+                    } catch (NoSuchMethodException ignored) {
+                        return;
+                    }
                 }
             }
+            stopAnimationMethod.invoke(animationHandler, animationName);
         } catch (Exception ignored) {
         }
     }
 
     private void playAnimation(Object activeModel, String animationName, boolean loop) {
         try {
-            Method getAnimationHandler = activeModel.getClass().getMethod("getAnimationHandler");
-            Object animationHandler = getAnimationHandler.invoke(activeModel);
+            Object animationHandler = resolveAnimationHandler(activeModel);
 
-            try {
-                Method playAnimation = animationHandler.getClass().getMethod(
-                        "playAnimation", String.class, double.class, double.class, double.class, boolean.class);
-                playAnimation.invoke(animationHandler, animationName, 0.0, 0.0, 1.0, loop);
-            } catch (NoSuchMethodException e) {
-                Method playAnimation = animationHandler.getClass().getMethod("playAnimation", String.class, boolean.class);
-                playAnimation.invoke(animationHandler, animationName, loop);
+            if (playAnimationExtendedMethod == null && playAnimationSimpleMethod == null) {
+                try {
+                    playAnimationExtendedMethod = animationHandler.getClass().getMethod(
+                            "playAnimation", String.class, double.class, double.class, double.class, boolean.class);
+                } catch (NoSuchMethodException e) {
+                    playAnimationSimpleMethod = animationHandler.getClass().getMethod("playAnimation", String.class, boolean.class);
+                }
+            }
+            if (playAnimationExtendedMethod != null) {
+                playAnimationExtendedMethod.invoke(animationHandler, animationName, 0.0, 0.0, 1.0, loop);
+            } else {
+                playAnimationSimpleMethod.invoke(animationHandler, animationName, loop);
             }
         } catch (Exception ignored) {
         }
+    }
+
+    private Object resolveAnimationHandler(Object activeModel) throws Exception {
+        if (getAnimationHandlerMethod == null) {
+            getAnimationHandlerMethod = activeModel.getClass().getMethod("getAnimationHandler");
+        }
+        return getAnimationHandlerMethod.invoke(activeModel);
     }
 
     private Object createActiveModel(Object blueprint, String modelId) {
@@ -664,7 +702,7 @@ public class ModelEngineManager {
             } catch (Exception ignored) {
             }
         }
-        UUID trackedUuid = crateModels.get(blockLoc);
+        UUID trackedUuid = crateModels.get(positionOf(blockLoc));
         return trackedUuid != null && trackedUuid.equals(entity.getUniqueId());
     }
 
@@ -684,10 +722,11 @@ public class ModelEngineManager {
     }
 
     private Entity resolveModelEntity(Location blockLoc, boolean removeDuplicates) {
-        UUID trackedUuid = crateModels.get(blockLoc);
+        ModelPosition position = positionOf(blockLoc);
+        UUID trackedUuid = crateModels.get(position);
         List<Entity> nearbyEntities = findNearbyModelBaseEntities(blockLoc);
         if (nearbyEntities.isEmpty()) {
-            crateModels.remove(blockLoc);
+            crateModels.remove(position);
             return null;
         }
 
@@ -704,7 +743,7 @@ public class ModelEngineManager {
             primary = nearbyEntities.get(0);
         }
 
-        crateModels.put(blockLoc, primary.getUniqueId());
+        crateModels.put(position, primary.getUniqueId());
 
         if (removeDuplicates && nearbyEntities.size() > 1) {
             for (Entity entity : nearbyEntities) {
@@ -737,7 +776,13 @@ public class ModelEngineManager {
             betterModelManager.cleanup();
         }
 
-        Set<Location> locationsToCleanup = new HashSet<>(crateModels.keySet());
+        Set<Location> locationsToCleanup = new HashSet<>();
+        for (ModelPosition position : crateModels.keySet()) {
+            World world = plugin.getServer().getWorld(position.world());
+            if (world != null) {
+                locationsToCleanup.add(position.toLocation(world));
+            }
+        }
         Map<Location, Material> restoreMaterials = new HashMap<>();
 
         if (plugin.getCrateManager() != null) {
@@ -770,6 +815,11 @@ public class ModelEngineManager {
     private float resolveSavedYaw(Location location) {
         CrateLocation crateLocation = plugin.getCrateManager().getLocationAt(location);
         return crateLocation != null ? crateLocation.getYaw() : location.getYaw();
+    }
+
+    private ModelPosition positionOf(Location blockLoc) {
+        return new ModelPosition(blockLoc.getWorld().getName(),
+                blockLoc.getBlockX(), blockLoc.getBlockY(), blockLoc.getBlockZ());
     }
 
     private record ModelIdentity(String provider, String modelId, String idleAnimation,

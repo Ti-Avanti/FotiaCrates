@@ -4,7 +4,6 @@ import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateLocation;
 import gg.fotia.crates.util.MessageUtil;
-import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -27,9 +26,7 @@ public class HologramManager {
 
     private final FotiaCrates plugin;
     // 每个位置对应每个玩家的全息显示
-    private final Map<String, Map<UUID, TextDisplay>> playerHolograms = new HashMap<>();
-    // 共享全息显示（用于没有玩家在附近时）
-    private final Map<String, TextDisplay> sharedHolograms = new HashMap<>();
+    private final Map<String, Map<UUID, PlayerHologram>> playerHolograms = new HashMap<>();
     // 定时更新任务
     private BukkitTask updateTask;
 
@@ -41,6 +38,23 @@ public class HologramManager {
     private double updateRadius = 32.0; // 更新半径
     private double maxSearchRadius = 32.0;
     private int searchRadiusRefreshCounter;
+
+    /**
+     * 已发送状态缓存：文本/位置/视距未变化时跳过 text()/teleport()/setViewRange()，
+     * 避免每秒对每个（玩家×宝箱）重发 metadata 与 teleport 包
+     */
+    private static final class PlayerHologram {
+        final TextDisplay display;
+        String lastText;
+        double lastX;
+        double lastY;
+        double lastZ;
+        float lastViewRange;
+
+        PlayerHologram(TextDisplay display) {
+            this.display = display;
+        }
+    }
 
     public HologramManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -112,35 +126,25 @@ public class HologramManager {
 
                 String key = getLocationKey(location);
                 visiblePlayers.computeIfAbsent(key, ignored -> new HashSet<>()).add(player.getUniqueId());
-                removeSharedHologram(location);
                 updateOrCreatePlayerHologram(location, crate, player);
             }
         }
 
         cleanupInvisiblePlayerHolograms(visiblePlayers);
-        for (TextDisplay display : sharedHolograms.values()) {
-            if (display != null && !display.isDead()) {
-                display.remove();
-            }
-        }
-        sharedHolograms.clear();
     }
 
     private void cleanupInvisiblePlayerHolograms(Map<String, Set<UUID>> visiblePlayers) {
-        Iterator<Map.Entry<String, Map<UUID, TextDisplay>>> locationIterator = playerHolograms.entrySet().iterator();
+        Iterator<Map.Entry<String, Map<UUID, PlayerHologram>>> locationIterator = playerHolograms.entrySet().iterator();
         while (locationIterator.hasNext()) {
-            Map.Entry<String, Map<UUID, TextDisplay>> locationEntry = locationIterator.next();
+            Map.Entry<String, Map<UUID, PlayerHologram>> locationEntry = locationIterator.next();
             Set<UUID> visibleAtLocation = visiblePlayers.getOrDefault(locationEntry.getKey(), Set.of());
-            Iterator<Map.Entry<UUID, TextDisplay>> playerIterator = locationEntry.getValue().entrySet().iterator();
+            Iterator<Map.Entry<UUID, PlayerHologram>> playerIterator = locationEntry.getValue().entrySet().iterator();
             while (playerIterator.hasNext()) {
-                Map.Entry<UUID, TextDisplay> playerEntry = playerIterator.next();
+                Map.Entry<UUID, PlayerHologram> playerEntry = playerIterator.next();
                 if (visibleAtLocation.contains(playerEntry.getKey())) {
                     continue;
                 }
-                TextDisplay display = playerEntry.getValue();
-                if (display != null && !display.isDead()) {
-                    display.remove();
-                }
+                removeDisplay(playerEntry.getValue());
                 playerIterator.remove();
             }
             if (locationEntry.getValue().isEmpty()) {
@@ -174,7 +178,7 @@ public class HologramManager {
     }
 
     /**
-     * 创建单个宝箱的全息显示（共享版本）
+     * 创建单个宝箱的全息显示
      */
     public void createHologram(Location location, String crateId) {
         if (!enabled) return;
@@ -191,58 +195,13 @@ public class HologramManager {
     }
 
     /**
-     * 确保共享全息存在
-     */
-    private void ensureSharedHologram(Location location, Crate crate) {
-        String key = getLocationKey(location);
-        TextDisplay existing = sharedHolograms.get(key);
-        if (existing != null && !existing.isDead()) {
-            return; // 已存在
-        }
-
-        // 创建共享全息
-        double crateHologramHeight = crate.getHologramHeight();
-        double finalHeight = crateHologramHeight > 0 ? crateHologramHeight : heightOffset;
-        Location holoLoc = location.clone().add(0.5, finalHeight, 0.5);
-
-        // 使用宝箱配置的可视距离
-        float viewRange = 32;
-        if (crate.isModelEnabled() && crate.getModelEngineViewRange() > 0) {
-            viewRange = crate.getModelEngineViewRange();
-        }
-        final float finalViewRange = viewRange;
-
-        Component text = buildHologramText(crate, null);
-
-        TextDisplay display = location.getWorld().spawn(holoLoc, TextDisplay.class, d -> {
-            d.text(text);
-            d.setBillboard(Display.Billboard.CENTER);
-            d.setAlignment(TextDisplay.TextAlignment.CENTER);
-            d.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
-            d.setShadowed(true);
-            d.setTransformation(new Transformation(
-                    new Vector3f(0, 0, 0),
-                    new AxisAngle4f(0, 0, 1, 0),
-                    new Vector3f(scale, scale, scale),
-                    new AxisAngle4f(0, 0, 1, 0)
-            ));
-            d.setViewRange(finalViewRange);
-            d.setShadowRadius(0);
-            d.setShadowStrength(0);
-            d.setPersistent(false);
-        });
-
-        sharedHolograms.put(key, display);
-    }
-
-    /**
      * 为玩家创建或更新专属全息
      */
     private void updateOrCreatePlayerHologram(Location location, Crate crate, Player player) {
         String key = getLocationKey(location);
-        Map<UUID, TextDisplay> playerMap = playerHolograms.computeIfAbsent(key, k -> new HashMap<>());
+        Map<UUID, PlayerHologram> playerMap = playerHolograms.computeIfAbsent(key, k -> new HashMap<>());
 
-        TextDisplay existing = playerMap.get(player.getUniqueId());
+        PlayerHologram existing = playerMap.get(player.getUniqueId());
 
         double crateHologramHeight = crate.getHologramHeight();
         double finalHeight = crateHologramHeight > 0 ? crateHologramHeight : heightOffset;
@@ -255,16 +214,27 @@ public class HologramManager {
         }
         final float finalViewRange = viewRange;
 
-        Component text = buildHologramText(crate, player);
+        String rawText = buildHologramString(crate, player);
 
-        if (existing != null && !existing.isDead()) {
-            // 更新现有全息
-            existing.text(text);
-            existing.teleport(holoLoc);
-            existing.setViewRange(finalViewRange);
-            player.showEntity(plugin, existing);
+        if (existing != null && !existing.display.isDead()) {
+            // 增量更新：内容、位置、视距未变化时不重发包，也不重新解析 MiniMessage
+            if (!rawText.equals(existing.lastText)) {
+                existing.display.text(MessageUtil.parse(rawText));
+                existing.lastText = rawText;
+            }
+            if (existing.lastX != holoLoc.getX() || existing.lastY != holoLoc.getY()
+                    || existing.lastZ != holoLoc.getZ()) {
+                existing.display.teleport(holoLoc);
+                rememberPosition(existing, holoLoc);
+            }
+            if (existing.lastViewRange != finalViewRange) {
+                existing.display.setViewRange(finalViewRange);
+                existing.lastViewRange = finalViewRange;
+            }
+            player.showEntity(plugin, existing.display);
         } else {
             // 创建新全息
+            var text = MessageUtil.parse(rawText);
             TextDisplay display = location.getWorld().spawn(holoLoc, TextDisplay.class, d -> {
                 d.text(text);
                 d.setBillboard(Display.Billboard.CENTER);
@@ -285,18 +255,23 @@ public class HologramManager {
             });
             player.showEntity(plugin, display);
 
-            playerMap.put(player.getUniqueId(), display);
+            PlayerHologram hologram = new PlayerHologram(display);
+            hologram.lastText = rawText;
+            hologram.lastViewRange = finalViewRange;
+            rememberPosition(hologram, holoLoc);
+            playerMap.put(player.getUniqueId(), hologram);
         }
     }
 
-    /**
-     * 移除共享全息
-     */
-    private void removeSharedHologram(Location location) {
-        String key = getLocationKey(location);
-        TextDisplay display = sharedHolograms.remove(key);
-        if (display != null && !display.isDead()) {
-            display.remove();
+    private void rememberPosition(PlayerHologram hologram, Location location) {
+        hologram.lastX = location.getX();
+        hologram.lastY = location.getY();
+        hologram.lastZ = location.getZ();
+    }
+
+    private void removeDisplay(PlayerHologram hologram) {
+        if (hologram != null && !hologram.display.isDead()) {
+            hologram.display.remove();
         }
     }
 
@@ -305,38 +280,10 @@ public class HologramManager {
      */
     private void removePlayerHologramsAt(Location location) {
         String key = getLocationKey(location);
-        Map<UUID, TextDisplay> playerMap = playerHolograms.remove(key);
+        Map<UUID, PlayerHologram> playerMap = playerHolograms.remove(key);
         if (playerMap != null) {
-            for (TextDisplay display : playerMap.values()) {
-                if (display != null && !display.isDead()) {
-                    display.remove();
-                }
-            }
-        }
-    }
-
-    /**
-     * 清理不在附近的玩家的全息
-     */
-    private void cleanupDistantPlayerHolograms(Location location, Collection<Player> nearbyPlayers) {
-        String key = getLocationKey(location);
-        Map<UUID, TextDisplay> playerMap = playerHolograms.get(key);
-        if (playerMap == null) return;
-
-        Set<UUID> nearbyUuids = new HashSet<>();
-        for (Player p : nearbyPlayers) {
-            nearbyUuids.add(p.getUniqueId());
-        }
-
-        Iterator<Map.Entry<UUID, TextDisplay>> it = playerMap.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<UUID, TextDisplay> entry = it.next();
-            if (!nearbyUuids.contains(entry.getKey())) {
-                TextDisplay display = entry.getValue();
-                if (display != null && !display.isDead()) {
-                    display.remove();
-                }
-                it.remove();
+            for (PlayerHologram hologram : playerMap.values()) {
+                removeDisplay(hologram);
             }
         }
     }
@@ -347,7 +294,6 @@ public class HologramManager {
     public void removeHologram(Location location) {
         if (location == null) return;
 
-        removeSharedHologram(location);
         removePlayerHologramsAt(location);
     }
 
@@ -379,14 +325,15 @@ public class HologramManager {
     }
 
     /**
-     * 构建全息显示文本
+     * 构建全息显示原始文本；{keys} 的背包扫描只在模板确实包含该占位符时计算一次
      */
-    private Component buildHologramText(Crate crate, Player player) {
+    private String buildHologramString(Crate crate, Player player) {
         List<String> displayLines = crate.getHologramLines();
         if (displayLines == null || displayLines.isEmpty()) {
             displayLines = lines;
         }
 
+        String keysValue = null;
         StringBuilder sb = new StringBuilder();
 
         for (int i = 0; i < displayLines.size(); i++) {
@@ -395,38 +342,31 @@ public class HologramManager {
             line = line.replace("{crate_name}", crate.getName());
             line = line.replace("{crate_id}", crate.getId());
 
-            if (player != null) {
-                int keys = plugin.getKeyManager().getKeyCountForCrate(player, crate.getId());
-                line = line.replace("{keys}", String.valueOf(keys));
-            } else {
-                line = line.replace("{keys}", "?");
+            if (line.contains("{keys}")) {
+                if (keysValue == null) {
+                    keysValue = player != null
+                            ? String.valueOf(plugin.getKeyManager().getKeyCountForCrate(player, crate.getId()))
+                            : "?";
+                }
+                line = line.replace("{keys}", keysValue);
             }
 
             sb.append(line);
             if (i < displayLines.size() - 1) {
-                sb.append("\n");
+                sb.append('\n');
             }
         }
 
-        return MessageUtil.parse(sb.toString());
+        return sb.toString();
     }
 
     /**
      * 移除所有全息显示
      */
     public void removeAllHolograms() {
-        for (TextDisplay display : sharedHolograms.values()) {
-            if (display != null && !display.isDead()) {
-                display.remove();
-            }
-        }
-        sharedHolograms.clear();
-
-        for (Map<UUID, TextDisplay> playerMap : playerHolograms.values()) {
-            for (TextDisplay display : playerMap.values()) {
-                if (display != null && !display.isDead()) {
-                    display.remove();
-                }
+        for (Map<UUID, PlayerHologram> playerMap : playerHolograms.values()) {
+            for (PlayerHologram hologram : playerMap.values()) {
+                removeDisplay(hologram);
             }
         }
         playerHolograms.clear();
