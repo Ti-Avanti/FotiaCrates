@@ -11,9 +11,20 @@ final class MultiOpenPermissionContext {
 
     private final Predicate<String> livePermissionCheck;
     private final Set<String> pendingPermissions = new HashSet<>();
+    private final boolean uniqueDrawEnabled;
+    private final Set<String> excludedRewardIds = new HashSet<>();
 
     MultiOpenPermissionContext(Predicate<String> livePermissionCheck) {
+        this(livePermissionCheck, false, Set.of());
+    }
+
+    MultiOpenPermissionContext(Predicate<String> livePermissionCheck, boolean uniqueDrawEnabled,
+                               Set<String> collectedRewardIds) {
         this.livePermissionCheck = livePermissionCheck != null ? livePermissionCheck : permission -> false;
+        this.uniqueDrawEnabled = uniqueDrawEnabled;
+        if (uniqueDrawEnabled && collectedRewardIds != null) {
+            excludedRewardIds.addAll(collectedRewardIds);
+        }
     }
 
     boolean hasPermission(String permission) {
@@ -23,15 +34,24 @@ final class MultiOpenPermissionContext {
     }
 
     boolean shouldSkip(Reward reward) {
-        return reward != null
-                && reward.isPermissionCheckEnabled()
+        return reward != null && (isUniqueRewardExcluded(reward)
+                || (reward.isPermissionCheckEnabled()
                 && reward.getPermissionAction() == PermissionAction.SKIP
-                && hasPermission(reward.getCheckPermission());
+                && hasPermission(reward.getCheckPermission())));
+    }
+
+    private boolean isUniqueRewardExcluded(Reward reward) {
+        return uniqueDrawEnabled && excludedRewardIds.contains(reward.getId());
     }
 
     void recordAward(RewardResult rewardResult) {
         if (rewardResult == null) {
             return;
+        }
+
+        Reward displayReward = rewardResult.getDisplayReward();
+        if (uniqueDrawEnabled && displayReward != null) {
+            excludedRewardIds.add(displayReward.getId());
         }
 
         Reward reward = rewardResult.getActualReward();

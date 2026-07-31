@@ -113,7 +113,7 @@ public final class AsyncPlayerDataManager {
                     if (!isPlayerOnline(playerId)) {
                         return;
                     }
-                    cache.load(playerId, loaded.virtualKeys(), loaded.pityCounts());
+                    cache.load(playerId, loaded.virtualKeys(), loaded.pityCounts(), loaded.collectedRewards());
                 });
             } catch (SQLException exception) {
                 plugin.getLogger().severe("Failed to load player data for " + playerId + ": " + exception.getMessage());
@@ -194,6 +194,25 @@ public final class AsyncPlayerDataManager {
             return false;
         }
         cache.setPityCount(playerId, crateId, count);
+        dirtyPlayers.add(playerId);
+        return true;
+    }
+
+    public Set<String> getCollectedRewardIds(UUID playerId, String crateId) {
+        return cache.getCollectedRewardIds(playerId, crateId);
+    }
+
+    public boolean hasCollectedReward(UUID playerId, String crateId, String rewardId) {
+        return cache.hasCollectedReward(playerId, crateId, rewardId);
+    }
+
+    public boolean collectReward(UUID playerId, String crateId, String rewardId) {
+        if (!cache.isLoaded(playerId)) {
+            return false;
+        }
+        if (!cache.collectReward(playerId, crateId, rewardId)) {
+            return false;
+        }
         dirtyPlayers.add(playerId);
         return true;
     }
@@ -498,6 +517,7 @@ public final class AsyncPlayerDataManager {
     private LoadedPlayerData loadPlayerData(UUID playerId) throws SQLException {
         Map<String, Integer> virtualKeys = new HashMap<>();
         Map<String, Integer> pityCounts = new HashMap<>();
+        Set<PlayerDataCache.RewardKey> collectedRewards = new HashSet<>();
         try (Connection connection = plugin.getDatabaseManager().getConnection()) {
             try (PreparedStatement statement = connection.prepareStatement(
                     "SELECT key_id, amount FROM player_keys WHERE uuid = ?")) {
@@ -517,15 +537,30 @@ public final class AsyncPlayerDataManager {
                     }
                 }
             }
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT crate_id, reward_id FROM player_collected_rewards WHERE uuid = ?")) {
+                statement.setString(1, playerId.toString());
+                try (ResultSet resultSet = statement.executeQuery()) {
+                    while (resultSet.next()) {
+                        collectedRewards.add(new PlayerDataCache.RewardKey(
+                                resultSet.getString("crate_id"),
+                                resultSet.getString("reward_id")
+                        ));
+                    }
+                }
+            }
         }
-        return new LoadedPlayerData(virtualKeys, pityCounts);
+        return new LoadedPlayerData(virtualKeys, pityCounts, collectedRewards);
     }
 
     private void persistPlayerState(UUID playerId, PlayerDataCache.Snapshot snapshot) throws SQLException {
         // 仅写入本会话变更过的条目，避免每次开箱全量重写所有钥匙/保底行
         Map<String, Integer> changedKeys = filterChanged(snapshot.virtualKeys(), snapshot.changedKeys());
         Map<String, Integer> changedPity = filterChanged(snapshot.pityCounts(), snapshot.changedCrates());
-        if (changedKeys.isEmpty() && changedPity.isEmpty()) {
+        Set<PlayerDataCache.RewardKey> changedCollectedRewards = new HashSet<>(
+                snapshot.changedCollectedRewards());
+        changedCollectedRewards.retainAll(snapshot.collectedRewards());
+        if (changedKeys.isEmpty() && changedPity.isEmpty() && changedCollectedRewards.isEmpty()) {
             return;
         }
         try (Connection connection = plugin.getDatabaseManager().getConnection()) {
@@ -534,6 +569,7 @@ public final class AsyncPlayerDataManager {
             try {
                 upsertVirtualKeys(connection, playerId, changedKeys);
                 upsertPityCounts(connection, playerId, changedPity);
+                insertCollectedRewards(connection, playerId, changedCollectedRewards);
                 connection.commit();
             } catch (SQLException exception) {
                 connection.rollback();
@@ -588,6 +624,26 @@ public final class AsyncPlayerDataManager {
                 statement.setString(1, playerId.toString());
                 statement.setString(2, entry.getKey());
                 statement.setInt(3, entry.getValue());
+                statement.addBatch();
+            }
+            statement.executeBatch();
+        }
+    }
+
+    private void insertCollectedRewards(Connection connection, UUID playerId,
+                                        Set<PlayerDataCache.RewardKey> collectedRewards) throws SQLException {
+        if (collectedRewards.isEmpty()) {
+            return;
+        }
+        String sql = mysql
+                ? "INSERT INTO player_collected_rewards (uuid, crate_id, reward_id) VALUES (?, ?, ?) "
+                    + "ON DUPLICATE KEY UPDATE reward_id = VALUES(reward_id)"
+                : "INSERT OR IGNORE INTO player_collected_rewards (uuid, crate_id, reward_id) VALUES (?, ?, ?)";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (PlayerDataCache.RewardKey rewardKey : collectedRewards) {
+                statement.setString(1, playerId.toString());
+                statement.setString(2, rewardKey.crateId());
+                statement.setString(3, rewardKey.rewardId());
                 statement.addBatch();
             }
             statement.executeBatch();
@@ -775,7 +831,8 @@ public final class AsyncPlayerDataManager {
         }
     }
 
-    private record LoadedPlayerData(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts) {
+    private record LoadedPlayerData(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts,
+                                    Set<PlayerDataCache.RewardKey> collectedRewards) {
     }
 
     @FunctionalInterface

@@ -29,6 +29,8 @@ public class GuiConfigManager {
             "admin_pity_edit.yml",
             "admin_basic_edit.yml",
             "admin_multi_open_edit.yml",
+            "admin_unique_draw_edit.yml",
+            "admin_unique_icon_material_select.yml",
             "admin_reward_edit.yml",
             "admin_reward_manager.yml",
             "admin_item_input.yml",
@@ -178,6 +180,43 @@ public class GuiConfigManager {
         migrateMultiOpenAnimationGui(guisFolder);
         migratePreviewRewardDisplayGui(guisFolder);
         migratePreviewDisplayModeGui(guisFolder);
+        migrateUniqueDrawShortcutGui(guisFolder);
+    }
+
+    private void migrateUniqueDrawShortcutGui(File guisFolder) {
+        File file = new File(guisFolder, "admin_crate_edit.yml");
+        if (!file.exists()) {
+            return;
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        if (config.contains("icons.U")) {
+            return;
+        }
+
+        List<String> layout = new ArrayList<>(config.getStringList("layout"));
+        if (layout.isEmpty() || layout.get(0) == null || layout.get(0).length() != 9
+                || layout.get(0).charAt(5) != '#') {
+            plugin.getLogger().warning("Could not add the unique draw editor shortcut because slot 5 "
+                    + "in admin_crate_edit.yml is already customized.");
+            return;
+        }
+
+        String firstRow = layout.get(0);
+        layout.set(0, firstRow.substring(0, 5) + 'U' + firstRow.substring(6));
+        config.set("layout", layout);
+        config.set("icons.U.display.material", "RECOVERY_COMPASS");
+        config.set("icons.U.display.name", "<!i><aqua>不重复抽奖设置");
+        config.set("icons.U.display.lore", List.of(
+                "<!i><gray>配置玩家永久不重复获得奖励",
+                "",
+                "<!i><yellow>启用: {unique_draw_enabled}",
+                "<!i><yellow>已获得图标替换: {unique_preview_replace}",
+                "",
+                "<!i><yellow>左键点击编辑"
+        ));
+        config.set("icons.U.action", "edit_unique_draw");
+        saveMigratedGui(file, config, "admin_crate_edit");
     }
 
     private void migratePreviewRewardDisplayGui(File guisFolder) {

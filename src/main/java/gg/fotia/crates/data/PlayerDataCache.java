@@ -3,6 +3,7 @@ package gg.fotia.crates.data;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -18,7 +19,16 @@ public final class PlayerDataCache {
     }
 
     public void load(UUID playerId, Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts) {
-        states.put(playerId, new State(copyNonNegative(virtualKeys), copyNonNegative(pityCounts)));
+        load(playerId, virtualKeys, pityCounts, Set.of());
+    }
+
+    public void load(UUID playerId, Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts,
+                     Set<RewardKey> collectedRewards) {
+        states.put(playerId, new State(
+                copyNonNegative(virtualKeys),
+                copyNonNegative(pityCounts),
+                collectedRewards == null ? new HashSet<>() : new HashSet<>(collectedRewards)
+        ));
     }
 
     public void unload(UUID playerId) {
@@ -68,10 +78,52 @@ public final class PlayerDataCache {
         state.revision++;
     }
 
+    public Set<String> getCollectedRewardIds(UUID playerId, String crateId) {
+        State state = states.get(playerId);
+        if (state == null || crateId == null || crateId.isBlank()) {
+            return Set.of();
+        }
+        Set<String> rewardIds = new HashSet<>();
+        for (RewardKey rewardKey : state.collectedRewards) {
+            if (rewardKey.crateId().equals(crateId)) {
+                rewardIds.add(rewardKey.rewardId());
+            }
+        }
+        return Set.copyOf(rewardIds);
+    }
+
+    public boolean hasCollectedReward(UUID playerId, String crateId, String rewardId) {
+        State state = states.get(playerId);
+        return state != null
+                && crateId != null
+                && !crateId.isBlank()
+                && rewardId != null
+                && !rewardId.isBlank()
+                && state.collectedRewards.contains(new RewardKey(crateId, rewardId));
+    }
+
+    public boolean collectReward(UUID playerId, String crateId, String rewardId) {
+        State state = requireState(playerId);
+        RewardKey rewardKey = new RewardKey(crateId, rewardId);
+        if (!state.collectedRewards.add(rewardKey)) {
+            return false;
+        }
+        state.changedCollectedRewards.add(rewardKey);
+        state.revision++;
+        return true;
+    }
+
     public Snapshot snapshot(UUID playerId) {
         State state = requireState(playerId);
-        return new Snapshot(state.virtualKeys, state.pityCounts, state.changedKeys, state.changedCrates,
-                state.revision);
+        return new Snapshot(
+                state.virtualKeys,
+                state.pityCounts,
+                state.collectedRewards,
+                state.changedKeys,
+                state.changedCrates,
+                state.changedCollectedRewards,
+                state.revision
+        );
     }
 
     public void markPersisted(UUID playerId, Snapshot persistedSnapshot) {
@@ -81,19 +133,27 @@ public final class PlayerDataCache {
         }
         state.changedKeys.removeAll(persistedSnapshot.changedKeys());
         state.changedCrates.removeAll(persistedSnapshot.changedCrates());
+        state.changedCollectedRewards.removeAll(persistedSnapshot.changedCollectedRewards());
     }
 
     public void restore(UUID playerId, Snapshot snapshot) {
         // Snapshot 内的 Map/Set 均为不可变拷贝，必须重新做可变拷贝，否则后续 put 会抛异常
-        State state = new State(copyNonNegative(snapshot.virtualKeys()), copyNonNegative(snapshot.pityCounts()));
+        State state = new State(
+                copyNonNegative(snapshot.virtualKeys()),
+                copyNonNegative(snapshot.pityCounts()),
+                new HashSet<>(snapshot.collectedRewards())
+        );
         state.changedKeys.addAll(snapshot.changedKeys());
         state.changedCrates.addAll(snapshot.changedCrates());
+        state.changedCollectedRewards.addAll(snapshot.changedCollectedRewards());
         State previous = states.put(playerId, state);
         if (previous != null) {
             // 快照之后、回滚之前发生的变更也保持"待持久化"标记，仅写变更项时才不会漏写
             state.changedKeys.addAll(previous.changedKeys);
             state.changedCrates.addAll(previous.changedCrates);
+            state.changedCollectedRewards.addAll(previous.changedCollectedRewards);
         }
+        state.changedCollectedRewards.retainAll(state.collectedRewards);
         state.revision = Math.max(snapshot.revision(), previous == null ? 0 : previous.revision) + 1;
     }
 
@@ -121,36 +181,55 @@ public final class PlayerDataCache {
     private static final class State {
         private final Map<String, Integer> virtualKeys;
         private final Map<String, Integer> pityCounts;
+        private final Set<RewardKey> collectedRewards;
         private final Set<String> changedKeys = new HashSet<>();
         private final Set<String> changedCrates = new HashSet<>();
+        private final Set<RewardKey> changedCollectedRewards = new HashSet<>();
         private long revision;
 
-        private State(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts) {
+        private State(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts,
+                      Set<RewardKey> collectedRewards) {
             this.virtualKeys = virtualKeys;
             this.pityCounts = pityCounts;
+            this.collectedRewards = collectedRewards;
+        }
+    }
+
+    public record RewardKey(String crateId, String rewardId) {
+        public RewardKey {
+            Objects.requireNonNull(crateId, "crateId");
+            Objects.requireNonNull(rewardId, "rewardId");
+            if (crateId.isBlank() || rewardId.isBlank()) {
+                throw new IllegalArgumentException("crateId and rewardId must not be blank");
+            }
         }
     }
 
     public record Snapshot(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts,
-                           Set<String> changedKeys, Set<String> changedCrates, long revision) {
+                           Set<RewardKey> collectedRewards,
+                           Set<String> changedKeys, Set<String> changedCrates,
+                           Set<RewardKey> changedCollectedRewards, long revision) {
 
         public Snapshot {
             virtualKeys = Map.copyOf(virtualKeys);
             pityCounts = Map.copyOf(pityCounts);
+            collectedRewards = Set.copyOf(collectedRewards);
             changedKeys = Set.copyOf(changedKeys);
             changedCrates = Set.copyOf(changedCrates);
+            changedCollectedRewards = Set.copyOf(changedCollectedRewards);
         }
 
         /**
          * 兼容构造：未提供变更集时视全部条目为已变更（保守全量写入）。
          */
         public Snapshot(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts) {
-            this(virtualKeys, pityCounts, virtualKeys.keySet(), pityCounts.keySet(), 0);
+            this(virtualKeys, pityCounts, Set.of(),
+                    virtualKeys.keySet(), pityCounts.keySet(), Set.of(), 0);
         }
 
         public Snapshot(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts,
                         Set<String> changedKeys, Set<String> changedCrates) {
-            this(virtualKeys, pityCounts, changedKeys, changedCrates, 0);
+            this(virtualKeys, pityCounts, Set.of(), changedKeys, changedCrates, Set.of(), 0);
         }
     }
 }

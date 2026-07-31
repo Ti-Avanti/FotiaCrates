@@ -127,6 +127,17 @@ public class MySQLDatabase implements Database {
             """);
 
             stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS player_collected_rewards (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    uuid VARCHAR(36) NOT NULL,
+                    crate_id VARCHAR(64) NOT NULL,
+                    reward_id VARCHAR(64) NOT NULL,
+                    UNIQUE KEY unique_collected_reward (uuid, crate_id, reward_id),
+                    INDEX idx_collected_rewards_uuid_crate (uuid, crate_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            """);
+
+            stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS crate_locations (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     world VARCHAR(64) NOT NULL,

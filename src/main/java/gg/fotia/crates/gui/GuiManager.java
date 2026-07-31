@@ -5,6 +5,7 @@ import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.MultiOpenAmount;
 import gg.fotia.crates.crate.PreviewChanceDisplayMode;
 import gg.fotia.crates.crate.RewardResult;
+import gg.fotia.crates.crate.UniqueDrawSettings;
 import gg.fotia.crates.history.HistoryManager;
 import gg.fotia.crates.key.Key;
 import gg.fotia.crates.particle.CrateParticleEffect;
@@ -87,6 +88,10 @@ public class GuiManager {
 
         List<Integer> contentSlots = config.getContentSlots();
         List<Reward> rewards = crate.getRewards();
+        Set<String> collectedRewardIds = crate.isUniqueDrawEnabled()
+                ? plugin.getAsyncPlayerDataManager().getCollectedRewardIds(
+                        player.getUniqueId(), crate.getId())
+                : Set.of();
         int itemsPerPage = contentSlots.size();
         int totalPages = (int) Math.ceil((double) rewards.size() / itemsPerPage);
         if (totalPages == 0) totalPages = 1;
@@ -125,7 +130,12 @@ public class GuiManager {
         placeholders.put("{keys}", String.valueOf(keys));
         placeholders.put("{multi_open_enabled}", crate.isMultiOpenEnabled() ? "是" : "否");
         placeholders.put("{multi_open_max}", String.valueOf(crate.getMultiOpenMax()));
+        placeholders.put("{unique_draw_enabled}", yesNo(crate.isUniqueDrawEnabled()));
+        placeholders.put("{unique_preview_replace}", yesNo(crate.isReplaceObtainedInPreview()));
         placeholders.put("{multi_open_amount}", String.valueOf(multiOpenAmount));
+        placeholders.put("{collected_count}", String.valueOf(collectedRewardIds.size()));
+        placeholders.put("{remaining_count}", String.valueOf(Math.max(
+                0, rewards.size() - collectedRewardIds.size())));
         placeholders.put("{multi_open_hint}", multiOpenAmount > 1
                 ? "<!i><yellow>右键 <!i><gray>- 多连抽 " + multiOpenAmount + " 次"
                 : "<!i><dark_gray>右键多连抽不可用");
@@ -139,8 +149,16 @@ public class GuiManager {
             if (slotIndex >= contentSlots.size()) break;
             Reward reward = rewards.get(i);
             int slot = contentSlots.get(slotIndex);
+            boolean obtained = crate.isUniqueDrawEnabled()
+                    && crate.isReplaceObtainedInPreview()
+                    && collectedRewardIds.contains(reward.getId());
             ItemStack rewardItem = createRewardPreviewItem(
-                    reward, rewards, crate.getPreviewChanceDisplayMode(), config.getRewardPreviewDisplay());
+                    reward,
+                    rewards,
+                    crate.getPreviewChanceDisplayMode(),
+                    config.getRewardPreviewDisplay(),
+                    obtained ? crate.getObtainedRewardIcon() : null
+            );
             inventory.setItem(slot, rewardItem);
             slotIndex++;
         }
@@ -233,6 +251,8 @@ public class GuiManager {
         placeholders.put("{chance_mode_hidden}", chanceModeLine(chanceMode, PreviewChanceDisplayMode.HIDDEN));
         placeholders.put("{multi_open_enabled}", crate.isMultiOpenEnabled() ? "是" : "否");
         placeholders.put("{multi_open_max}", String.valueOf(crate.getMultiOpenMax()));
+        placeholders.put("{unique_draw_enabled}", crate.isUniqueDrawEnabled() ? "是" : "否");
+        placeholders.put("{unique_preview_replace}", crate.isReplaceObtainedInPreview() ? "是" : "否");
 
         placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         if (!hasConfiguredAction(config, "edit_particles") && config.getSize() > 3) {
@@ -789,6 +809,113 @@ public class GuiManager {
         return true;
     }
 
+    private boolean openConfiguredUniqueDrawEditGui(Player player, Crate crate) {
+        String guiId = "admin_unique_draw_edit";
+        GuiConfig config = configManager.getGuiConfig(guiId);
+        if (config == null) {
+            return false;
+        }
+
+        UniqueDrawSettings.ObtainedIcon icon = crate.getObtainedRewardIcon();
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("{unique_draw_enabled}", yesNo(crate.isUniqueDrawEnabled()));
+        placeholders.put("{unique_preview_replace}", yesNo(crate.isReplaceObtainedInPreview()));
+        placeholders.put("{obtained_material}", icon.material().name());
+        placeholders.put("{obtained_custom_model_data}", String.valueOf(icon.customModelData()));
+        placeholders.put("{obtained_item_model}", icon.itemModel().isBlank() ? "未设置" : icon.itemModel());
+
+        CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
+        holder.setData("edit_unique_draw", true);
+        Inventory inventory = createConfiguredInventory(
+                guiId, holder, "<!i><dark_gray>不重复抽奖设置", 45, placeholders);
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+
+        for (Map.Entry<Integer, GuiItem> entry : config.getItems().entrySet()) {
+            if ("preview_unique_icon".equalsIgnoreCase(entry.getValue().getAction())) {
+                inventory.setItem(entry.getKey(),
+                        createUniqueObtainedIconPreview(entry.getValue(), placeholders, icon));
+            }
+        }
+
+        player.openInventory(inventory);
+        return true;
+    }
+
+    private ItemStack createUniqueObtainedIconPreview(GuiItem guiItem,
+                                                      Map<String, String> placeholders,
+                                                      UniqueDrawSettings.ObtainedIcon icon) {
+        String name = replacePlaceholders(guiItem.getName(), placeholders);
+        List<String> lore = guiItem.getLore().stream()
+                .map(line -> replacePlaceholders(line, placeholders))
+                .toList();
+        ItemBuilder builder = new ItemBuilder(icon.material())
+                .name(name)
+                .lore(lore)
+                .customModelData(icon.customModelData())
+                .itemModel(icon.itemModel());
+        if (guiItem.isGlow()) {
+            builder.glow(true);
+        }
+        return builder.build();
+    }
+
+    private boolean openConfiguredUniqueIconMaterialSelectGui(Player player, Crate crate, int page) {
+        String guiId = "admin_unique_icon_material_select";
+        GuiConfig config = configManager.getGuiConfig(guiId);
+        if (config == null) {
+            return false;
+        }
+
+        List<Integer> materialSlots = getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_28);
+        int itemsPerPage = Math.max(1, materialSlots.size());
+        int totalPages = Math.max(1,
+                (int) Math.ceil((double) ITEM_MATERIAL_OPTIONS.size() / itemsPerPage));
+        int currentPage = Math.max(0, Math.min(page, totalPages - 1));
+        Material current = crate.getObtainedRewardIcon().material();
+
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("{current_material}", current.name());
+        placeholders.put("{page}", String.valueOf(currentPage + 1));
+        placeholders.put("{total_pages}", String.valueOf(totalPages));
+        placeholders.put("{material_count}", String.valueOf(ITEM_MATERIAL_OPTIONS.size()));
+
+        CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
+        holder.setData("edit_unique_draw", true);
+        holder.setData("unique_icon_material_select", true);
+        holder.setData("unique_icon_material_page", currentPage);
+        Inventory inventory = createConfiguredInventory(
+                guiId, holder, "<!i><dark_gray>选择已获得图标材质", 54, placeholders);
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+
+        int startIndex = currentPage * itemsPerPage;
+        for (int index = 0; index < materialSlots.size(); index++) {
+            int materialIndex = startIndex + index;
+            if (materialIndex >= ITEM_MATERIAL_OPTIONS.size()) {
+                break;
+            }
+            Material material = ITEM_MATERIAL_OPTIONS.get(materialIndex);
+            boolean selected = material == current;
+            inventory.setItem(materialSlots.get(index), new ItemBuilder(material)
+                    .name((selected ? "<!i><green>当前: " : "<!i><yellow>") + material.name())
+                    .lore(List.of(
+                            selected ? "<!i><green>已选择" : "<!i><gray>点击选择",
+                            "<!i><dark_gray>" + material.name()
+                    ))
+                    .build());
+        }
+
+        player.openInventory(inventory);
+        return true;
+    }
+
+    private String replacePlaceholders(String input, Map<String, String> placeholders) {
+        String result = input != null ? input : "";
+        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            result = result.replace(entry.getKey(), entry.getValue());
+        }
+        return result;
+    }
+
     private boolean openConfiguredRewardEditGui(Player player, Crate crate, Reward reward,
                                                 RewardEditContext editContext) {
         String guiId = "admin_reward_edit";
@@ -1183,9 +1310,18 @@ public class GuiManager {
      */
     private ItemStack createRewardPreviewItem(Reward reward, List<? extends Reward> rewards,
                                               PreviewChanceDisplayMode displayMode,
-                                              RewardPreviewDisplayConfig displayConfig) {
+                                              RewardPreviewDisplayConfig displayConfig,
+                                              UniqueDrawSettings.ObtainedIcon obtainedIcon) {
         ItemStack item = reward.getDisplayItem();
-        ItemBuilder builder = new ItemBuilder(item);
+        ItemBuilder builder;
+        if (obtainedIcon != null) {
+            builder = new ItemBuilder(obtainedIcon.material())
+                    .name(reward.getDisplayName())
+                    .customModelData(obtainedIcon.customModelData())
+                    .itemModel(obtainedIcon.itemModel());
+        } else {
+            builder = new ItemBuilder(item);
+        }
 
         RewardPreviewDisplayConfig resolvedConfig = displayConfig != null
                 ? displayConfig
@@ -2686,6 +2822,39 @@ public class GuiManager {
                 .build());
 
         player.openInventory(inventory);
+    }
+
+    public void openUniqueDrawEditGui(Player player, Crate crate) {
+        if (!openConfiguredUniqueDrawEditGui(player, crate)) {
+            plugin.getLogger().warning("Unique draw edit GUI config not found!");
+            openCrateEditGui(player, crate);
+        }
+    }
+
+    public void openUniqueIconMaterialSelectGui(Player player, Crate crate, int page) {
+        if (!openConfiguredUniqueIconMaterialSelectGui(player, crate, page)) {
+            plugin.getLogger().warning("Unique obtained icon material GUI config not found!");
+            openUniqueDrawEditGui(player, crate);
+        }
+    }
+
+    public Material getUniqueIconMaterialSelection(int page, int slot) {
+        List<Integer> materialSlots = getConfiguredContentSlots(
+                "admin_unique_icon_material_select", DEFAULT_CONTENT_SLOTS_28);
+        int slotIndex = materialSlots.indexOf(slot);
+        if (slotIndex < 0) {
+            return null;
+        }
+        int materialIndex = Math.max(0, page) * Math.max(1, materialSlots.size()) + slotIndex;
+        return materialIndex < ITEM_MATERIAL_OPTIONS.size()
+                ? ITEM_MATERIAL_OPTIONS.get(materialIndex)
+                : null;
+    }
+
+    public int getUniqueIconMaterialMaxPage() {
+        int pageSize = Math.max(1, getConfiguredContentSlots(
+                "admin_unique_icon_material_select", DEFAULT_CONTENT_SLOTS_28).size());
+        return Math.max(0, (ITEM_MATERIAL_OPTIONS.size() - 1) / pageSize);
     }
 
     public Material getParticleMaterialSelection(String materialKey, int page, int slot) {

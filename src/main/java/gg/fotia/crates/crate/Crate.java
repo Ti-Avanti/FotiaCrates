@@ -57,6 +57,7 @@ public class Crate {
     private final boolean multiOpenEnabled;
     private final int multiOpenMax;
     private final boolean multiOpenAnimationEnabled;
+    private final UniqueDrawSettings uniqueDrawSettings;
     private final String permission; // 开箱权限节点
     private final List<String> rarityOrder; // 不可变
 
@@ -98,7 +99,8 @@ public class Crate {
                  Sound spinSound, float spinVolume, float spinPitch,
                  Sound winSound, float winVolume, float winPitch,
                  boolean pityEnabled, List<PityTier> pityTiers, boolean resetPityOnEarlyQualifyingReward,
-                 boolean multiOpenEnabled, int multiOpenMax, boolean multiOpenAnimationEnabled, String permission,
+                 boolean multiOpenEnabled, int multiOpenMax, boolean multiOpenAnimationEnabled,
+                 UniqueDrawSettings uniqueDrawSettings, String permission,
                  List<String> rarityOrder) {
         this.id = id;
         this.name = name;
@@ -142,6 +144,9 @@ public class Crate {
         this.multiOpenEnabled = multiOpenEnabled;
         this.multiOpenMax = multiOpenMax;
         this.multiOpenAnimationEnabled = multiOpenAnimationEnabled;
+        this.uniqueDrawSettings = uniqueDrawSettings != null
+                ? uniqueDrawSettings
+                : UniqueDrawSettings.defaults();
         this.permission = permission;
         this.rarityOrder = rarityOrder != null ? List.copyOf(rarityOrder) : List.of();
         this.minimumPityRarity = computeMinimumPityRarity();
@@ -584,6 +589,10 @@ public class Crate {
     public boolean isMultiOpenEnabled() { return multiOpenEnabled; }
     public int getMultiOpenMax() { return multiOpenMax; }
     public boolean isMultiOpenAnimationEnabled() { return multiOpenAnimationEnabled; }
+    public UniqueDrawSettings getUniqueDrawSettings() { return uniqueDrawSettings; }
+    public boolean isUniqueDrawEnabled() { return uniqueDrawSettings.enabled(); }
+    public boolean isReplaceObtainedInPreview() { return uniqueDrawSettings.replaceObtainedInPreview(); }
+    public UniqueDrawSettings.ObtainedIcon getObtainedRewardIcon() { return uniqueDrawSettings.obtainedIcon(); }
     public List<String> getRarityOrder() { return rarityOrder; }
     public String getPermission() { return permission; }
 

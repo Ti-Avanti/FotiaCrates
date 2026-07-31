@@ -39,7 +39,7 @@ public class CrateOpenService {
     }
 
     public OpenAttempt prepareOpen(Player player, Crate crate) {
-        return prepareOpen(player, crate, new MultiOpenPermissionContext(player::hasPermission));
+        return prepareOpen(player, crate, createSelectionContext(player, crate));
     }
 
     OpenAttempt prepareOpen(Player player, Crate crate, MultiOpenPermissionContext permissionContext) {
@@ -59,9 +59,27 @@ public class CrateOpenService {
             return OpenAttempt.failure(OpenFailureReason.NO_KEY);
         }
 
+        if (crate.isUniqueDrawEnabled()) {
+            plugin.getAsyncPlayerDataManager().collectReward(
+                    player.getUniqueId(),
+                    crate.getId(),
+                    resolvedReward.rewardResult().getDisplayReward().getId()
+            );
+        }
         updatePityCounter(player, crate, resolvedReward);
         return OpenAttempt.success(resolvedReward.rewardResult(), previousData,
                 consumedKey.physical() ? List.of(consumedKey.keyId()) : List.of());
+    }
+
+    MultiOpenPermissionContext createSelectionContext(Player player, Crate crate) {
+        return new MultiOpenPermissionContext(
+                player::hasPermission,
+                crate.isUniqueDrawEnabled(),
+                crate.isUniqueDrawEnabled()
+                        ? plugin.getAsyncPlayerDataManager().getCollectedRewardIds(
+                                player.getUniqueId(), crate.getId())
+                        : java.util.Set.of()
+        );
     }
 
     public void commitOpen(Player player, OpenAttempt openAttempt, Runnable onSuccess, Runnable onFailure) {

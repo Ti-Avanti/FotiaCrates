@@ -120,6 +120,16 @@ public class SQLiteDatabase implements Database {
             """);
 
             stmt.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS player_collected_rewards (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    uuid VARCHAR(36) NOT NULL,
+                    crate_id VARCHAR(64) NOT NULL,
+                    reward_id VARCHAR(64) NOT NULL,
+                    UNIQUE(uuid, crate_id, reward_id)
+                )
+            """);
+
+            stmt.executeUpdate("""
                 CREATE TABLE IF NOT EXISTS crate_locations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     world VARCHAR(64) NOT NULL,
@@ -142,6 +152,7 @@ public class SQLiteDatabase implements Database {
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_uuid ON crate_history(uuid)");
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_timestamp ON crate_history(timestamp)");
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_uuid_timestamp_id ON crate_history(uuid, timestamp DESC, id DESC)");
+            stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_collected_rewards_uuid_crate ON player_collected_rewards(uuid, crate_id)");
 
             plugin.getLogger().info("Database tables created successfully!");
         } catch (SQLException e) {

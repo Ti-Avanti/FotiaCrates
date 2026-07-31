@@ -20,6 +20,7 @@ import gg.fotia.crates.particle.ParticleTarget;
 import gg.fotia.crates.reward.Reward;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -31,6 +32,7 @@ import org.bukkit.inventory.Inventory;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -274,6 +276,12 @@ public class GuiListener implements Listener {
         Boolean editMultiOpen = holder.getData("edit_multi_open");
         if (editMultiOpen != null && editMultiOpen) {
             handleMultiOpenEditClick(event, player, crate, slot);
+            return;
+        }
+
+        Boolean editUniqueDraw = holder.getData("edit_unique_draw");
+        if (editUniqueDraw != null && editUniqueDraw) {
+            handleUniqueDrawEditClick(event, player, crate, holder, slot);
             return;
         }
 
@@ -569,6 +577,148 @@ public class GuiListener implements Listener {
         }
     }
 
+    private void handleUniqueDrawEditClick(InventoryClickEvent event, Player player, Crate crate,
+                                           CrateGuiHolder holder, int slot) {
+        if (holder.getData("unique_icon_material_select", false)) {
+            handleUniqueIconMaterialSelectClick(player, crate, holder, slot);
+            return;
+        }
+
+        String action = actionOrFallback("admin_unique_draw_edit", slot, Map.of(
+                10, "toggle_unique_draw",
+                12, "toggle_unique_preview",
+                14, "select_unique_material",
+                16, "edit_unique_custom_model_data",
+                21, "edit_unique_item_model",
+                23, "reset_unique_icon",
+                36, "back"
+        ));
+        if (action == null) {
+            return;
+        }
+
+        switch (action) {
+            case "back" -> plugin.getGuiManager().openCrateEditGui(player, crate);
+            case "toggle_unique_draw" -> {
+                plugin.getCrateManager().toggleUniqueDraw(crate.getId());
+                sendUniqueDrawUpdated(player, "unique-draw.enabled");
+                reopenUniqueDrawEditor(player, crate.getId());
+            }
+            case "toggle_unique_preview" -> {
+                plugin.getCrateManager().toggleUniquePreviewReplacement(crate.getId());
+                sendUniqueDrawUpdated(player, "unique-draw.preview.replace-obtained");
+                reopenUniqueDrawEditor(player, crate.getId());
+            }
+            case "select_unique_material" ->
+                    plugin.getGuiManager().openUniqueIconMaterialSelectGui(player, crate, 0);
+            case "edit_unique_custom_model_data" -> {
+                if (event.isRightClick()) {
+                    plugin.getCrateManager().updateUniqueObtainedIconCustomModelData(crate.getId(), 0);
+                    sendUniqueDrawUpdated(player, "unique-draw.preview.obtained-icon.custom-model-data");
+                    reopenUniqueDrawEditor(player, crate.getId());
+                    return;
+                }
+                plugin.getLanguageManager().send(player, "admin-input-unique-custom-model-data");
+                plugin.getGuiManager().startInputSession(
+                        player, "unique_custom_model_data", crate.getId(), (inputPlayer, input, data) -> {
+                            String crateId = (String) data;
+                            try {
+                                int customModelData = Integer.parseInt(input);
+                                if (customModelData < 0) {
+                                    throw new NumberFormatException("negative custom model data");
+                                }
+                                plugin.getCrateManager().updateUniqueObtainedIconCustomModelData(
+                                        crateId, customModelData);
+                                sendUniqueDrawUpdated(inputPlayer,
+                                        "unique-draw.preview.obtained-icon.custom-model-data");
+                            } catch (NumberFormatException exception) {
+                                plugin.getLanguageManager().send(inputPlayer, "invalid-number");
+                            }
+                            reopenUniqueDrawEditor(inputPlayer, crateId);
+                        });
+            }
+            case "edit_unique_item_model" -> {
+                if (event.isRightClick()) {
+                    plugin.getCrateManager().updateUniqueObtainedIconItemModel(crate.getId(), "");
+                    sendUniqueDrawUpdated(player, "unique-draw.preview.obtained-icon.item-model");
+                    reopenUniqueDrawEditor(player, crate.getId());
+                    return;
+                }
+                plugin.getLanguageManager().send(player, "admin-input-unique-item-model");
+                plugin.getGuiManager().startInputSession(
+                        player, "unique_item_model", crate.getId(), (inputPlayer, input, data) -> {
+                            String crateId = (String) data;
+                            String normalized = input.trim().toLowerCase(Locale.ROOT);
+                            if (NamespacedKey.fromString(normalized) == null) {
+                                plugin.getLanguageManager().send(inputPlayer, "invalid-item-model");
+                            } else {
+                                plugin.getCrateManager().updateUniqueObtainedIconItemModel(
+                                        crateId, normalized);
+                                sendUniqueDrawUpdated(inputPlayer,
+                                        "unique-draw.preview.obtained-icon.item-model");
+                            }
+                            reopenUniqueDrawEditor(inputPlayer, crateId);
+                        });
+            }
+            case "reset_unique_icon" -> {
+                plugin.getCrateManager().resetUniqueObtainedIcon(crate.getId());
+                sendUniqueDrawUpdated(player, "unique-draw.preview.obtained-icon");
+                reopenUniqueDrawEditor(player, crate.getId());
+            }
+            case "preview_unique_icon" -> {
+                // 仅用于展示当前图标。
+            }
+        }
+    }
+
+    private void handleUniqueIconMaterialSelectClick(Player player, Crate crate,
+                                                     CrateGuiHolder holder, int slot) {
+        int page = holder.getData("unique_icon_material_page", 0);
+        String action = actionOrFallback("admin_unique_icon_material_select", slot, Map.of(
+                45, "back",
+                48, "previous_page",
+                50, "next_page"
+        ));
+        if ("back".equals(action)) {
+            plugin.getGuiManager().openUniqueDrawEditGui(player, crate);
+            return;
+        }
+        if ("previous_page".equals(action)) {
+            plugin.getGuiManager().openUniqueIconMaterialSelectGui(
+                    player, crate, Math.max(0, page - 1));
+            return;
+        }
+        if ("next_page".equals(action)) {
+            plugin.getGuiManager().openUniqueIconMaterialSelectGui(
+                    player, crate,
+                    Math.min(plugin.getGuiManager().getUniqueIconMaterialMaxPage(), page + 1));
+            return;
+        }
+
+        Material material = plugin.getGuiManager().getUniqueIconMaterialSelection(page, slot);
+        if (material == null) {
+            return;
+        }
+        plugin.getCrateManager().updateUniqueObtainedIconMaterial(crate.getId(), material);
+        sendUniqueDrawUpdated(player, "unique-draw.preview.obtained-icon.material");
+        Crate updated = plugin.getCrateManager().getCrate(crate.getId());
+        plugin.getGuiManager().openUniqueIconMaterialSelectGui(player, updated, page);
+    }
+
+    private void reopenUniqueDrawEditor(Player player, String crateId) {
+        Crate updated = plugin.getCrateManager().getCrate(crateId);
+        if (updated == null) {
+            plugin.getGuiManager().openAdminGui(player);
+            return;
+        }
+        plugin.getGuiManager().openUniqueDrawEditGui(player, updated);
+    }
+
+    private void sendUniqueDrawUpdated(Player player, String field) {
+        plugin.getLanguageManager().send(player, "admin-unique-draw-updated",
+                LanguageManager.placeholders("field", field));
+    }
+
     private void handleParticleEditClick(InventoryClickEvent event, Player player, Crate crate, CrateGuiHolder holder, int slot) {
         String stageName = holder.getData("particle_stage");
         if (stageName == null) {
@@ -847,6 +997,9 @@ public class GuiListener implements Listener {
             }
             case "edit_multi_open" -> {
                 plugin.getGuiManager().openMultiOpenEditGui(player, crate);
+            }
+            case "edit_unique_draw" -> {
+                plugin.getGuiManager().openUniqueDrawEditGui(player, crate);
             }
             case "manage_rewards" -> {
                 plugin.getGuiManager().openRewardManagerGui(player, crate, 0);

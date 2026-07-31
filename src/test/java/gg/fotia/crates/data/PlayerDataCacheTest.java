@@ -3,6 +3,7 @@ package gg.fotia.crates.data;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -87,5 +88,44 @@ class PlayerDataCacheTest {
 
         assertTrue(cache.hasPityCount(playerId, "existing"));
         assertFalse(cache.hasPityCount(playerId, "missing"));
+    }
+
+    @Test
+    void collectedRewardsAreIdempotentAndRestoredWithTheOpenSnapshot() {
+        PlayerDataCache cache = new PlayerDataCache();
+        UUID playerId = UUID.randomUUID();
+        PlayerDataCache.RewardKey existing = new PlayerDataCache.RewardKey("common", "reward_a");
+
+        cache.load(playerId, Map.of(), Map.of(), Set.of(existing));
+        PlayerDataCache.Snapshot beforeOpen = cache.snapshot(playerId);
+
+        assertTrue(cache.hasCollectedReward(playerId, "common", "reward_a"));
+        assertFalse(cache.collectReward(playerId, "common", "reward_a"));
+        assertTrue(cache.collectReward(playerId, "common", "reward_b"));
+        assertEquals(Set.of("reward_a", "reward_b"), cache.getCollectedRewardIds(playerId, "common"));
+
+        cache.restore(playerId, beforeOpen);
+
+        assertEquals(Set.of("reward_a"), cache.getCollectedRewardIds(playerId, "common"));
+        assertFalse(cache.hasCollectedReward(playerId, "common", "reward_b"));
+        assertFalse(cache.snapshot(playerId).changedCollectedRewards().contains(
+                new PlayerDataCache.RewardKey("common", "reward_b")));
+    }
+
+    @Test
+    void successfulPersistenceClearsCollectedRewardChanges() {
+        PlayerDataCache cache = new PlayerDataCache();
+        UUID playerId = UUID.randomUUID();
+
+        cache.load(playerId, Map.of(), Map.of(), Set.of());
+        cache.collectReward(playerId, "common", "reward_a");
+        PlayerDataCache.Snapshot persisted = cache.snapshot(playerId);
+
+        assertEquals(Set.of(new PlayerDataCache.RewardKey("common", "reward_a")),
+                persisted.changedCollectedRewards());
+
+        cache.markPersisted(playerId, persisted);
+
+        assertTrue(cache.snapshot(playerId).changedCollectedRewards().isEmpty());
     }
 }

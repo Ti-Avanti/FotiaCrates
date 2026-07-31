@@ -54,6 +54,21 @@ preview:
   show-chance: true
   title: "<!i><dark_gray>普通宝箱预览"
 
+# 不重复抽奖设置
+unique-draw:
+  # 开启后，每位玩家在此抽奖箱中永久不会再次抽到相同的奖励 ID
+  enabled: false
+  preview:
+    # 已获得的奖励是否在预览界面替换图标
+    replace-obtained: true
+    obtained-icon:
+      # 已获得奖励的替换材质
+      material: BARRIER
+      # 旧版资源包自定义模型数据，0 表示不设置
+      custom-model-data: 0
+      # 1.21.2+ item_model，例如 minecraft:barrier；留空表示不设置
+      item-model: ""
+
 # 动画设置
 animation:
   enabled: true

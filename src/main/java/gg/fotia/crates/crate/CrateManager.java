@@ -175,6 +175,28 @@ public class CrateManager {
                 plugin.getConfigManager().getMultiOpenHardLimit()));
         boolean multiOpenAnimationEnabled = config.getBoolean("multi-open.animation.enabled", false);
 
+        boolean uniqueDrawEnabled = config.getBoolean("unique-draw.enabled", false);
+        boolean replaceObtainedInPreview = config.getBoolean(
+                "unique-draw.preview.replace-obtained", true);
+        Material obtainedIconMaterial = Material.matchMaterial(config.getString(
+                "unique-draw.preview.obtained-icon.material", "BARRIER"));
+        if (obtainedIconMaterial == null || !obtainedIconMaterial.isItem()) {
+            obtainedIconMaterial = Material.BARRIER;
+        }
+        int obtainedIconCustomModelData = Math.max(0, config.getInt(
+                "unique-draw.preview.obtained-icon.custom-model-data", 0));
+        String obtainedIconItemModel = config.getString(
+                "unique-draw.preview.obtained-icon.item-model", "");
+        UniqueDrawSettings uniqueDrawSettings = new UniqueDrawSettings(
+                uniqueDrawEnabled,
+                replaceObtainedInPreview,
+                new UniqueDrawSettings.ObtainedIcon(
+                        obtainedIconMaterial,
+                        obtainedIconCustomModelData,
+                        obtainedIconItemModel
+                )
+        );
+
         // 权限节点，默认为空（留空则不检测开箱权限）
         String permission = config.getString("permission", "");
 
@@ -194,7 +216,8 @@ public class CrateManager {
                 spinSound, spinVolume, spinPitch,
                 winSound, winVolume, winPitch,
                 pityEnabled, pityTiers, resetPityOnEarlyQualifyingReward,
-                multiOpenEnabled, multiOpenMax, multiOpenAnimationEnabled, permission,
+                multiOpenEnabled, multiOpenMax, multiOpenAnimationEnabled,
+                uniqueDrawSettings, permission,
                 plugin.getConfigManager().getRarityIds());
     }
 
@@ -791,6 +814,67 @@ public class CrateManager {
         }
     }
 
+    public void toggleUniqueDraw(String crateId) {
+        updateUniqueDrawConfig(crateId, config -> {
+            boolean current = config.getBoolean("unique-draw.enabled", false);
+            config.set("unique-draw.enabled", !current);
+        }, "toggle unique draw");
+    }
+
+    public void toggleUniquePreviewReplacement(String crateId) {
+        updateUniqueDrawConfig(crateId, config -> {
+            boolean current = config.getBoolean("unique-draw.preview.replace-obtained", true);
+            config.set("unique-draw.preview.replace-obtained", !current);
+        }, "toggle unique preview replacement");
+    }
+
+    public void updateUniqueObtainedIconMaterial(String crateId, Material material) {
+        if (material == null || !material.isItem()) {
+            return;
+        }
+        updateUniqueDrawConfig(crateId,
+                config -> config.set("unique-draw.preview.obtained-icon.material", material.name()),
+                "update unique obtained icon material");
+    }
+
+    public void updateUniqueObtainedIconCustomModelData(String crateId, int customModelData) {
+        updateUniqueDrawConfig(crateId,
+                config -> config.set("unique-draw.preview.obtained-icon.custom-model-data",
+                        Math.max(0, customModelData)),
+                "update unique obtained icon custom model data");
+    }
+
+    public void updateUniqueObtainedIconItemModel(String crateId, String itemModel) {
+        updateUniqueDrawConfig(crateId,
+                config -> config.set("unique-draw.preview.obtained-icon.item-model",
+                        itemModel == null ? "" : itemModel.trim().toLowerCase(Locale.ROOT)),
+                "update unique obtained icon item model");
+    }
+
+    public void resetUniqueObtainedIcon(String crateId) {
+        updateUniqueDrawConfig(crateId, config -> {
+            config.set("unique-draw.preview.obtained-icon.material", "BARRIER");
+            config.set("unique-draw.preview.obtained-icon.custom-model-data", 0);
+            config.set("unique-draw.preview.obtained-icon.item-model", "");
+        }, "reset unique obtained icon");
+    }
+
+    private void updateUniqueDrawConfig(String crateId, Consumer<YamlConfiguration> updater,
+                                        String actionName) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) {
+            return;
+        }
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            updater.accept(config);
+            config.save(file);
+            reloadCrate(crateId);
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to " + actionName + ": " + e.getMessage());
+        }
+    }
+
     public void cyclePreviewChanceDisplayMode(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
         if (!file.exists()) return;
@@ -1177,6 +1261,11 @@ public class CrateManager {
             config.set("multi-open.enabled", true);
             config.set("multi-open.max", 10);
             config.set("multi-open.animation.enabled", false);
+            config.set("unique-draw.enabled", false);
+            config.set("unique-draw.preview.replace-obtained", true);
+            config.set("unique-draw.preview.obtained-icon.material", "BARRIER");
+            config.set("unique-draw.preview.obtained-icon.custom-model-data", 0);
+            config.set("unique-draw.preview.obtained-icon.item-model", "");
             config.save(file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {

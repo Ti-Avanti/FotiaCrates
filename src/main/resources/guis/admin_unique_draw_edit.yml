@@ -1,0 +1,93 @@
+title: "<!i><dark_gray>不重复抽奖设置"
+size: 45
+
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: " "
+
+items:
+  toggle:
+    slot: 10
+    material: LIME_DYE
+    name: "<!i><green>不重复抽奖: {unique_draw_enabled}"
+    lore:
+      - "<!i><gray>按玩家、抽奖箱和奖励 ID 永久记录"
+      - "<!i><gray>已抽中的奖励不会再次进入奖励池"
+      - ""
+      - "<!i><yellow>点击切换"
+    action: toggle_unique_draw
+  preview_toggle:
+    slot: 12
+    material: ITEM_FRAME
+    name: "<!i><aqua>替换已获得图标: {unique_preview_replace}"
+    lore:
+      - "<!i><gray>在预览界面替换已获得奖励的图标"
+      - "<!i><gray>奖励名称和 Lore 仍保持原样"
+      - ""
+      - "<!i><yellow>点击切换"
+    action: toggle_unique_preview
+  material:
+    slot: 14
+    material: CHEST
+    name: "<!i><yellow>替换材质: {obtained_material}"
+    lore:
+      - "<!i><gray>选择已获得奖励显示的材质"
+      - ""
+      - "<!i><yellow>点击打开材质菜单"
+    action: select_unique_material
+  custom_model_data:
+    slot: 16
+    material: PAINTING
+    name: "<!i><gold>Custom Model Data: {obtained_custom_model_data}"
+    lore:
+      - "<!i><gray>兼容旧版资源包模型"
+      - "<!i><gray>0 表示不设置"
+      - ""
+      - "<!i><yellow>左键输入"
+      - "<!i><red>右键清除"
+    action: edit_unique_custom_model_data
+  icon_preview:
+    slot: 19
+    material: BARRIER
+    name: "<!i><red>已获得图标预览"
+    lore:
+      - "<!i><gray>材质: <!i><white>{obtained_material}"
+      - "<!i><gray>CMD: <!i><white>{obtained_custom_model_data}"
+      - "<!i><gray>Item Model: <!i><white>{obtained_item_model}"
+    action: preview_unique_icon
+  item_model:
+    slot: 21
+    material: KNOWLEDGE_BOOK
+    name: "<!i><aqua>Item Model"
+    lore:
+      - "<!i><gray>当前: <!i><white>{obtained_item_model}"
+      - "<!i><gray>仅 1.21.2+ 生效"
+      - ""
+      - "<!i><yellow>左键输入"
+      - "<!i><red>右键清除"
+    action: edit_unique_item_model
+  reset:
+    slot: 23
+    material: BARRIER
+    name: "<!i><red>恢复默认图标"
+    lore:
+      - "<!i><gray>恢复 BARRIER、CMD 0、空 Item Model"
+      - ""
+      - "<!i><yellow>点击重置"
+    action: reset_unique_icon
+  info:
+    slot: 25
+    material: BOOK
+    name: "<!i><yellow>模式说明"
+    lore:
+      - "<!i><gray>奖励池耗尽时不会扣除钥匙"
+      - "<!i><gray>关闭后已保存的获得记录不会删除"
+      - "<!i><gray>再次开启后记录继续生效"
+  back:
+    slot: 36
+    material: ARROW
+    name: "<!i><red>返回"
+    lore:
+      - "<!i><gray>返回抽奖箱编辑界面"
+    action: back

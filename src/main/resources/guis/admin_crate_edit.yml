@@ -10,7 +10,7 @@ title: "<!i><dark_gray>编辑: {crate}"
 # 'C' = 内容槽位（奖励列表）
 # 其他字符 = 自定义图标
 layout:
-  - 'BAP#I#RMX'
+  - 'BAP#IURMX'
   - '#CCCCCCC#'
   - '#CCCCCCC#'
   - '#CCCCCCC#'
@@ -122,6 +122,19 @@ icons:
         - '{chance_mode_weight}'
         - '{chance_mode_hidden}'
     action: edit_preview
+
+  'U':
+    display:
+      material: recovery_compass
+      name: '<!i><aqua>不重复抽奖设置'
+      lore:
+        - '<!i><gray>配置玩家永久不重复获得奖励'
+        - ''
+        - '<!i><yellow>启用: {unique_draw_enabled}'
+        - '<!i><yellow>已获得图标替换: {unique_preview_replace}'
+        - ''
+        - '<!i><yellow>左键点击编辑'
+    action: edit_unique_draw
 
   'X':
     display:

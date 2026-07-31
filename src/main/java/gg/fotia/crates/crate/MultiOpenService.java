@@ -80,7 +80,7 @@ public final class MultiOpenService {
 
     private List<CrateOpenService.OpenAttempt> prepareRewards(Player player, Crate crate, int amount) {
         List<CrateOpenService.OpenAttempt> openAttempts = new ArrayList<>();
-        MultiOpenPermissionContext permissionContext = new MultiOpenPermissionContext(player::hasPermission);
+        MultiOpenPermissionContext permissionContext = crateOpenService.createSelectionContext(player, crate);
         for (int index = 0; index < amount; index++) {
             CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(
                     player, crate, permissionContext);
