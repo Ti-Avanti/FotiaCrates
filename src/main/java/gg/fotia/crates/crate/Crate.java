@@ -1,6 +1,7 @@
 package gg.fotia.crates.crate;
 
 import gg.fotia.crates.animation.AnimationType;
+import gg.fotia.crates.animation.AnimationTemplateSelection;
 import gg.fotia.crates.particle.CrateParticleEffect;
 import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.reward.PermissionAction;
@@ -10,6 +11,7 @@ import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -19,6 +21,7 @@ public class Crate {
     private final String id;
     private final String name;
     private final Material blockMaterial;
+    private final ItemStack blockItemTemplate;
     private final String blockItemName;
     private final List<String> blockItemLore;
     private final String modelProvider;
@@ -37,6 +40,7 @@ public class Crate {
     private final String previewTitle;
     private final boolean animationEnabled;
     private final AnimationType animationType;
+    private final String animationTemplate;
     private final int animationDuration;
     private final String animationTitle;
     private final boolean physicalAnimationEnabled;
@@ -84,7 +88,7 @@ public class Crate {
         public String getRarity() { return rarity; }
     }
 
-    public Crate(String id, String name, Material blockMaterial,
+    public Crate(String id, String name, Material blockMaterial, ItemStack blockItemTemplate,
                  String blockItemName, List<String> blockItemLore,
                  String modelProvider, boolean modelEngineEnabled, String modelEngineId,
                  String modelEngineIdleAnimation, String modelEngineOpenAnimation,
@@ -92,7 +96,8 @@ public class Crate {
                  double hologramHeight, List<String> hologramLines,
                  List<Reward> rewards, boolean previewEnabled,
                  PreviewChanceDisplayMode previewChanceDisplayMode, String previewTitle,
-                 boolean animationEnabled, AnimationType animationType, int animationDuration,
+                 boolean animationEnabled, AnimationType animationType, String animationTemplate,
+                 int animationDuration,
                  String animationTitle, boolean physicalAnimationEnabled,
                  boolean particlesEnabled, Particle particleType, int particleCount,
                  Map<ParticleStage, CrateParticleEffect> particleEffects,
@@ -105,6 +110,7 @@ public class Crate {
         this.id = id;
         this.name = name;
         this.blockMaterial = blockMaterial;
+        this.blockItemTemplate = CrateBlockItemTemplate.copyForStorage(blockItemTemplate);
         this.blockItemName = blockItemName;
         this.blockItemLore = blockItemLore != null ? blockItemLore : new ArrayList<>();
         this.modelProvider = normalizeModelProvider(modelProvider);
@@ -125,6 +131,7 @@ public class Crate {
         this.previewTitle = previewTitle;
         this.animationEnabled = animationEnabled;
         this.animationType = animationType;
+        this.animationTemplate = AnimationTemplateSelection.normalize(animationTemplate);
         this.animationDuration = animationDuration;
         this.animationTitle = animationTitle;
         this.physicalAnimationEnabled = physicalAnimationEnabled;
@@ -543,6 +550,7 @@ public class Crate {
     public String getId() { return id; }
     public String getName() { return name; }
     public Material getBlockMaterial() { return blockMaterial; }
+    public ItemStack getBlockItemTemplate() { return CrateBlockItemTemplate.copyForStorage(blockItemTemplate); }
     public String getBlockItemName() { return blockItemName; }
     public List<String> getBlockItemLore() { return new ArrayList<>(blockItemLore); }
     public boolean isModelEngineEnabled() { return modelEngineEnabled; }
@@ -565,6 +573,7 @@ public class Crate {
     public String getPreviewTitle() { return previewTitle; }
     public boolean isAnimationEnabled() { return animationEnabled; }
     public AnimationType getAnimationType() { return animationType; }
+    public String getAnimationTemplate() { return animationTemplate; }
     public int getAnimationDuration() { return animationDuration; }
     public String getAnimationTitle() { return animationTitle; }
     public boolean isPhysicalAnimationEnabled() { return physicalAnimationEnabled; }

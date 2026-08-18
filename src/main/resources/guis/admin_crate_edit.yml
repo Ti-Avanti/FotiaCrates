@@ -62,6 +62,7 @@ icons:
         - '<!i><gray>编辑动画类型和时长'
         - ''
         - '<!i><yellow>当前: {animation_type}'
+        - '<!i><yellow>模板: {animation_template}'
         - '<!i><yellow>时长: {animation_duration}秒'
     action: edit_animation
 

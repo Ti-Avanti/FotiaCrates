@@ -14,6 +14,16 @@ items:
     lore:
       - "<!i><yellow>点击切换"
     action: toggle_multi_open
+  animation:
+    slot: 13
+    material: FIREWORK_ROCKET
+    name: "<!i><aqua>十连首抽动画: {multi_open_animation_enabled}"
+    lore:
+      - "<!i><gray>开启后只播放第一抽动画"
+      - "<!i><gray>随后立即展示全部抽奖结果"
+      - ""
+      - "<!i><yellow>点击切换"
+    action: toggle_multi_open_animation
   max:
     slot: 15
     material: CHEST_MINECART

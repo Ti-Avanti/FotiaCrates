@@ -9,7 +9,7 @@ layout:
   - '#CCCCCCC#'
   - '#CCCCCCC#'
   - '#CCCCCCC#'
-  - '<#P#I#N#X'
+  - 'B#P#I#N#X'
 
 icons:
   '#':
@@ -20,13 +20,13 @@ icons:
   'C':
     content: true
 
-  '<':
+  'B':
     display:
-      material: barrier
-      name: '<!i><red>关闭'
+      material: arrow
+      name: '<!i><yellow>返回'
       lore:
-        - '<!i><gray>关闭菜单'
-    action: close
+        - '<!i><gray>返回上一界面'
+    action: back
 
   'P':
     display:

@@ -3,6 +3,11 @@
 
 title: "<!i><dark_gray>{crate} 预览 ({page}/{total_pages})"
 
+# 开箱按钮的多连抽提示，可用占位符: {amount}
+multi-open-hint:
+  available: '<!i><yellow>右键 <!i><gray>- 多连抽 {amount} 次'
+  unavailable: '<!i><dark_gray>右键多连抽不可用'
+
 # 动态奖励图标的 Lore 设置
 reward-display:
   # 是否保留奖励图标原有 Lore，并在其后追加以下内容

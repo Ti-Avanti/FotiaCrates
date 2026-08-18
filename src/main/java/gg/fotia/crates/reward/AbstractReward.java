@@ -1,5 +1,6 @@
 package gg.fotia.crates.reward;
 
+import gg.fotia.crates.util.ItemBuilder;
 import org.bukkit.inventory.ItemStack;
 
 public abstract class AbstractReward implements Reward {
@@ -62,7 +63,11 @@ public abstract class AbstractReward implements Reward {
     public boolean shouldBroadcast() { return broadcast; }
 
     @Override
-    public ItemStack getDisplayItem() { return displayItem.clone(); }
+    public ItemStack getDisplayItem() {
+        ItemStack item = displayItem.clone();
+        String manualName = RewardDisplayNamePolicy.manualOverride(displayName, autoDisplayName);
+        return manualName == null ? item : new ItemBuilder(item).name(manualName).build();
+    }
 
     @Override
     public boolean isPermissionCheckEnabled() { return permissionCheckEnabled; }

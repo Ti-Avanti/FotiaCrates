@@ -256,6 +256,27 @@ public class ConfigManager {
         return Math.max(1_000L, config.getLong("persistence.history.cleanup-interval-seconds", 300L) * 1_000L);
     }
 
+    public boolean isKeyDistributionConfirmationRequired() {
+        return config.getBoolean("key-distribution.require-confirmation-for-all", true);
+    }
+
+    public long getKeyDistributionConfirmationTimeoutMillis() {
+        return Math.max(1_000L, config.getLong(
+                "key-distribution.confirmation-timeout-seconds", 30L) * 1_000L);
+    }
+
+    public int getKeyDistributionBatchSize() {
+        return Math.max(1, config.getInt("key-distribution.database-batch-size", 200));
+    }
+
+    public boolean isKeyDistributionRecipientNotificationEnabled() {
+        return config.getBoolean("key-distribution.notify-recipients", true);
+    }
+
+    public boolean isPendingPhysicalKeyDeliveryEnabled() {
+        return config.getBoolean("key-distribution.pending-physical-delivery", true);
+    }
+
     public long getModelHealthCheckIntervalTicks() {
         return Math.max(20L, config.getLong("performance.models.health-check-interval-ticks", 100L));
     }

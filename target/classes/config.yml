@@ -12,6 +12,11 @@ database:
     database: fotiacrates
     username: root
     password: ""
+    pool:
+      # 最大连接数；当前持久化写入保持有序，通常无需设置过大
+      maximum-size: 4
+      # 最小空闲连接数
+      minimum-idle: 1
 
   # SQLite 设置，仅当 type 为 sqlite 时生效
   sqlite:
@@ -47,6 +52,8 @@ hologram:
   height-offset: 1.5
   # 全息显示缩放
   scale: 1.0
+  # 全息显示的更新/可见半径，单位为方块（启用模型的宝箱会取模型 view-range 与此值中的较大者）
+  update-radius: 32.0
   # 全息显示内容
   # 可用占位符: {crate_name} {crate_id} {keys}
   lines:
@@ -66,6 +73,66 @@ settings:
   save-history: true
   # 每个玩家最大历史记录数，0 表示不限制
   max-history-entries: 100
+
+# 异步数据持久化设置
+persistence:
+  # 将缓存中的虚拟钥匙和保底写入数据库的间隔，单位为 tick
+  flush-interval-ticks: 20
+  # 异步数据库任务队列上限，防止数据库异常时无限占用内存；修改后需重启生效
+  executor-queue-capacity: 1024
+  # 插件关闭时等待异步数据落盘的最长时间，单位为毫秒
+  shutdown-flush-timeout-millis: 5000
+  history:
+    # 单次批量写入的最大历史记录数
+    batch-size: 100
+    # 历史写入队列上限；队列满时跳过新历史以保护服务器 TPS，修改后需重启生效
+    queue-capacity: 10000
+    # 同一玩家历史裁剪的最小间隔，单位为秒
+    cleanup-interval-seconds: 300
+
+# 管理员批量发放钥匙
+key-distribution:
+  # 使用 @all 向全部历史玩家发放前是否需要二次确认
+  require-confirmation-for-all: true
+  # 二次确认码有效时间，单位为秒
+  confirmation-timeout-seconds: 30
+  # 每批处理的在线玩家数量，避免同一 tick 创建过多数据库任务
+  database-batch-size: 200
+  # 玩家收到批量钥匙后是否发送提示消息
+  notify-recipients: true
+  # 是否允许给全部历史玩家发放物理钥匙；离线玩家将在登录后领取
+  pending-physical-delivery: true
+
+# 性能保护设置
+performance:
+  models:
+    # 模型健康检查间隔，单位为 tick
+    health-check-interval-ticks: 100
+    # 每次检查的最大抽奖箱数量，避免大量模型在同一 tick 内处理
+    max-checks-per-run: 16
+  pending-rewards:
+    # 单次在主线程发放的待领取奖励数量
+    claim-batch-size: 10
+    # 离线奖励写入失败后的首次重试间隔，单位为 tick，后续会指数退避
+    insert-retry-delay-ticks: 100
+    # 发奖代码抛出异常后的处理：RETRY=释放并允许下次重领，LOCK=锁定供管理员核查
+    delivery-error-policy: RETRY
+    # 数据库确认失败后的重试次数；超过后锁定记录以避免重复发放
+    finalize-retry-count: 5
+    # 首次重试等待时间，单位为 tick，后续会指数退避
+    finalize-retry-delay-ticks: 20
+  multi-open:
+    # 所有命令、GUI 和实体交互共同遵守的多连抽安全上限
+    hard-limit: 100
+  particles:
+    # 只播放玩家附近该距离内的待机粒子，单位为方块
+    idle-view-distance: 32.0
+    # 单个 tick 最多处理的待机粒子箱子数量
+    max-idle-crates-per-tick: 128
+    # 全服同时运行的阶段粒子任务上限；超过时仍播放首帧
+    max-active-stage-effects: 128
+    # 命令或 GUI 开箱时寻找附近实体箱子的位置范围，单位为方块
+    stage-location-search-distance: 64.0
 
 # 编辑器设置
 editor:

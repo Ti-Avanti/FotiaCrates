@@ -48,12 +48,32 @@ hologram:
 # 预览 GUI 设置
 preview:
   enabled: true
+  # 玩家预览时显示的奖励数值: PERCENTAGE(百分比), WEIGHT(权重), HIDDEN(隐藏)
+  chance-display: PERCENTAGE
+  # 旧版兼容项；未设置 chance-display 时使用
   show-chance: true
   title: "<!i><dark_gray>普通宝箱预览"
+
+# 不重复抽奖设置
+unique-draw:
+  # 开启后，每位玩家在此抽奖箱中永久不会再次抽到相同的奖励 ID
+  enabled: false
+  preview:
+    # 已获得的奖励是否在预览界面替换图标
+    replace-obtained: true
+    obtained-icon:
+      # 已获得奖励的替换材质
+      material: BARRIER
+      # 旧版资源包自定义模型数据，0 表示不设置
+      custom-model-data: 0
+      # 1.21.2+ item_model，例如 minecraft:barrier；留空表示不设置
+      item-model: ""
 
 # 动画设置
 animation:
   enabled: true
+  # GUI动画模板，对应 guis/animations/<模板ID>.yml
+  template: default
   # 动画类型: ROULETTE(GUI转盘), CSGO(GUI), PHYSICAL(物理漂浮物品), INSTANT(即时)
   # PHYSICAL: 在箱子上方显示漂浮物品滚动效果，如果是箱子类型方块会打开盖子
   type: ROULETTE
@@ -155,12 +175,19 @@ pity:
   count: 50
   # 保底最低稀有度
   rarity: rare
+  # 提前获得达到保底稀有度的奖励时，是否重置保底计数
+  # 多级保底（pity.tiers）下各档独立计数：自然抽出某稀有度时，
+  # 仅重置目标稀有度不高于该奖励的档位，更高档位的进度保留
+  reset-on-early-qualifying-reward: false
 
 # 多连抽设置
 multi-open:
   enabled: true
   # 最大连抽数量
   max: 10
+  # 多连抽时仅播放首抽动画，随后直接展示全部结果
+  animation:
+    enabled: false
 
 # 奖励列表
 rewards:

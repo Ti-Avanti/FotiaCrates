@@ -1,12 +1,15 @@
 package gg.fotia.crates.gui;
 
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.animation.AnimationTemplate;
+import gg.fotia.crates.animation.AnimationTemplateSelection;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.*;
 
 /**
@@ -26,6 +29,7 @@ public class GuiConfigManager {
             "admin_key_edit.yml",
             "admin_crate_select.yml",
             "admin_animation_select.yml",
+            "admin_animation_template_select.yml",
             "admin_pity_edit.yml",
             "admin_basic_edit.yml",
             "admin_multi_open_edit.yml",
@@ -44,6 +48,7 @@ public class GuiConfigManager {
 
     private final FotiaCrates plugin;
     private final Map<String, GuiConfig> guiConfigs = new HashMap<>();
+    private final Map<String, AnimationTemplate> animationTemplates = new LinkedHashMap<>();
 
     public GuiConfigManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -67,6 +72,7 @@ public class GuiConfigManager {
         }
         migrateRewardEditGui(guisFolder);
         migrateFeatureGuiConfigs(guisFolder);
+        prepareAnimationTemplateFiles(guisFolder);
 
         File[] files = guisFolder.listFiles((dir, name) -> name.endsWith(".yml"));
         if (files == null) return;
@@ -85,7 +91,107 @@ public class GuiConfigManager {
             }
         }
 
+        loadAnimationTemplates(new File(guisFolder, "animations"));
+
         plugin.getLogger().info("Loaded " + guiConfigs.size() + " GUI configs.");
+        plugin.getLogger().info("Loaded " + animationTemplates.size() + " animation templates.");
+    }
+
+    private void prepareAnimationTemplateFiles(File guisFolder) {
+        File templatesFolder = new File(guisFolder, "animations");
+        if (!templatesFolder.exists() && !templatesFolder.mkdirs()) {
+            plugin.getLogger().warning("Could not create animation template folder.");
+            return;
+        }
+
+        File defaultTemplate = new File(templatesFolder, "default.yml");
+        if (!defaultTemplate.exists()) {
+            File legacyAnimation = new File(guisFolder, "animation.yml");
+            try {
+                if (legacyAnimation.exists()) {
+                    Files.copy(legacyAnimation.toPath(), defaultTemplate.toPath());
+                } else {
+                    plugin.saveResource("guis/animations/default.yml", false);
+                }
+            } catch (Exception exception) {
+                plugin.getLogger().warning("Failed to create default animation template: "
+                        + exception.getMessage());
+            }
+        }
+        ensureDefaultAnimationTemplateMetadata(defaultTemplate);
+
+        File goldenTemplate = new File(templatesFolder, "golden.yml");
+        if (!goldenTemplate.exists()) {
+            try {
+                plugin.saveResource("guis/animations/golden.yml", false);
+            } catch (Exception exception) {
+                plugin.getLogger().warning("Failed to save golden animation template: "
+                        + exception.getMessage());
+            }
+        }
+    }
+
+    private void ensureDefaultAnimationTemplateMetadata(File defaultTemplate) {
+        if (!defaultTemplate.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(defaultTemplate);
+        boolean changed = false;
+        if (!config.contains("display-name")) {
+            config.set("display-name", "<!i><yellow>默认轮盘");
+            changed = true;
+        }
+        if (!config.contains("selector")) {
+            config.set("selector.material", "CLOCK");
+            config.set("selector.name", "<!i><yellow>{template}");
+            config.set("selector.lore", List.of(
+                    "<!i><gray>模板ID: <!i><white>{template_id}",
+                    "",
+                    "{selected_line}"
+            ));
+            changed = true;
+        }
+        if (changed) {
+            saveMigratedGui(defaultTemplate, config, "animations/default");
+        }
+    }
+
+    private void loadAnimationTemplates(File templatesFolder) {
+        animationTemplates.clear();
+        File[] files = templatesFolder.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) {
+            return;
+        }
+        Arrays.sort(files, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
+        for (File file : files) {
+            String id = AnimationTemplateSelection.normalize(
+                    file.getName().substring(0, file.getName().length() - 4));
+            try {
+                YamlConfiguration raw = YamlConfiguration.loadConfiguration(file);
+                GuiConfig guiConfig = loadGuiConfig("animation_template_" + id, file);
+                Material selectorMaterial = Material.matchMaterial(
+                        raw.getString("selector.material", "CLOCK"));
+                if (selectorMaterial == null || !selectorMaterial.isItem()) {
+                    selectorMaterial = Material.CLOCK;
+                }
+                AnimationTemplate template = new AnimationTemplate(
+                        id,
+                        raw.getString("display-name", id),
+                        selectorMaterial,
+                        raw.getString("selector.name", "<!i><yellow>{template}"),
+                        raw.getStringList("selector.lore"),
+                        Math.max(0, raw.getInt("selector.custom-model-data", 0)),
+                        raw.getString("selector.item-model",
+                                raw.getString("selector.item_model", "")),
+                        raw.getBoolean("selector.glow", false),
+                        guiConfig
+                );
+                animationTemplates.put(id, template);
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("Failed to load animation template " + id
+                        + ": " + exception.getMessage());
+            }
+        }
     }
 
     /**
@@ -179,8 +285,97 @@ public class GuiConfigManager {
         migratePityEarlyResetGui(guisFolder);
         migrateMultiOpenAnimationGui(guisFolder);
         migratePreviewRewardDisplayGui(guisFolder);
+        migratePreviewMultiOpenHintGui(guisFolder);
         migratePreviewDisplayModeGui(guisFolder);
         migrateUniqueDrawShortcutGui(guisFolder);
+        migrateHistoryBackGui(guisFolder);
+        migrateAnimationTemplateEditorGui(guisFolder);
+    }
+
+    private void migrateAnimationTemplateEditorGui(File guisFolder) {
+        File animationFile = new File(guisFolder, "admin_animation_select.yml");
+        if (animationFile.exists()) {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(animationFile);
+            if (!config.contains("items.template")) {
+                ConfigurationSection items = config.getConfigurationSection("items");
+                boolean slotOccupied = items != null && items.getKeys(false).stream()
+                        .map(items::getConfigurationSection)
+                        .filter(Objects::nonNull)
+                        .anyMatch(section -> section.getInt("slot", -1) == 12);
+                if (slotOccupied) {
+                    plugin.getLogger().warning("Could not add animation template button because slot 12 "
+                            + "in admin_animation_select.yml is customized.");
+                } else {
+                    config.set("items.template.slot", 12);
+                    config.set("items.template.material", "PAINTING");
+                    config.set("items.template.name", "<!i><aqua>动画模板: {animation_template}");
+                    config.set("items.template.lore", List.of(
+                            "<!i><gray>每个抽奖箱可使用独立模板",
+                            "<!i><gray>模板位于 guis/animations/",
+                            "",
+                            "<!i><yellow>点击选择"
+                    ));
+                    config.set("items.template.action", "open_animation_templates");
+                    saveMigratedGui(animationFile, config, "admin_animation_select");
+                }
+            }
+        }
+
+        File crateEditorFile = new File(guisFolder, "admin_crate_edit.yml");
+        if (!crateEditorFile.exists()) {
+            return;
+        }
+        YamlConfiguration crateEditor = YamlConfiguration.loadConfiguration(crateEditorFile);
+        List<String> lore = new ArrayList<>(crateEditor.getStringList("icons.A.display.lore"));
+        if (containsLine(lore, "{animation_template}")) {
+            return;
+        }
+        int typeLine = -1;
+        for (int index = 0; index < lore.size(); index++) {
+            if (lore.get(index) != null && lore.get(index).contains("{animation_type}")) {
+                typeLine = index;
+                break;
+            }
+        }
+        lore.add(typeLine >= 0 ? typeLine + 1 : lore.size(),
+                "<!i><yellow>模板: {animation_template}");
+        crateEditor.set("icons.A.display.lore", lore);
+        saveMigratedGui(crateEditorFile, crateEditor, "admin_crate_edit");
+    }
+
+    private void migratePreviewMultiOpenHintGui(File guisFolder) {
+        File file = new File(guisFolder, "preview.yml");
+        if (!file.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        if (config.contains("multi-open-hint")) {
+            return;
+        }
+        PreviewMultiOpenHintConfig defaults = PreviewMultiOpenHintConfig.defaults();
+        config.set("multi-open-hint.available", defaults.available());
+        config.set("multi-open-hint.unavailable", defaults.unavailable());
+        saveMigratedGui(file, config, "preview");
+    }
+
+    private void migrateHistoryBackGui(File guisFolder) {
+        File file = new File(guisFolder, "history.yml");
+        if (!file.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        List<String> layout = new ArrayList<>(config.getStringList("layout"));
+        if (config.contains("icons.B") || layout.size() < 6
+                || !"<#P#I#N#X".equals(layout.get(5))) {
+            return;
+        }
+        layout.set(5, "B#P#I#N#X");
+        config.set("layout", layout);
+        config.set("icons.B.display.material", "ARROW");
+        config.set("icons.B.display.name", "<!i><yellow>返回");
+        config.set("icons.B.display.lore", List.of("<!i><gray>返回上一界面"));
+        config.set("icons.B.action", "back");
+        saveMigratedGui(file, config, "history");
     }
 
     private void migrateUniqueDrawShortcutGui(File guisFolder) {
@@ -531,9 +726,19 @@ public class GuiConfigManager {
         }
 
         RewardPreviewDisplayConfig rewardPreviewDisplay = loadRewardPreviewDisplay(config);
+        PreviewMultiOpenHintConfig previewMultiOpenHint = loadPreviewMultiOpenHint(config);
 
         return new GuiConfig(id, title, size, fillEnabled, fillMaterial, fillName,
-                items, contentSlots, animationSlots, centerSlot, rewardPreviewDisplay);
+                items, contentSlots, animationSlots, centerSlot,
+                rewardPreviewDisplay, previewMultiOpenHint);
+    }
+
+    private PreviewMultiOpenHintConfig loadPreviewMultiOpenHint(YamlConfiguration config) {
+        PreviewMultiOpenHintConfig defaults = PreviewMultiOpenHintConfig.defaults();
+        return new PreviewMultiOpenHintConfig(
+                config.getString("multi-open-hint.available", defaults.available()),
+                config.getString("multi-open-hint.unavailable", defaults.unavailable())
+        );
     }
 
     private RewardPreviewDisplayConfig loadRewardPreviewDisplay(YamlConfiguration config) {
@@ -604,6 +809,19 @@ public class GuiConfigManager {
      */
     public Collection<GuiConfig> getAllGuiConfigs() {
         return guiConfigs.values();
+    }
+
+    public AnimationTemplate getAnimationTemplate(String requestedId) {
+        String resolved = AnimationTemplateSelection.resolve(requestedId, animationTemplates.keySet());
+        return animationTemplates.get(resolved);
+    }
+
+    public List<AnimationTemplate> getAnimationTemplates() {
+        return List.copyOf(animationTemplates.values());
+    }
+
+    public List<String> getAnimationTemplateIds() {
+        return List.copyOf(animationTemplates.keySet());
     }
 
     /**

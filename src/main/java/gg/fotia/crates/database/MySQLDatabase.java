@@ -3,6 +3,7 @@ package gg.fotia.crates.database;
 import gg.fotia.crates.FotiaCrates;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import gg.fotia.crates.key.distribution.KeyDistributionSchema;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -169,6 +170,8 @@ public class MySQLDatabase implements Database {
             } catch (SQLException ignored) {
                 // 索引已存在，忽略错误
             }
+
+            KeyDistributionSchema.createTables(conn, true);
 
             plugin.getLogger().info("Database tables created successfully!");
         } catch (SQLException e) {

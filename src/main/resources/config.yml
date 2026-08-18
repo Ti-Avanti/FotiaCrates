@@ -90,6 +90,19 @@ persistence:
     # 同一玩家历史裁剪的最小间隔，单位为秒
     cleanup-interval-seconds: 300
 
+# 管理员批量发放钥匙
+key-distribution:
+  # 使用 @all 向全部历史玩家发放前是否需要二次确认
+  require-confirmation-for-all: true
+  # 二次确认码有效时间，单位为秒
+  confirmation-timeout-seconds: 30
+  # 每批处理的在线玩家数量，避免同一 tick 创建过多数据库任务
+  database-batch-size: 200
+  # 玩家收到批量钥匙后是否发送提示消息
+  notify-recipients: true
+  # 是否允许给全部历史玩家发放物理钥匙；离线玩家将在登录后领取
+  pending-physical-delivery: true
+
 # 性能保护设置
 performance:
   models:

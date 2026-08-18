@@ -12,6 +12,7 @@ import gg.fotia.crates.history.HistoryManager;
 import gg.fotia.crates.hologram.HologramManager;
 import gg.fotia.crates.hook.FotiaCratesExpansion;
 import gg.fotia.crates.key.KeyManager;
+import gg.fotia.crates.key.distribution.KeyDistributionManager;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.listener.BlockListener;
 import gg.fotia.crates.listener.EntityInteractPacketListener;
@@ -35,6 +36,7 @@ public class FotiaCrates extends JavaPlugin {
     private DatabaseManager databaseManager;
     private CrateManager crateManager;
     private KeyManager keyManager;
+    private KeyDistributionManager keyDistributionManager;
     private GuiManager guiManager;
     private HistoryManager historyManager;
     private PityManager pityManager;
@@ -72,6 +74,7 @@ public class FotiaCrates extends JavaPlugin {
 
         // 初始化管理器
         keyManager = new KeyManager(this);
+        keyDistributionManager = new KeyDistributionManager(this);
         crateManager = new CrateManager(this);
         guiManager = new GuiManager(this);
         historyManager = new HistoryManager(this);
@@ -83,6 +86,7 @@ public class FotiaCrates extends JavaPlugin {
         particleManager = new ParticleManager(this);
         animationManager = new AnimationManager(this);
         openSessionManager = new OpenSessionManager();
+        keyDistributionManager.start();
         asyncPlayerDataManager.start();
 
         // 加载抽奖箱
@@ -151,6 +155,9 @@ public class FotiaCrates extends JavaPlugin {
         if (pendingRewardManager != null) {
             pendingRewardManager.beginShutdown();
         }
+        if (keyDistributionManager != null) {
+            keyDistributionManager.shutdown();
+        }
         boolean persistenceStopped = true;
         if (asyncPlayerDataManager != null) {
             persistenceStopped = asyncPlayerDataManager.shutdown();
@@ -197,6 +204,7 @@ public class FotiaCrates extends JavaPlugin {
         hologramManager.reload();
         particleManager.restart();
         asyncPlayerDataManager.reload();
+        keyDistributionManager.refreshOnlinePlayers();
         modelEngineManager.reconcileLoadedModels(previousLocations);
         modelEngineManager.restartHealthCheck();
     }
@@ -230,6 +238,10 @@ public class FotiaCrates extends JavaPlugin {
 
     public KeyManager getKeyManager() {
         return keyManager;
+    }
+
+    public KeyDistributionManager getKeyDistributionManager() {
+        return keyDistributionManager;
     }
 
     public GuiManager getGuiManager() {

@@ -1,0 +1,32 @@
+# 金色轮盘动画模板示例，可复制此文件创建更多模板
+display-name: "<!i><gold>鎏金轮盘"
+selector:
+  material: GOLD_INGOT
+  name: "<!i><gold>{template}"
+  lore:
+    - "<!i><gray>模板ID: <!i><white>{template_id}"
+    - "<!i><gray>金色边框与橙色指示器"
+    - ""
+    - "{selected_line}"
+
+title: "<!i><gold>幸运轮盘"
+
+layout:
+  - "####I####"
+  - "#AAAAAAA#"
+  - "####I####"
+
+icons:
+  '#':
+    display:
+      material: YELLOW_STAINED_GLASS_PANE
+      name: " "
+  'I':
+    display:
+      material: ORANGE_STAINED_GLASS_PANE
+      name: " "
+  'A':
+    content: true
+
+animation-slots: [10, 11, 12, 13, 14, 15, 16]
+center-slot: 13

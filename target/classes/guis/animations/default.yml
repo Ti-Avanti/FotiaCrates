@@ -1,0 +1,31 @@
+# 默认轮盘动画模板
+display-name: "<!i><yellow>默认轮盘"
+selector:
+  material: CLOCK
+  name: "<!i><yellow>{template}"
+  lore:
+    - "<!i><gray>模板ID: <!i><white>{template_id}"
+    - ""
+    - "{selected_line}"
+
+title: "<!i><dark_gray>正在抽奖..."
+
+layout:
+  - "####I####"
+  - "#AAAAAAA#"
+  - "####I####"
+
+icons:
+  '#':
+    display:
+      material: BLACK_STAINED_GLASS_PANE
+      name: " "
+  'I':
+    display:
+      material: YELLOW_STAINED_GLASS_PANE
+      name: " "
+  'A':
+    content: true
+
+animation-slots: [10, 11, 12, 13, 14, 15, 16]
+center-slot: 13

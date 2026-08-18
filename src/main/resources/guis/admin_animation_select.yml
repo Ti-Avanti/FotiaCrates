@@ -16,6 +16,16 @@ items:
       - ""
       - "<!i><yellow>点击切换"
     action: toggle_gui_animation
+  template:
+    slot: 12
+    material: PAINTING
+    name: "<!i><aqua>动画模板: {animation_template}"
+    lore:
+      - "<!i><gray>每个抽奖箱可使用独立模板"
+      - "<!i><gray>模板位于 guis/animations/"
+      - ""
+      - "<!i><yellow>点击选择"
+    action: open_animation_templates
   roulette:
     slot: 13
     material: CLOCK

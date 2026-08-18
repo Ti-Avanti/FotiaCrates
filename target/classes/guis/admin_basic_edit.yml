@@ -19,11 +19,11 @@ items:
   block:
     slot: 13
     material: CHEST
-    name: "<!i><aqua>编辑方块"
+    name: "<!i><aqua>编辑抽奖箱本体"
     lore:
       - "<!i><gray>当前: {block}"
       - ""
-      - "<!i><yellow>手持方块点击设置"
+      - "<!i><yellow>手持物品点击设置"
     action: edit_block
   duration:
     slot: 15

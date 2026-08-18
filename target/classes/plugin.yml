@@ -1,5 +1,5 @@
 name: FotiaCrates
-version: 1.1.3
+version: 1.1.13
 main: gg.fotia.crates.FotiaCrates
 api-version: '1.20'
 authors:
@@ -14,6 +14,10 @@ softdepend:
   - BetterModel
   - CraftEngine
   - SweetMail
+libraries:
+  - com.zaxxer:HikariCP:5.1.0
+  - org.xerial:sqlite-jdbc:3.46.1.0
+  - com.mysql:mysql-connector-j:8.4.0
 
 commands:
   crate:
@@ -47,6 +51,8 @@ permissions:
     default: op
     children:
       fotiacrates.admin.key: true
+      fotiacrates.admin.key.giveonline: true
+      fotiacrates.admin.key.giveall: true
       fotiacrates.admin.give: true
       fotiacrates.admin.place: true
       fotiacrates.admin.set: true
@@ -55,6 +61,12 @@ permissions:
       fotiacrates.admin.editor: true
   fotiacrates.admin.key:
     description: Manage keys
+    default: op
+  fotiacrates.admin.key.giveonline:
+    description: Give keys to all online players
+    default: op
+  fotiacrates.admin.key.giveall:
+    description: Give keys to all known players
     default: op
   fotiacrates.admin.give:
     description: Give crate blocks

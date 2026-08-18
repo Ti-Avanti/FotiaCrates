@@ -3,6 +3,7 @@ package gg.fotia.crates.database;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.key.distribution.KeyDistributionSchema;
 
 import java.io.File;
 import java.sql.Connection;
@@ -153,6 +154,8 @@ public class SQLiteDatabase implements Database {
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_timestamp ON crate_history(timestamp)");
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_history_uuid_timestamp_id ON crate_history(uuid, timestamp DESC, id DESC)");
             stmt.executeUpdate("CREATE INDEX IF NOT EXISTS idx_collected_rewards_uuid_crate ON player_collected_rewards(uuid, crate_id)");
+
+            KeyDistributionSchema.createTables(connection, false);
 
             plugin.getLogger().info("Database tables created successfully!");
         } catch (SQLException e) {

@@ -25,6 +25,7 @@ item:
 
   # CraftEngine物品ID (可选，需要安装CraftEngine插件)
   # craftengine-id: "namespace:item_id"
+  # 同时兼容 craft-engine-id 写法
 
   # ItemsAdder物品ID (可选，需要安装ItemsAdder插件)
   # itemsadder-id: "namespace:item_id"

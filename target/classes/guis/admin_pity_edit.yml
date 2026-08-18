@@ -39,6 +39,16 @@ items:
       - ""
       - "<!i><yellow>点击切换"
     action: toggle_pity
+  early_reset:
+    slot: 6
+    material: CLOCK
+    name: "<!i><aqua>提前出货重置: {pity_early_reset}"
+    lore:
+      - "<!i><gray>提前获得达到保底稀有度的奖励时"
+      - "<!i><gray>是否立即清空当前保底计数"
+      - ""
+      - "<!i><yellow>点击切换"
+    action: toggle_pity_early_reset
   back:
     slot: 45
     material: ARROW

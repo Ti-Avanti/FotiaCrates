@@ -72,6 +72,8 @@ unique-draw:
 # 动画设置
 animation:
   enabled: true
+  # GUI动画模板，对应 guis/animations/<模板ID>.yml
+  template: default
   # 动画类型: ROULETTE(GUI转盘), CSGO(GUI), PHYSICAL(物理漂浮物品), INSTANT(即时)
   # PHYSICAL: 在箱子上方显示漂浮物品滚动效果，如果是箱子类型方块会打开盖子
   type: ROULETTE

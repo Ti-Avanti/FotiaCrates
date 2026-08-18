@@ -94,6 +94,7 @@ public class CrateManager {
 
         String name = config.getString("name", id);
         Material blockMaterial = Material.valueOf(config.getString("block.material", "CHEST"));
+        ItemStack blockItemTemplate = config.getItemStack("block.item.template");
 
         // 宝箱方块物品设置
         String blockItemName = config.getString("block.item.name", name);
@@ -122,6 +123,7 @@ public class CrateManager {
         boolean animationEnabled = config.getBoolean("animation.enabled",
                 plugin.getConfigManager().isDefaultAnimationEnabled());
         AnimationType animationType = AnimationType.valueOf(config.getString("animation.type", "ROULETTE"));
+        String animationTemplate = config.getString("animation.template", "default");
         int animationDuration = config.getInt("animation.duration", 3);
         String animationTitle = config.getString("animation.title", "<!i><dark_gray>" + name);
 
@@ -202,7 +204,7 @@ public class CrateManager {
 
         List<Reward> rewards = loadRewards(config.getConfigurationSection("rewards"));
 
-        return new Crate(id, name, blockMaterial,
+        return new Crate(id, name, blockMaterial, blockItemTemplate,
                 blockItemName, blockItemLore,
                 modelProvider, modelEngineEnabled, modelEngineId,
                 modelEngineIdleAnimation, modelEngineOpenAnimation,
@@ -210,7 +212,7 @@ public class CrateManager {
                 hologramHeight, hologramLines,
                 rewards,
                 previewEnabled, previewChanceDisplayMode, previewTitle,
-                animationEnabled, animationType, animationDuration,
+                animationEnabled, animationType, animationTemplate, animationDuration,
                 animationTitle, physicalAnimationEnabled,
                 particlesEnabled, particleType, particleCount, particleEffects,
                 spinSound, spinVolume, spinPitch,
@@ -560,7 +562,9 @@ public class CrateManager {
      * @return 带有PDC标记的宝箱方块物品
      */
     public ItemStack createCrateBlockItem(Crate crate, int amount) {
-        ItemStack item = new ItemBuilder(crate.getBlockMaterial())
+        ItemStack baseItem = CrateBlockItemTemplate.createBase(
+                crate.getBlockItemTemplate(), crate.getBlockMaterial());
+        ItemStack item = new ItemBuilder(baseItem)
                 .name(crate.getBlockItemName())
                 .lore(crate.getBlockItemLore())
                 .amount(amount)
@@ -622,10 +626,32 @@ public class CrateManager {
         try {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("block.material", material.name());
+            config.set("block.item.template", null);
             config.save(file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update crate block: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新宝箱本体物品，保留 CraftEngine 等插件写入的自定义组件。
+     */
+    public void updateCrateBlockItem(String crateId, ItemStack item) {
+        ItemStack storedItem = CrateBlockItemTemplate.copyForStorage(item);
+        if (storedItem == null) return;
+
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("block.material", storedItem.getType().name());
+            config.set("block.item.template", storedItem);
+            config.save(file);
+            reloadCrate(crateId);
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update crate block item: " + e.getMessage());
         }
     }
 
@@ -643,6 +669,20 @@ public class CrateManager {
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update animation duration: " + e.getMessage());
+        }
+    }
+
+    public void updateAnimationTemplate(String crateId, String templateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            config.set("animation.template", templateId);
+            config.save(file);
+            reloadCrate(crateId);
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update animation template: " + e.getMessage());
         }
     }
 
@@ -1241,6 +1281,7 @@ public class CrateManager {
             config.set("preview.chance-display", PreviewChanceDisplayMode.PERCENTAGE.name());
             config.set("animation.enabled", true);
             config.set("animation.type", "ROULETTE");
+            config.set("animation.template", "default");
             config.set("animation.duration", 3);
             config.set("particles.enabled", true);
             config.set("particles.type", "FLAME");

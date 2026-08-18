@@ -1,6 +1,7 @@
 package gg.fotia.crates.gui;
 
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.animation.AnimationTemplate;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.MultiOpenAmount;
 import gg.fotia.crates.crate.PreviewChanceDisplayMode;
@@ -136,9 +137,8 @@ public class GuiManager {
         placeholders.put("{collected_count}", String.valueOf(collectedRewardIds.size()));
         placeholders.put("{remaining_count}", String.valueOf(Math.max(
                 0, rewards.size() - collectedRewardIds.size())));
-        placeholders.put("{multi_open_hint}", multiOpenAmount > 1
-                ? "<!i><yellow>右键 <!i><gray>- 多连抽 " + multiOpenAmount + " 次"
-                : "<!i><dark_gray>右键多连抽不可用");
+        placeholders.put("{multi_open_hint}",
+                config.getPreviewMultiOpenHint().render(multiOpenAmount));
         placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
 
         // 放置奖励图标（分页）
@@ -236,6 +236,7 @@ public class GuiManager {
         placeholders.put("{reward_count}", String.valueOf(crate.getRewards().size()));
         placeholders.put("{total_chance}", String.format("%.2f", crate.getRewards().stream().mapToDouble(Reward::getChance).sum()));
         placeholders.put("{animation_type}", crate.getAnimationType().name());
+        placeholders.put("{animation_template}", resolvedAnimationTemplateId(crate));
         placeholders.put("{animation_duration}", String.valueOf(crate.getAnimationDuration()));
         placeholders.put("{particles_enabled}", crate.isParticlesEnabled() ? "是" : "否");
         placeholders.put("{particle_type}", crate.getParticleEffect(ParticleStage.REWARD).getParticle());
@@ -468,12 +469,19 @@ public class GuiManager {
     }
 
     public void openHistoryGui(Player player, UUID targetUuid, String targetName, String crateId, int page) {
+        openHistoryGui(player, targetUuid, targetName, crateId, page, HistoryReturnContext.close());
+    }
+
+    public void openHistoryGui(Player player, UUID targetUuid, String targetName, String crateId, int page,
+                               HistoryReturnContext returnContext) {
         plugin.getHistoryManager().getHistoryAsync(targetUuid, crateId, 100,
-                history -> openHistoryGuiLoaded(player, targetUuid, targetName, crateId, page, history));
+                history -> openHistoryGuiLoaded(
+                        player, targetUuid, targetName, crateId, page, history, returnContext));
     }
 
     private void openHistoryGuiLoaded(Player player, UUID targetUuid, String targetName, String crateId,
-                                      int page, List<HistoryManager.HistoryEntry> history) {
+                                      int page, List<HistoryManager.HistoryEntry> history,
+                                      HistoryReturnContext returnContext) {
         if (!player.isOnline()) {
             return;
         }
@@ -501,6 +509,9 @@ public class GuiManager {
         holder.setData("target_uuid", targetUuid);
         holder.setData("target_name", targetName);
         holder.setData("crate_id", filterByCrate ? crateId : null);
+        holder.setData("history_return_context", returnContext == null
+                ? HistoryReturnContext.close()
+                : returnContext);
 
         Inventory inventory = Bukkit.createInventory(
                 holder,
@@ -718,6 +729,7 @@ public class GuiManager {
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{gui_animation_enabled}", yesNo(crate.isAnimationEnabled()));
         placeholders.put("{animation_type}", crate.getAnimationType().name());
+        placeholders.put("{animation_template}", resolvedAnimationTemplateId(crate));
         placeholders.put("{physical_animation_enabled}", yesNo(crate.isPhysicalAnimationEnabled()));
         placeholders.put("{physical_animation_height}", String.valueOf(crate.getPhysicalAnimationHeight()));
         placeholders.put("{animation_duration}", String.valueOf(crate.getAnimationDuration()));
@@ -839,6 +851,60 @@ public class GuiManager {
 
         player.openInventory(inventory);
         return true;
+    }
+
+    public void openAnimationTemplateSelectGui(Player player, Crate crate) {
+        String guiId = "admin_animation_template_select";
+        GuiConfig config = configManager.getGuiConfig(guiId);
+        if (config == null) {
+            plugin.getLogger().warning("Animation template selector GUI config not found!");
+            openAnimationSelectGui(player, crate);
+            return;
+        }
+
+        List<AnimationTemplate> templates = configManager.getAnimationTemplates();
+        String currentTemplate = resolvedAnimationTemplateId(crate);
+        Map<String, String> placeholders = new HashMap<>();
+        placeholders.put("{animation_template}", currentTemplate);
+        placeholders.put("{template_count}", String.valueOf(templates.size()));
+
+        CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
+        holder.setData("select_animation", true);
+        holder.setData("select_animation_template", true);
+        Inventory inventory = createConfiguredInventory(
+                guiId, holder, "<!i><dark_gray>选择动画模板", 54, placeholders);
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+
+        List<Integer> contentSlots = config.getContentSlots();
+        for (int index = 0; index < templates.size() && index < contentSlots.size(); index++) {
+            AnimationTemplate template = templates.get(index);
+            boolean selected = template.id().equals(currentTemplate);
+            Map<String, String> itemPlaceholders = new HashMap<>();
+            itemPlaceholders.put("{template}", template.displayName());
+            itemPlaceholders.put("{template_id}", template.id());
+            itemPlaceholders.put("{selected}", selected ? "是" : "否");
+            itemPlaceholders.put("{selected_line}", selected
+                    ? "<!i><green>当前已选择"
+                    : "<!i><yellow>点击选择");
+            String name = replacePlaceholders(template.selectorName(), itemPlaceholders);
+            List<String> lore = template.selectorLore().stream()
+                    .map(line -> replacePlaceholders(line, itemPlaceholders))
+                    .toList();
+            inventory.setItem(contentSlots.get(index), new ItemBuilder(template.selectorMaterial())
+                    .name(name)
+                    .lore(lore)
+                    .customModelData(template.selectorCustomModelData())
+                    .itemModel(template.selectorItemModel())
+                    .glow(selected || template.selectorGlow())
+                    .build());
+        }
+
+        player.openInventory(inventory);
+    }
+
+    private String resolvedAnimationTemplateId(Crate crate) {
+        AnimationTemplate template = configManager.getAnimationTemplate(crate.getAnimationTemplate());
+        return template != null ? template.id() : crate.getAnimationTemplate();
     }
 
     private ItemStack createUniqueObtainedIconPreview(GuiItem guiItem,
@@ -1571,6 +1637,16 @@ public class GuiManager {
                 ))
                 .build();
         inventory.setItem(10, guiAnimToggle);
+
+        ItemStack animationTemplate = new ItemBuilder(Material.PAINTING)
+                .name("<!i><aqua>动画模板: " + resolvedAnimationTemplateId(crate))
+                .lore(List.of(
+                        "<!i><gray>每个抽奖箱可使用独立模板",
+                        "",
+                        "<!i><yellow>点击选择"
+                ))
+                .build();
+        inventory.setItem(12, animationTemplate);
 
         // GUI动画类型选择
         gg.fotia.crates.animation.AnimationType currentType = crate.getAnimationType();

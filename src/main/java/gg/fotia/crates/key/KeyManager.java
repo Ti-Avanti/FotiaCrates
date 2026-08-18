@@ -1,6 +1,7 @@
 package gg.fotia.crates.key;
 
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.hook.CraftEngineKeyItemProvider;
 import gg.fotia.crates.util.ItemBuilder;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -24,11 +25,27 @@ public class KeyManager {
     private final FotiaCrates plugin;
     private final NamespacedKey keyIdentifier;
     private final Map<String, Key> keys = new HashMap<>();
+    private final KeyItemFactory keyItemFactory;
 
     public KeyManager(FotiaCrates plugin) {
         this.plugin = plugin;
         this.keyIdentifier = new NamespacedKey(plugin, "key_id");
+        this.keyItemFactory = new KeyItemFactory(createCraftEngineProvider());
         loadKeys();
+    }
+
+    private KeyItemProvider createCraftEngineProvider() {
+        if (!plugin.getServer().getPluginManager().isPluginEnabled("CraftEngine")) {
+            return itemId -> Optional.empty();
+        }
+
+        try {
+            plugin.getLogger().info("CraftEngine key item integration enabled.");
+            return new CraftEngineKeyItemProvider(plugin.getLogger());
+        } catch (LinkageError error) {
+            plugin.getLogger().warning("CraftEngine key item API is incompatible: " + error.getMessage());
+            return itemId -> Optional.empty();
+        }
     }
 
     /**
@@ -105,7 +122,7 @@ public class KeyManager {
         if (itemSection != null) {
             key.setItemModel(itemSection.getString("item-model"));
             key.setTooltipStyle(itemSection.getString("tooltip-style"));
-            key.setCraftEngineId(itemSection.getString("craftengine-id"));
+            key.setCraftEngineId(KeyItemConfig.readCraftEngineId(itemSection));
             key.setItemsAdderId(itemSection.getString("itemsadder-id"));
             key.setOraxenId(itemSection.getString("oraxen-id"));
 
@@ -187,19 +204,15 @@ public class KeyManager {
      * 创建物理钥匙物品
      */
     public ItemStack createPhysicalKey(Key key, int amount) {
-        ItemStack customItem = key.getCustomItem();
-        ItemStack item = customItem != null && !customItem.getType().isAir()
-                ? new ItemBuilder(customItem)
-                        .name(key.getDisplayName())
-                        .lore(key.getLore())
-                        .glow(key.isGlow())
-                        .build()
-                : new ItemBuilder(key.getMaterial())
-                        .name(key.getDisplayName())
-                        .lore(key.getLore())
-                        .customModelData(key.getCustomModelData())
-                        .glow(key.isGlow())
-                        .build();
+        KeyItemFactory.Resolution resolution = keyItemFactory.resolve(key);
+        ItemBuilder builder = new ItemBuilder(resolution.item())
+                .name(key.getDisplayName())
+                .lore(key.getLore())
+                .glow(key.isGlow());
+        if (!resolution.configuredItem()) {
+            builder.customModelData(key.getCustomModelData());
+        }
+        ItemStack item = builder.build();
 
         item.setAmount(amount);
         applyKeyIdentifier(item, key);

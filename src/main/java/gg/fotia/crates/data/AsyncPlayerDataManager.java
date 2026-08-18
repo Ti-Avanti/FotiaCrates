@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +40,7 @@ public final class AsyncPlayerDataManager {
     private final Set<UUID> loadingPlayers = new HashSet<>();
     private final Set<UUID> committingPlayers = new HashSet<>();
     private final Set<UUID> dirtyPlayers = ConcurrentHashMap.newKeySet();
+    private final List<Consumer<UUID>> playerReadyListeners = new CopyOnWriteArrayList<>();
     /**
      * 落库失败后保留的快照；即使玩家已卸载也能在下轮 flush 重试，避免数据丢失。
      */
@@ -114,6 +116,7 @@ public final class AsyncPlayerDataManager {
                         return;
                     }
                     cache.load(playerId, loaded.virtualKeys(), loaded.pityCounts(), loaded.collectedRewards());
+                    notifyPlayerReady(playerId);
                 });
             } catch (SQLException exception) {
                 plugin.getLogger().severe("Failed to load player data for " + playerId + ": " + exception.getMessage());
@@ -146,6 +149,16 @@ public final class AsyncPlayerDataManager {
 
     public boolean isReady(UUID playerId) {
         return cache.isLoaded(playerId) && !committingPlayers.contains(playerId);
+    }
+
+    public void addPlayerReadyListener(Consumer<UUID> listener) {
+        if (listener != null) {
+            playerReadyListeners.add(listener);
+        }
+    }
+
+    public void removePlayerReadyListener(Consumer<UUID> listener) {
+        playerReadyListeners.remove(listener);
     }
 
     public int getVirtualKeys(UUID playerId, String keyId) {
@@ -229,6 +242,12 @@ public final class AsyncPlayerDataManager {
     }
 
     public void commitNow(UUID playerId, Runnable onSuccess, Runnable onFailure) {
+        commitNow(playerId, connection -> {
+        }, onSuccess, onFailure);
+    }
+
+    public void commitNow(UUID playerId, TransactionalDatabaseOperation operation,
+                          Runnable onSuccess, Runnable onFailure) {
         if (!cache.isLoaded(playerId) || !committingPlayers.add(playerId)) {
             onFailure.run();
             return;
@@ -237,15 +256,26 @@ public final class AsyncPlayerDataManager {
         PlayerDataCache.Snapshot snapshot = cache.snapshot(playerId);
         dirtyPlayers.remove(playerId);
         submitDatabaseTask(() -> {
-            try {
-                persistPlayerState(playerId, snapshot);
+            try (Connection connection = plugin.getDatabaseManager().getConnection()) {
+                boolean originalAutoCommit = connection.getAutoCommit();
+                connection.setAutoCommit(false);
+                try {
+                    persistPlayerState(connection, playerId, snapshot);
+                    operation.execute(connection);
+                    connection.commit();
+                } catch (Exception exception) {
+                    connection.rollback();
+                    throw exception;
+                } finally {
+                    connection.setAutoCommit(originalAutoCommit);
+                }
                 runOnServerThread(() -> {
                     cache.markPersisted(playerId, snapshot);
                     committingPlayers.remove(playerId);
                     onSuccess.run();
                     finishFlushOrUnload(playerId);
                 });
-            } catch (SQLException exception) {
+            } catch (Exception exception) {
                 plugin.getLogger().severe("Failed to persist player data for " + playerId + ": " + exception.getMessage());
                 dirtyPlayers.add(playerId);
                 runOnServerThread(() -> {
@@ -554,6 +584,23 @@ public final class AsyncPlayerDataManager {
     }
 
     private void persistPlayerState(UUID playerId, PlayerDataCache.Snapshot snapshot) throws SQLException {
+        try (Connection connection = plugin.getDatabaseManager().getConnection()) {
+            boolean originalAutoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try {
+                persistPlayerState(connection, playerId, snapshot);
+                connection.commit();
+            } catch (SQLException exception) {
+                connection.rollback();
+                throw exception;
+            } finally {
+                connection.setAutoCommit(originalAutoCommit);
+            }
+        }
+    }
+
+    private void persistPlayerState(Connection connection, UUID playerId,
+                                    PlayerDataCache.Snapshot snapshot) throws SQLException {
         // 仅写入本会话变更过的条目，避免每次开箱全量重写所有钥匙/保底行
         Map<String, Integer> changedKeys = filterChanged(snapshot.virtualKeys(), snapshot.changedKeys());
         Map<String, Integer> changedPity = filterChanged(snapshot.pityCounts(), snapshot.changedCrates());
@@ -563,21 +610,9 @@ public final class AsyncPlayerDataManager {
         if (changedKeys.isEmpty() && changedPity.isEmpty() && changedCollectedRewards.isEmpty()) {
             return;
         }
-        try (Connection connection = plugin.getDatabaseManager().getConnection()) {
-            boolean originalAutoCommit = connection.getAutoCommit();
-            connection.setAutoCommit(false);
-            try {
-                upsertVirtualKeys(connection, playerId, changedKeys);
-                upsertPityCounts(connection, playerId, changedPity);
-                insertCollectedRewards(connection, playerId, changedCollectedRewards);
-                connection.commit();
-            } catch (SQLException exception) {
-                connection.rollback();
-                throw exception;
-            } finally {
-                connection.setAutoCommit(originalAutoCommit);
-            }
-        }
+        upsertVirtualKeys(connection, playerId, changedKeys);
+        upsertPityCounts(connection, playerId, changedPity);
+        insertCollectedRewards(connection, playerId, changedCollectedRewards);
     }
 
     private Map<String, Integer> filterChanged(Map<String, Integer> values, Set<String> changed) {
@@ -825,6 +860,17 @@ public final class AsyncPlayerDataManager {
         return player != null && player.isOnline();
     }
 
+    private void notifyPlayerReady(UUID playerId) {
+        for (Consumer<UUID> listener : playerReadyListeners) {
+            try {
+                listener.accept(playerId);
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("Player data ready listener failed for " + playerId
+                        + ": " + exception.getMessage());
+            }
+        }
+    }
+
     private void unloadIfOffline(UUID playerId) {
         if (!isPlayerOnline(playerId)) {
             cache.unload(playerId);
@@ -838,5 +884,10 @@ public final class AsyncPlayerDataManager {
     @FunctionalInterface
     public interface DatabaseOperation<T> {
         T execute() throws Exception;
+    }
+
+    @FunctionalInterface
+    public interface TransactionalDatabaseOperation {
+        void execute(Connection connection) throws Exception;
     }
 }

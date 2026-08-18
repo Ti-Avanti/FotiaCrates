@@ -48,7 +48,11 @@ public class RouletteAnimation implements Animation {
         this.completion = new AnimationCompletion();
 
         // 从GUI配置读取动画设置
-        GuiConfig animConfig = plugin.getGuiManager().getConfigManager().getGuiConfig("animation");
+        AnimationTemplate template = plugin.getGuiManager().getConfigManager()
+                .getAnimationTemplate(crate.getAnimationTemplate());
+        GuiConfig animConfig = template != null
+                ? template.guiConfig()
+                : plugin.getGuiManager().getConfigManager().getGuiConfig("animation");
 
         // 优先使用宝箱配置的标题，否则使用GUI配置的标题
         String title = crate.getAnimationTitle();

@@ -1,6 +1,7 @@
 package gg.fotia.crates.listener;
 
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.animation.AnimationTemplate;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.crate.MultiOpenAmount;
@@ -10,6 +11,7 @@ import gg.fotia.crates.gui.CrateGuiHolder;
 import gg.fotia.crates.gui.GuiConfig;
 import gg.fotia.crates.gui.GuiItem;
 import gg.fotia.crates.gui.GuiType;
+import gg.fotia.crates.gui.HistoryReturnContext;
 import gg.fotia.crates.gui.RewardEditContext;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.CrateParticleEffect;
@@ -254,6 +256,11 @@ public class GuiListener implements Listener {
         // 检查是否是动画选择模式
         Boolean selectAnimation = holder.getData("select_animation");
         if (selectAnimation != null && selectAnimation) {
+            Boolean selectAnimationTemplate = holder.getData("select_animation_template");
+            if (selectAnimationTemplate != null && selectAnimationTemplate) {
+                handleAnimationTemplateSelectClick(player, crate, slot);
+                return;
+            }
             handleAnimationSelectClick(event, player, crate, slot);
             return;
         }
@@ -328,6 +335,7 @@ public class GuiListener implements Listener {
         String action = actionOrFallback("admin_animation_select", slot, Map.of(
                 36, "back",
                 10, "toggle_gui_animation",
+                12, "open_animation_templates",
                 13, "select_roulette",
                 15, "select_instant",
                 28, "toggle_physical_animation",
@@ -338,6 +346,8 @@ public class GuiListener implements Listener {
 
         switch (action) {
             case "back" -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
+            case "open_animation_templates" ->
+                    plugin.getGuiManager().openAnimationTemplateSelectGui(player, crate);
             case "toggle_gui_animation" -> { // GUI动画开关
                 plugin.getCrateManager().toggleGuiAnimation(crate.getId());
                 Crate updated = plugin.getCrateManager().getCrate(crate.getId());
@@ -520,11 +530,11 @@ public class GuiListener implements Listener {
         }
         if ("edit_block".equals(action)) {
             org.bukkit.inventory.ItemStack item = player.getInventory().getItemInMainHand();
-            if (item.getType().isAir() || !item.getType().isBlock()) {
+            if (!gg.fotia.crates.crate.CrateBlockItemTemplate.isUsable(item)) {
                 plugin.getLanguageManager().send(player, "admin-hold-block");
                 return;
             }
-            plugin.getCrateManager().updateCrateBlock(crate.getId(), item.getType());
+            plugin.getCrateManager().updateCrateBlockItem(crate.getId(), item);
             plugin.getLanguageManager().send(player, "admin-block-updated");
             plugin.getGuiManager().openBasicEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
             return;
@@ -575,6 +585,35 @@ public class GuiListener implements Listener {
             plugin.getCrateManager().updateMultiOpenMax(crate.getId(), newMax);
             plugin.getGuiManager().openMultiOpenEditGui(player, plugin.getCrateManager().getCrate(crate.getId()));
         }
+    }
+
+    private void handleAnimationTemplateSelectClick(Player player, Crate crate, int slot) {
+        String action = actionOrFallback(
+                "admin_animation_template_select", slot, Map.of(45, "back"));
+        if ("back".equals(action)) {
+            plugin.getGuiManager().openAnimationSelectGui(player, crate);
+            return;
+        }
+
+        List<Integer> templateSlots = contentSlots(
+                "admin_animation_template_select",
+                List.of(10, 12, 14, 16, 19, 21, 23, 25, 28, 30, 32, 34, 37, 39, 41, 43));
+        int templateIndex = templateSlots.indexOf(slot);
+        if (templateIndex < 0) {
+            return;
+        }
+        List<AnimationTemplate> templates = plugin.getGuiManager().getConfigManager()
+                .getAnimationTemplates();
+        if (templateIndex >= templates.size()) {
+            return;
+        }
+
+        AnimationTemplate template = templates.get(templateIndex);
+        plugin.getCrateManager().updateAnimationTemplate(crate.getId(), template.id());
+        plugin.getLanguageManager().send(player, "admin-animation-updated",
+                LanguageManager.placeholders("type", "模板 " + template.displayName()));
+        plugin.getGuiManager().openAnimationSelectGui(
+                player, plugin.getCrateManager().getCrate(crate.getId()));
     }
 
     private void handleUniqueDrawEditClick(InventoryClickEvent event, Player player, Crate crate,
@@ -1940,7 +1979,8 @@ public class GuiListener implements Listener {
                             player.getUniqueId(),
                             player.getName(),
                             crate.getId(),
-                            0
+                            0,
+                            HistoryReturnContext.preview(crate.getId(), holder.getCurrentPage())
                     );
                 }
             }
@@ -1975,7 +2015,8 @@ public class GuiListener implements Listener {
                             targetUuid,
                             targetName,
                             crateId,
-                            holder.getCurrentPage()
+                            holder.getCurrentPage(),
+                            historyReturnContext(holder)
                     );
                 });
             }
@@ -2020,7 +2061,8 @@ public class GuiListener implements Listener {
                             holder.getData("target_uuid"),
                             holder.getData("target_name"),
                             holder.getData("crate_id"),
-                            page);
+                            page,
+                            historyReturnContext(holder));
                 } else if (holder.getGuiType() == GuiType.PREVIEW && holder.getCrate() != null) {
                     plugin.getGuiManager().openPreview(player, holder.getCrate(), page);
                 }
@@ -2032,7 +2074,8 @@ public class GuiListener implements Listener {
                             holder.getData("target_uuid"),
                             holder.getData("target_name"),
                             holder.getData("crate_id"),
-                            page);
+                            page,
+                            historyReturnContext(holder));
                 } else if (holder.getGuiType() == GuiType.PREVIEW && holder.getCrate() != null) {
                     int totalPages = holder.getData("total_pages") != null ? (int) holder.getData("total_pages") : 1;
                     if (page < totalPages) {
@@ -2049,9 +2092,23 @@ public class GuiListener implements Listener {
                     plugin.getGuiManager().openAdminGui(player);
                 } else if (holder.getGuiType() == GuiType.ADMIN_KEY_EDIT) {
                     plugin.getGuiManager().openKeysGui(player);
+                } else if (holder.getGuiType() == GuiType.HISTORY) {
+                    HistoryReturnContext context = historyReturnContext(holder);
+                    Crate returnCrate = context.returnsToPreview()
+                            ? plugin.getCrateManager().getCrate(context.crateId())
+                            : null;
+                    if (returnCrate != null) {
+                        plugin.getGuiManager().openPreview(player, returnCrate, context.page());
+                    } else {
+                        player.closeInventory();
+                    }
                 }
             }
         }
+    }
+
+    private HistoryReturnContext historyReturnContext(CrateGuiHolder holder) {
+        return holder.getData("history_return_context", HistoryReturnContext.close());
     }
 
     private void openCrate(Player player, Crate crate) {

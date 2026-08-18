@@ -1,0 +1,31 @@
+title: "<!i><dark_gray>选择动画模板"
+
+layout:
+  - "#########"
+  - "#T#T#T#T#"
+  - "#T#T#T#T#"
+  - "#T#T#T#T#"
+  - "#T#T#T#T#"
+  - "B###I####"
+
+icons:
+  '#':
+    display:
+      material: GRAY_STAINED_GLASS_PANE
+      name: " "
+  'T':
+    content: true
+  'B':
+    display:
+      material: ARROW
+      name: "<!i><red>返回"
+      lore:
+        - "<!i><gray>返回动画设置"
+    action: back
+  'I':
+    display:
+      material: BOOK
+      name: "<!i><gold>模板信息"
+      lore:
+        - "<!i><gray>当前模板: {animation_template}"
+        - "<!i><gray>可用模板: {template_count}"

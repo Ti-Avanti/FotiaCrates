@@ -23,12 +23,14 @@ public class GuiConfig {
     private final List<Integer> animationSlots; // 动画滚动槽位
     private final int centerSlot; // 中心槽位（最终奖励显示位置）
     private final RewardPreviewDisplayConfig rewardPreviewDisplay;
+    private final PreviewMultiOpenHintConfig previewMultiOpenHint;
 
     public GuiConfig(String id, String title, int size, boolean fillEnabled,
                      Material fillMaterial, String fillName,
                      Map<Integer, GuiItem> items, List<Integer> contentSlots,
                      List<Integer> animationSlots, int centerSlot,
-                     RewardPreviewDisplayConfig rewardPreviewDisplay) {
+                     RewardPreviewDisplayConfig rewardPreviewDisplay,
+                     PreviewMultiOpenHintConfig previewMultiOpenHint) {
         this.id = id;
         this.title = title;
         this.size = size;
@@ -42,6 +44,9 @@ public class GuiConfig {
         this.rewardPreviewDisplay = rewardPreviewDisplay != null
                 ? rewardPreviewDisplay
                 : RewardPreviewDisplayConfig.defaults();
+        this.previewMultiOpenHint = previewMultiOpenHint != null
+                ? previewMultiOpenHint
+                : PreviewMultiOpenHintConfig.defaults();
     }
 
     public String getId() {
@@ -122,6 +127,10 @@ public class GuiConfig {
 
     public RewardPreviewDisplayConfig getRewardPreviewDisplay() {
         return rewardPreviewDisplay;
+    }
+
+    public PreviewMultiOpenHintConfig getPreviewMultiOpenHint() {
+        return previewMultiOpenHint;
     }
 
     public boolean hasItem(int slot) {

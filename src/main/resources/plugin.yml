@@ -51,6 +51,8 @@ permissions:
     default: op
     children:
       fotiacrates.admin.key: true
+      fotiacrates.admin.key.giveonline: true
+      fotiacrates.admin.key.giveall: true
       fotiacrates.admin.give: true
       fotiacrates.admin.place: true
       fotiacrates.admin.set: true
@@ -59,6 +61,12 @@ permissions:
       fotiacrates.admin.editor: true
   fotiacrates.admin.key:
     description: Manage keys
+    default: op
+  fotiacrates.admin.key.giveonline:
+    description: Give keys to all online players
+    default: op
+  fotiacrates.admin.key.giveall:
+    description: Give keys to all known players
     default: op
   fotiacrates.admin.give:
     description: Give crate blocks
