@@ -50,6 +50,11 @@ items:
     name: "<!i><yellow>上一页"
     lore:
       - "<!i><gray>{page}/{max_page}"
+    unavailable:
+      material: YELLOW_STAINED_GLASS_PANE
+      name: "<!i><gray>没有上一页"
+      lore:
+        - "<!i><dark_gray>当前已经是第一页"
     action: previous_page
   info:
     slot: 49
@@ -64,6 +69,11 @@ items:
     name: "<!i><yellow>下一页"
     lore:
       - "<!i><gray>{page}/{max_page}"
+    unavailable:
+      material: YELLOW_STAINED_GLASS_PANE
+      name: "<!i><gray>没有下一页"
+      lore:
+        - "<!i><dark_gray>当前已经是最后一页"
     action: next_page
   balance:
     slot: 52

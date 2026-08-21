@@ -290,6 +290,48 @@ public class GuiConfigManager {
         migrateUniqueDrawShortcutGui(guisFolder);
         migrateHistoryBackGui(guisFolder);
         migrateAnimationTemplateEditorGui(guisFolder);
+        migratePaginationButtonDisplays(guisFolder);
+    }
+
+    private void migratePaginationButtonDisplays(File guisFolder) {
+        migratePaginationButtonDisplay(guisFolder, "preview.yml",
+                "icons.<.display.unavailable", "icons.>.display.unavailable");
+        migratePaginationButtonDisplay(guisFolder, "history.yml",
+                "icons.<.display.unavailable", "icons.>.display.unavailable");
+        migratePaginationButtonDisplay(guisFolder, "admin_reward_manager.yml",
+                "items.previous.unavailable", "items.next.unavailable");
+        migratePaginationButtonDisplay(guisFolder, "admin_particle_material_select.yml",
+                "items.previous.unavailable", "items.next.unavailable");
+        migratePaginationButtonDisplay(guisFolder, "admin_unique_icon_material_select.yml",
+                "items.previous.unavailable", "items.next.unavailable");
+    }
+
+    private void migratePaginationButtonDisplay(File guisFolder, String fileName,
+                                                String previousPath, String nextPath) {
+        File file = new File(guisFolder, fileName);
+        if (!file.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        boolean changed = addUnavailableDisplay(config, previousPath, true);
+        changed |= addUnavailableDisplay(config, nextPath, false);
+        if (changed) {
+            saveMigratedGui(file, config, fileName.substring(0, fileName.length() - 4));
+        }
+    }
+
+    private boolean addUnavailableDisplay(YamlConfiguration config, String path, boolean previous) {
+        if (config.contains(path)) {
+            return false;
+        }
+        config.set(path + ".material", "YELLOW_STAINED_GLASS_PANE");
+        config.set(path + ".name", previous
+                ? "<!i><gray>没有上一页"
+                : "<!i><gray>没有下一页");
+        config.set(path + ".lore", List.of(previous
+                ? "<!i><dark_gray>当前已经是第一页"
+                : "<!i><dark_gray>当前已经是最后一页"));
+        return true;
     }
 
     private void migrateAnimationTemplateEditorGui(File guisFolder) {
@@ -609,17 +651,12 @@ public class GuiConfigManager {
                     ConfigurationSection displaySection = iconSection.getConfigurationSection("display");
                     if (displaySection == null) continue;
 
-                    Material material;
-                    try {
-                        material = Material.valueOf(displaySection.getString("material", "STONE").toUpperCase());
-                    } catch (Exception e) {
-                        material = Material.STONE;
-                    }
-                    String name = displaySection.getString("name", "");
-                    List<String> lore = displaySection.getStringList("lore");
-                    int customModelData = displaySection.getInt("custom-model-data", 0);
-                    String itemModel = displaySection.getString("item_model", "");
-                    boolean glow = displaySection.getBoolean("glow", false);
+                    GuiItemDisplay display = GuiItemDisplayParser.parse(displaySection, null);
+                    ConfigurationSection unavailableSection =
+                            displaySection.getConfigurationSection("unavailable");
+                    GuiItemDisplay unavailableDisplay = unavailableSection == null
+                            ? null
+                            : GuiItemDisplayParser.parse(unavailableSection, display);
 
                     // 解析actions部分
                     String action = "";
@@ -661,8 +698,8 @@ public class GuiConfigManager {
                         actionValue = iconSection.getString("action-value", "");
                     }
 
-                    GuiItem guiItem = new GuiItem(slots.get(0), material, name, lore, customModelData, glow, action, actionValue);
-                    guiItem.setItemModel(itemModel);
+                    GuiItem guiItem = new GuiItem(slots.get(0), display, unavailableDisplay,
+                            action, actionValue);
 
                     // 为所有匹配的槽位添加物品
                     for (int slot : slots) {
@@ -684,20 +721,16 @@ public class GuiConfigManager {
                     int slot = itemSection.getInt("slot", -1);
                     if (slot < 0 || slot >= size) continue;
 
-                    Material material;
-                    try {
-                        material = Material.valueOf(itemSection.getString("material", "STONE").toUpperCase());
-                    } catch (Exception e) {
-                        material = Material.STONE;
-                    }
-                    String name = itemSection.getString("name", "");
-                    List<String> lore = itemSection.getStringList("lore");
-                    int customModelData = itemSection.getInt("custom-model-data", 0);
-                    boolean glow = itemSection.getBoolean("glow", false);
+                    GuiItemDisplay display = GuiItemDisplayParser.parse(itemSection, null);
+                    ConfigurationSection unavailableSection =
+                            itemSection.getConfigurationSection("unavailable");
+                    GuiItemDisplay unavailableDisplay = unavailableSection == null
+                            ? null
+                            : GuiItemDisplayParser.parse(unavailableSection, display);
                     String action = itemSection.getString("action", "");
                     String actionValue = itemSection.getString("action-value", "");
 
-                    GuiItem guiItem = new GuiItem(slot, material, name, lore, customModelData, glow, action, actionValue);
+                    GuiItem guiItem = new GuiItem(slot, display, unavailableDisplay, action, actionValue);
                     items.put(slot, guiItem);
                 }
             }

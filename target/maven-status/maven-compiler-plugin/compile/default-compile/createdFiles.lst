@@ -16,6 +16,7 @@ gg\fotia\crates\crate\UniqueDrawSettings$ObtainedIcon.class
 gg\fotia\crates\key\distribution\PendingKeyDistributionGrants.class
 kr\toxicity\model\api\platform\PlatformEntity.class
 gg\fotia\crates\key\distribution\KeyDistributionConfirmationStore.class
+gg\fotia\crates\gui\GuiItemDisplay.class
 gg\fotia\crates\gui\RewardPreviewLoreFormatter$1.class
 gg\fotia\crates\reward\RewardProbability.class
 gg\fotia\crates\particle\CrateParticleEffect.class
@@ -78,6 +79,7 @@ gg\fotia\crates\key\distribution\KeyDistributionTarget.class
 gg\fotia\crates\crate\Crate.class
 gg\fotia\crates\history\HistoryManager$HistoryEntry.class
 gg\fotia\crates\crate\MultiOpenAmount.class
+gg\fotia\crates\gui\GuiItemDisplayResolver.class
 gg\fotia\crates\command\subcommand\EditorCommand.class
 gg\fotia\crates\reward\PermissionAction.class
 gg\fotia\crates\crate\CrateOpenService.class
@@ -94,6 +96,7 @@ kr\toxicity\model\api\tracker\EntityTracker.class
 gg\fotia\crates\reward\PendingRewardManager$PendingInsert.class
 gg\fotia\crates\data\AsyncPlayerDataManager$1.class
 gg\fotia\crates\util\ItemBuilder.class
+gg\fotia\crates\gui\GuiPaginationState.class
 gg\fotia\crates\command\subcommand\HistoryCommand.class
 kr\toxicity\model\api\tracker\TrackerModifier$Builder.class
 gg\fotia\crates\gui\RewardEditContext$ReturnTarget.class
@@ -163,6 +166,7 @@ kr\toxicity\model\api\tracker\Tracker.class
 gg\fotia\crates\gui\RewardEditContext.class
 gg\fotia\crates\particle\ParticleEffectMode.class
 gg\fotia\crates\key\KeyItemFactory$Resolution.class
+gg\fotia\crates\gui\GuiItemDisplayParser.class
 gg\fotia\crates\crate\PreviewChanceDisplayMode.class
 gg\fotia\crates\listener\GuiListener.class
 gg\fotia\crates\reward\ExperienceReward.class

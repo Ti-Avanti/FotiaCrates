@@ -11,26 +11,24 @@ import java.util.List;
 public class GuiItem {
 
     private final int slot;
-    private final Material material;
-    private final String name;
-    private final List<String> lore;
-    private final int customModelData;
-    private final boolean glow;
+    private GuiItemDisplay display;
+    private final GuiItemDisplay unavailableDisplay;
     private final String action; // 点击动作
     private final String actionValue; // 动作参数
-    private String itemModel; // 物品模型 (1.21.4+)
 
     public GuiItem(int slot, Material material, String name, List<String> lore,
                    int customModelData, boolean glow, String action, String actionValue) {
+        this(slot, new GuiItemDisplay(material, name, lore, customModelData, glow, ""),
+                null, action, actionValue);
+    }
+
+    public GuiItem(int slot, GuiItemDisplay display, GuiItemDisplay unavailableDisplay,
+                   String action, String actionValue) {
         this.slot = slot;
-        this.material = material;
-        this.name = name;
-        this.lore = lore;
-        this.customModelData = customModelData;
-        this.glow = glow;
+        this.display = display;
+        this.unavailableDisplay = unavailableDisplay;
         this.action = action;
         this.actionValue = actionValue;
-        this.itemModel = "";
     }
 
     public int getSlot() {
@@ -38,23 +36,23 @@ public class GuiItem {
     }
 
     public Material getMaterial() {
-        return material;
+        return display.material();
     }
 
     public String getName() {
-        return name;
+        return display.name();
     }
 
     public List<String> getLore() {
-        return lore;
+        return display.lore();
     }
 
     public int getCustomModelData() {
-        return customModelData;
+        return display.customModelData();
     }
 
     public boolean isGlow() {
-        return glow;
+        return display.glow();
     }
 
     public String getAction() {
@@ -66,10 +64,19 @@ public class GuiItem {
     }
 
     public String getItemModel() {
-        return itemModel;
+        return display.itemModel();
     }
 
     public void setItemModel(String itemModel) {
-        this.itemModel = itemModel != null ? itemModel : "";
+        this.display = new GuiItemDisplay(display.material(), display.name(), display.lore(),
+                display.customModelData(), display.glow(), itemModel);
+    }
+
+    public GuiItemDisplay getDisplay() {
+        return display;
+    }
+
+    public GuiItemDisplay getUnavailableDisplay() {
+        return unavailableDisplay;
     }
 }

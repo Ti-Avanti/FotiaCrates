@@ -97,6 +97,7 @@ public class GuiManager {
         int totalPages = (int) Math.ceil((double) rewards.size() / itemsPerPage);
         if (totalPages == 0) totalPages = 1;
         page = Math.max(0, Math.min(page, totalPages - 1));
+        GuiPaginationState paginationState = new GuiPaginationState(page, totalPages);
 
         String title = config.getTitle()
                 .replace("{crate}", MessageUtil.stripColor(crate.getName()))
@@ -106,6 +107,7 @@ public class GuiManager {
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.PREVIEW, crate);
         holder.setCurrentPage(page);
         holder.setData("total_pages", totalPages);
+        holder.setData("pagination_state", paginationState);
 
         Inventory inventory = Bukkit.createInventory(
                 holder,
@@ -139,7 +141,7 @@ public class GuiManager {
                 0, rewards.size() - collectedRewardIds.size())));
         placeholders.put("{multi_open_hint}",
                 config.getPreviewMultiOpenHint().render(multiOpenAmount));
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
 
         // 放置奖励图标（分页）
         int startIndex = page * itemsPerPage;
@@ -500,12 +502,14 @@ public class GuiManager {
         int itemsPerPage = config.getContentSlots().size();
         int totalPages = Math.max(1, (int) Math.ceil((double) history.size() / itemsPerPage));
         page = Math.max(0, Math.min(page, totalPages - 1));
+        GuiPaginationState paginationState = new GuiPaginationState(page, totalPages);
 
         String title = config.getTitle()
                 .replace("{player}", targetName)
                 .replace("{crate}", crateDisplayName);
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.HISTORY, null);
         holder.setCurrentPage(page);
+        holder.setData("pagination_state", paginationState);
         holder.setData("target_uuid", targetUuid);
         holder.setData("target_name", targetName);
         holder.setData("crate_id", filterByCrate ? crateId : null);
@@ -529,7 +533,7 @@ public class GuiManager {
         placeholders.put("{total}", String.valueOf(history.size()));
         placeholders.put("{crate}", crateDisplayName);
 
-        placeFixedItemsWithPlaceholders(inventory, config, player, historyCrate, placeholders);
+        placeFixedItemsWithPlaceholders(inventory, config, player, historyCrate, placeholders, paginationState);
 
         // 放置历史记录
         List<Integer> contentSlots = config.getContentSlots();
@@ -937,6 +941,7 @@ public class GuiManager {
         int totalPages = Math.max(1,
                 (int) Math.ceil((double) ITEM_MATERIAL_OPTIONS.size() / itemsPerPage));
         int currentPage = Math.max(0, Math.min(page, totalPages - 1));
+        GuiPaginationState paginationState = new GuiPaginationState(currentPage, totalPages);
         Material current = crate.getObtainedRewardIcon().material();
 
         Map<String, String> placeholders = new HashMap<>();
@@ -949,9 +954,10 @@ public class GuiManager {
         holder.setData("edit_unique_draw", true);
         holder.setData("unique_icon_material_select", true);
         holder.setData("unique_icon_material_page", currentPage);
+        holder.setData("pagination_state", paginationState);
         Inventory inventory = createConfiguredInventory(
                 guiId, holder, "<!i><dark_gray>选择已获得图标材质", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
 
         int startIndex = currentPage * itemsPerPage;
         for (int index = 0; index < materialSlots.size(); index++) {
@@ -1151,6 +1157,7 @@ public class GuiManager {
         int itemsPerPage = Math.max(1, rewardSlots.size());
         int maxPage = Math.max(0, (rewards.size() - 1) / itemsPerPage);
         int currentPage = Math.max(0, Math.min(page, maxPage));
+        GuiPaginationState paginationState = new GuiPaginationState(currentPage, maxPage + 1);
         double totalChance = rewards.stream().mapToDouble(Reward::getChance).sum();
 
         Map<String, String> placeholders = new HashMap<>();
@@ -1163,8 +1170,9 @@ public class GuiManager {
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_REWARD_EDIT, crate);
         holder.setData("reward_manager", true);
         holder.setCurrentPage(currentPage);
+        holder.setData("pagination_state", paginationState);
         Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>奖励管理: {crate}", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
 
         int startIndex = currentPage * itemsPerPage;
         for (int i = 0; i < rewardSlots.size(); i++) {
@@ -1281,6 +1289,7 @@ public class GuiManager {
         int itemsPerPage = Math.max(1, materialSlots.size());
         int totalPages = Math.max(1, (int) Math.ceil((double) materials.size() / itemsPerPage));
         int currentPage = Math.max(0, Math.min(page, totalPages - 1));
+        GuiPaginationState paginationState = new GuiPaginationState(currentPage, totalPages);
         CrateParticleEffect effect = crate.getParticleEffect(stage);
         Material current = blockMode ? effect.getBlockMaterial() : effect.getItemMaterial();
 
@@ -1296,9 +1305,10 @@ public class GuiManager {
         holder.setData("particle_stage", stage.name());
         holder.setData("particle_material_key", blockMode ? "block" : "item");
         holder.setData("particle_material_page", currentPage);
+        holder.setData("pagination_state", paginationState);
         Inventory inventory = createConfiguredInventory(guiId, holder,
                 "<!i><dark_gray>选择{material_type}粒子材质", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
 
         int startIndex = currentPage * itemsPerPage;
         for (int i = 0; i < materialSlots.size(); i++) {
@@ -1328,6 +1338,13 @@ public class GuiManager {
     private void placeFixedItemsWithPlaceholders(Inventory inventory, GuiConfig config,
                                                   Player player, Crate crate,
                                                   Map<String, String> extraPlaceholders) {
+        placeFixedItemsWithPlaceholders(inventory, config, player, crate, extraPlaceholders, null);
+    }
+
+    private void placeFixedItemsWithPlaceholders(Inventory inventory, GuiConfig config,
+                                                  Player player, Crate crate,
+                                                  Map<String, String> extraPlaceholders,
+                                                  GuiPaginationState paginationState) {
         // 公共占位符只算一次：{keys} 触发全背包扫描，不能放进每个物品的循环里；
         // 调用方已算好的值（extraPlaceholders）优先，不再重复计算
         Map<String, String> placeholders = new HashMap<>(extraPlaceholders);
@@ -1346,26 +1363,27 @@ public class GuiManager {
         for (Map.Entry<Integer, GuiItem> entry : config.getItems().entrySet()) {
             int slot = entry.getKey();
             GuiItem guiItem = entry.getValue();
+            GuiItemDisplay display = GuiItemDisplayResolver.resolve(guiItem, paginationState);
 
-            String name = guiItem.getName();
-            List<String> lore = new ArrayList<>(guiItem.getLore());
+            String name = display.name();
+            List<String> lore = new ArrayList<>(display.lore());
 
             for (Map.Entry<String, String> ph : placeholders.entrySet()) {
                 name = name.replace(ph.getKey(), ph.getValue());
                 lore.replaceAll(line -> line.replace(ph.getKey(), ph.getValue()));
             }
 
-            ItemBuilder builder = new ItemBuilder(guiItem.getMaterial())
+            ItemBuilder builder = new ItemBuilder(display.material())
                     .name(name)
                     .lore(lore);
 
-            if (guiItem.getCustomModelData() > 0) {
-                builder.customModelData(guiItem.getCustomModelData());
+            if (display.customModelData() > 0) {
+                builder.customModelData(display.customModelData());
             }
-            if (guiItem.isGlow()) {
+            if (display.glow()) {
                 builder.glow(true);
             }
-            builder.itemModel(guiItem.getItemModel());
+            builder.itemModel(display.itemModel());
 
             inventory.setItem(slot, builder.build());
         }

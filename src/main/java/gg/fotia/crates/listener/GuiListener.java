@@ -10,6 +10,7 @@ import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.gui.CrateGuiHolder;
 import gg.fotia.crates.gui.GuiConfig;
 import gg.fotia.crates.gui.GuiItem;
+import gg.fotia.crates.gui.GuiPaginationState;
 import gg.fotia.crates.gui.GuiType;
 import gg.fotia.crates.gui.HistoryReturnContext;
 import gg.fotia.crates.gui.RewardEditContext;
@@ -718,6 +719,9 @@ public class GuiListener implements Listener {
                 48, "previous_page",
                 50, "next_page"
         ));
+        if (!isPaginationActionAvailable(holder, action)) {
+            return;
+        }
         if ("back".equals(action)) {
             plugin.getGuiManager().openUniqueDrawEditGui(player, crate);
             return;
@@ -874,6 +878,9 @@ public class GuiListener implements Listener {
                 48, "previous_page",
                 50, "next_page"
         ));
+        if (!isPaginationActionAvailable(holder, action)) {
+            return;
+        }
         if ("back".equals(action)) {
             plugin.getGuiManager().openParticleStageEditGui(player, crate, stage);
             return;
@@ -1428,6 +1435,9 @@ public class GuiListener implements Listener {
                 52, "balance_chances",
                 53, "add_reward"
         ));
+        if (!isPaginationActionAvailable(holder, action)) {
+            return;
+        }
         if (action != null) {
             slot = switch (action) {
                 case "back" -> 45;
@@ -1951,6 +1961,9 @@ public class GuiListener implements Listener {
     }
 
     private void handleAction(Player player, String action, String value, CrateGuiHolder holder) {
+        if (!isPaginationActionAvailable(holder, action)) {
+            return;
+        }
         switch (action.toLowerCase()) {
             case "close" -> player.closeInventory();
             case "open_gui" -> {
@@ -2105,6 +2118,11 @@ public class GuiListener implements Listener {
                 }
             }
         }
+    }
+
+    private boolean isPaginationActionAvailable(CrateGuiHolder holder, String action) {
+        GuiPaginationState paginationState = holder.getData("pagination_state");
+        return paginationState == null || paginationState.isActionAvailable(action);
     }
 
     private HistoryReturnContext historyReturnContext(CrateGuiHolder holder) {
