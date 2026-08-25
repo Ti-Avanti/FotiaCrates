@@ -5,6 +5,8 @@ import gg.fotia.crates.animation.AnimationTemplate;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.MultiOpenAmount;
 import gg.fotia.crates.crate.PreviewChanceDisplayMode;
+import gg.fotia.crates.crate.PreviewSortMode;
+import gg.fotia.crates.crate.RewardPreviewSorter;
 import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.crate.UniqueDrawSettings;
 import gg.fotia.crates.history.HistoryManager;
@@ -88,7 +90,8 @@ public class GuiManager {
         }
 
         List<Integer> contentSlots = config.getContentSlots();
-        List<Reward> rewards = crate.getRewards();
+        List<Reward> rewards = RewardPreviewSorter.sort(
+                crate.getRewards(), crate.getPreviewSortMode());
         Set<String> collectedRewardIds = crate.isUniqueDrawEnabled()
                 ? plugin.getAsyncPlayerDataManager().getCollectedRewardIds(
                         player.getUniqueId(), crate.getId())
@@ -252,6 +255,11 @@ public class GuiManager {
         placeholders.put("{chance_mode_percentage}", chanceModeLine(chanceMode, PreviewChanceDisplayMode.PERCENTAGE));
         placeholders.put("{chance_mode_weight}", chanceModeLine(chanceMode, PreviewChanceDisplayMode.WEIGHT));
         placeholders.put("{chance_mode_hidden}", chanceModeLine(chanceMode, PreviewChanceDisplayMode.HIDDEN));
+        PreviewSortMode sortMode = crate.getPreviewSortMode();
+        placeholders.put("{preview_sort_mode}", sortMode.getDisplayName());
+        placeholders.put("{sort_mode_config_order}", sortModeLine(sortMode, PreviewSortMode.CONFIG_ORDER));
+        placeholders.put("{sort_mode_weight_desc}", sortModeLine(sortMode, PreviewSortMode.WEIGHT_DESC));
+        placeholders.put("{sort_mode_weight_asc}", sortModeLine(sortMode, PreviewSortMode.WEIGHT_ASC));
         placeholders.put("{multi_open_enabled}", crate.isMultiOpenEnabled() ? "是" : "否");
         placeholders.put("{multi_open_max}", String.valueOf(crate.getMultiOpenMax()));
         placeholders.put("{unique_draw_enabled}", crate.isUniqueDrawEnabled() ? "是" : "否");
@@ -1436,6 +1444,11 @@ public class GuiManager {
     }
 
     private String chanceModeLine(PreviewChanceDisplayMode current, PreviewChanceDisplayMode option) {
+        String marker = current == option ? "<!i><green>▶ " : "<!i><dark_gray>  ";
+        return marker + option.getDisplayName();
+    }
+
+    private String sortModeLine(PreviewSortMode current, PreviewSortMode option) {
         String marker = current == option ? "<!i><green>▶ " : "<!i><dark_gray>  ";
         return marker + option.getDisplayName();
     }

@@ -50,6 +50,8 @@ preview:
   enabled: true
   # 玩家预览时显示的奖励数值: PERCENTAGE(百分比), WEIGHT(权重), HIDDEN(隐藏)
   chance-display: PERCENTAGE
+  # 奖励预览排序: CONFIG_ORDER(配置顺序), WEIGHT_DESC(权重从高到低), WEIGHT_ASC(权重从低到高)
+  sort-mode: CONFIG_ORDER
   # 旧版兼容项；未设置 chance-display 时使用
   show-chance: true
   title: "<!i><dark_gray>普通宝箱预览"

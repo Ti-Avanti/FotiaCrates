@@ -484,17 +484,28 @@ public class GuiConfigManager {
 
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
         List<String> lore = new ArrayList<>(config.getStringList("icons.M.display.lore"));
-        if (containsLine(lore, "{chance_mode_percentage}")) {
+        boolean changed = false;
+        if (!containsLine(lore, "{chance_mode_percentage}")) {
+            lore.removeIf(line -> line != null && line.contains("显示概率: {show_chance}"));
+            lore.add("<!i><gray>左键切换预览开关");
+            lore.add("<!i><gray>右键切换数值显示");
+            lore.add("");
+            lore.add("{chance_mode_percentage}");
+            lore.add("{chance_mode_weight}");
+            lore.add("{chance_mode_hidden}");
+            changed = true;
+        }
+        if (!containsLine(lore, "{sort_mode_config_order}")) {
+            lore.add("");
+            lore.add("<!i><gray>Shift+右键切换预览排序");
+            lore.add("{sort_mode_config_order}");
+            lore.add("{sort_mode_weight_desc}");
+            lore.add("{sort_mode_weight_asc}");
+            changed = true;
+        }
+        if (!changed) {
             return;
         }
-
-        lore.removeIf(line -> line != null && line.contains("显示概率: {show_chance}"));
-        lore.add("<!i><gray>左键切换预览开关");
-        lore.add("<!i><gray>右键切换数值显示");
-        lore.add("");
-        lore.add("{chance_mode_percentage}");
-        lore.add("{chance_mode_weight}");
-        lore.add("{chance_mode_hidden}");
         config.set("icons.M.display.lore", lore);
         saveMigratedGui(file, config, "admin_crate_edit");
     }

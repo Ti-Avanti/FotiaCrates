@@ -122,6 +122,11 @@ icons:
         - '{chance_mode_percentage}'
         - '{chance_mode_weight}'
         - '{chance_mode_hidden}'
+        - ''
+        - '<!i><gray>Shift+右键切换预览排序'
+        - '{sort_mode_config_order}'
+        - '{sort_mode_weight_desc}'
+        - '{sort_mode_weight_asc}'
     action: edit_preview
 
   'U':

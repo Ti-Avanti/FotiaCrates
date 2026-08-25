@@ -26,6 +26,7 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\KeyItemPr
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\GuiManager.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\RewardAutoDisplayPolicy.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\PreviewCommand.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\PreviewSortMode.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\distribution\KeyDistributionGrant.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\GuiType.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\PendingRewardManager.java
@@ -75,6 +76,7 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\distribut
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\MultiOpenPermissionContext.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\kr\toxicity\model\api\data\renderer\ModelRenderer.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\RewardEditContext.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\RewardPreviewSorter.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\AbstractReward.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\KeyItemConfig.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\AnimationManager.java

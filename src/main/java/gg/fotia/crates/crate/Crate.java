@@ -37,6 +37,7 @@ public class Crate {
     private final List<Reward> rewards;
     private final boolean previewEnabled;
     private final PreviewChanceDisplayMode previewChanceDisplayMode;
+    private final PreviewSortMode previewSortMode;
     private final String previewTitle;
     private final boolean animationEnabled;
     private final AnimationType animationType;
@@ -95,7 +96,8 @@ public class Crate {
                  int modelEngineOpenDelay, int modelEngineViewRange, double physicalAnimationHeight,
                  double hologramHeight, List<String> hologramLines,
                  List<Reward> rewards, boolean previewEnabled,
-                 PreviewChanceDisplayMode previewChanceDisplayMode, String previewTitle,
+                 PreviewChanceDisplayMode previewChanceDisplayMode, PreviewSortMode previewSortMode,
+                 String previewTitle,
                  boolean animationEnabled, AnimationType animationType, String animationTemplate,
                  int animationDuration,
                  String animationTitle, boolean physicalAnimationEnabled,
@@ -128,6 +130,9 @@ public class Crate {
         this.previewChanceDisplayMode = previewChanceDisplayMode != null
                 ? previewChanceDisplayMode
                 : PreviewChanceDisplayMode.PERCENTAGE;
+        this.previewSortMode = previewSortMode != null
+                ? previewSortMode
+                : PreviewSortMode.CONFIG_ORDER;
         this.previewTitle = previewTitle;
         this.animationEnabled = animationEnabled;
         this.animationType = animationType;
@@ -570,6 +575,7 @@ public class Crate {
     public boolean isPreviewEnabled() { return previewEnabled; }
     public boolean isShowChance() { return previewChanceDisplayMode != PreviewChanceDisplayMode.HIDDEN; }
     public PreviewChanceDisplayMode getPreviewChanceDisplayMode() { return previewChanceDisplayMode; }
+    public PreviewSortMode getPreviewSortMode() { return previewSortMode; }
     public String getPreviewTitle() { return previewTitle; }
     public boolean isAnimationEnabled() { return animationEnabled; }
     public AnimationType getAnimationType() { return animationType; }

@@ -14,6 +14,7 @@ gg\fotia\crates\data\HistoryWriteBuffer.class
 gg\fotia\crates\gui\GuiManager$InputSession.class
 gg\fotia\crates\crate\UniqueDrawSettings$ObtainedIcon.class
 gg\fotia\crates\key\distribution\PendingKeyDistributionGrants.class
+gg\fotia\crates\crate\RewardPreviewSorter.class
 kr\toxicity\model\api\platform\PlatformEntity.class
 gg\fotia\crates\key\distribution\KeyDistributionConfirmationStore.class
 gg\fotia\crates\gui\GuiItemDisplay.class
@@ -27,6 +28,7 @@ gg\fotia\crates\key\KeyItemProvider.class
 gg\fotia\crates\listener\GuiListener$RewardEditInput.class
 gg\fotia\crates\reward\RewardAutoDisplayPolicy.class
 gg\fotia\crates\key\distribution\KeyDistributionBatch.class
+gg\fotia\crates\crate\RewardPreviewSorter$1.class
 gg\fotia\crates\key\KeyItemFactory.class
 gg\fotia\crates\particle\ParticleManager$1.class
 gg\fotia\crates\reward\PendingRewardManager$ClaimProgress.class
@@ -171,6 +173,7 @@ gg\fotia\crates\crate\PreviewChanceDisplayMode.class
 gg\fotia\crates\listener\GuiListener.class
 gg\fotia\crates\reward\ExperienceReward.class
 gg\fotia\crates\data\PlayerDataCache$Snapshot.class
+gg\fotia\crates\crate\PreviewSortMode.class
 gg\fotia\crates\reward\AbstractReward.class
 gg\fotia\crates\key\distribution\KeyDistributionScope.class
 gg\fotia\crates\gui\GuiManager.class

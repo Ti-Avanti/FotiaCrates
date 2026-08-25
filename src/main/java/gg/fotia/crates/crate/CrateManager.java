@@ -118,6 +118,8 @@ public class CrateManager {
         boolean legacyShowChance = config.getBoolean("preview.show-chance", true);
         PreviewChanceDisplayMode previewChanceDisplayMode = PreviewChanceDisplayMode.fromConfig(
                 config.getString("preview.chance-display"), legacyShowChance);
+        PreviewSortMode previewSortMode = PreviewSortMode.fromConfig(
+                config.getString("preview.sort-mode"));
         String previewTitle = config.getString("preview.title", name + " Preview");
 
         boolean animationEnabled = config.getBoolean("animation.enabled",
@@ -211,7 +213,7 @@ public class CrateManager {
                 modelEngineOpenDelay, modelEngineViewRange, physicalAnimationHeight,
                 hologramHeight, hologramLines,
                 rewards,
-                previewEnabled, previewChanceDisplayMode, previewTitle,
+                previewEnabled, previewChanceDisplayMode, previewSortMode, previewTitle,
                 animationEnabled, animationType, animationTemplate, animationDuration,
                 animationTitle, physicalAnimationEnabled,
                 particlesEnabled, particleType, particleCount, particleEffects,
@@ -934,6 +936,22 @@ public class CrateManager {
         }
     }
 
+    public void cyclePreviewSortMode(String crateId) {
+        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
+        if (!file.exists()) return;
+
+        try {
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            PreviewSortMode current = PreviewSortMode.fromConfig(
+                    config.getString("preview.sort-mode"));
+            config.set("preview.sort-mode", current.next().name());
+            config.save(file);
+            reloadCrate(crateId);
+        } catch (java.io.IOException e) {
+            plugin.getLogger().severe("Failed to update preview sort mode: " + e.getMessage());
+        }
+    }
+
     public void toggleMultiOpenAnimation(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
         if (!file.exists()) return;
@@ -1279,6 +1297,7 @@ public class CrateManager {
             config.set("preview.enabled", true);
             config.set("preview.show-chance", true);
             config.set("preview.chance-display", PreviewChanceDisplayMode.PERCENTAGE.name());
+            config.set("preview.sort-mode", PreviewSortMode.CONFIG_ORDER.name());
             config.set("animation.enabled", true);
             config.set("animation.type", "ROULETTE");
             config.set("animation.template", "default");

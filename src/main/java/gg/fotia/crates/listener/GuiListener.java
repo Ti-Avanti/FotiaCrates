@@ -1033,7 +1033,9 @@ public class GuiListener implements Listener {
                 plugin.getGuiManager().openPityEditGui(player, crate);
             }
             case "edit_preview" -> {
-                if (event.isRightClick()) {
+                if (event.isShiftClick() && event.isRightClick()) {
+                    plugin.getCrateManager().cyclePreviewSortMode(crate.getId());
+                } else if (event.isRightClick()) {
                     plugin.getCrateManager().cyclePreviewChanceDisplayMode(crate.getId());
                 } else {
                     plugin.getCrateManager().togglePreview(crate.getId());
