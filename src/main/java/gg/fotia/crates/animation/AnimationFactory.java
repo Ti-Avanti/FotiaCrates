@@ -16,9 +16,10 @@ public final class AnimationFactory {
         }
         return switch (type) {
             case ROULETTE, CSGO, PHYSICAL -> new RouletteAnimation(plugin);
-            case TRIPLE_REEL -> new TripleReelAnimation(plugin);
-            case CARD_REVEAL -> new CardRevealAnimation(plugin);
+            case TRIPLE_REEL, CARD_REVEAL -> new CardRevealAnimation(plugin);
             case ORBITAL_CONVERGENCE -> new OrbitalConvergenceAnimation(plugin);
+            case VOID_RIFT -> new VoidRiftAnimation(plugin);
+            case METEOR_JUDGMENT -> new MeteorJudgmentAnimation(plugin);
             case INSTANT -> null;
         };
     }

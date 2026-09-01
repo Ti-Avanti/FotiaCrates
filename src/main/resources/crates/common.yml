@@ -76,8 +76,9 @@ animation:
   enabled: true
   # GUI动画模板，对应 guis/animations/<模板ID>.yml
   template: default
-  # 动画类型: ROULETTE(轮盘), TRIPLE_REEL(三轴老虎机), CARD_REVEAL(秘匣翻牌)
-  # ORBITAL_CONVERGENCE(星轨汇聚), INSTANT(即时)；CSGO/PHYSICAL 为旧版兼容值
+  # 动画类型: ROULETTE(轮盘), CARD_REVEAL(动态翻牌), ORBITAL_CONVERGENCE(星轨汇聚)
+  # VOID_RIFT(虚空裂隙), METEOR_JUDGMENT(流星裁决), INSTANT(即时)
+  # CSGO/PHYSICAL/TRIPLE_REEL 为旧版兼容值，TRIPLE_REEL 会自动迁移为 CARD_REVEAL
   type: ROULETTE
   # 持续时间(秒)
   duration: 3
@@ -187,7 +188,7 @@ multi-open:
   enabled: true
   # 最大连抽数量
   max: 10
-  # 多连抽时仅播放首抽动画，随后直接展示全部结果
+  # 翻牌动画逐张揭示整批奖励，其他动画展示首抽，结束后显示全部结果
   animation:
     enabled: false
 

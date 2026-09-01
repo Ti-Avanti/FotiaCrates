@@ -1,0 +1,40 @@
+# 流星裁决世界动画模板
+animation-type: METEOR_JUDGMENT
+display-name: "<!i><gold>流星裁决"
+selector:
+  material: FIRE_CHARGE
+  name: "<!i><gold>{template}"
+  lore:
+    - "<!i><gray>模板ID: <!i><white>{template_id}"
+    - "<!i><gray>诱饵流星落空，金色流星揭晓奖励"
+    - ""
+    - "{selected_line}"
+
+# 世界动画不会打开此GUI，保留布局用于模板解析
+title: "<!i><gold>流星裁决"
+layout:
+  - "#########"
+  - "####I####"
+  - "#########"
+icons:
+  '#':
+    display:
+      material: BLACK_STAINED_GLASS_PANE
+      name: " "
+  'I':
+    display:
+      material: FIRE_CHARGE
+      name: "<!i><gold>最终流星"
+animation-slots: []
+center-slot: -1
+
+meteor:
+  # 流星起点高度、散布范围、落点范围与最终奖励悬浮高度
+  sky-height: 6.0
+  spread-radius: 4.0
+  impact-radius: 2.2
+  result-height: 1.45
+  decoy-count: 4
+  stagger-ticks: 7
+  fall-ticks: 18
+  trail-particle-count: 3

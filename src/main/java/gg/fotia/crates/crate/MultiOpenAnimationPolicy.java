@@ -1,14 +1,14 @@
 package gg.fotia.crates.crate;
 
 /**
- * Multi-open animations intentionally show only the first confirmed result.
+ * Determines whether a prepared multi-open batch should enter the animation pipeline.
  */
 public final class MultiOpenAnimationPolicy {
 
     private MultiOpenAnimationPolicy() {
     }
 
-    public static boolean shouldPlayFirstDrawAnimation(boolean enabled, int preparedRewardCount) {
+    public static boolean shouldPlayAnimation(boolean enabled, int preparedRewardCount) {
         return enabled && preparedRewardCount > 1;
     }
 }

@@ -35,26 +35,17 @@ items:
       - ""
       - "{animation_roulette_state}"
     action: select_roulette
-  triple_reel:
-    slot: 21
-    material: GOLD_INGOT
-    name: "<!i><gold>三轴老虎机"
-    lore:
-      - "<!i><gray>三列奖励依次减速停止"
-      - ""
-      - "{animation_triple_reel_state}"
-    action: select_triple_reel
   card_reveal:
-    slot: 23
+    slot: 21
     material: PAPER
     name: "<!i><light_purple>秘匣翻牌"
     lore:
-      - "<!i><gray>九宫格卡牌逐张揭示"
+      - "<!i><gray>随机卡牌闪烁奖池后由玩家选择"
       - ""
       - "{animation_card_reveal_state}"
     action: select_card_reveal
   orbital_convergence:
-    slot: 25
+    slot: 23
     material: END_CRYSTAL
     name: "<!i><aqua>星轨汇聚"
     lore:
@@ -62,8 +53,26 @@ items:
       - ""
       - "{animation_orbital_state}"
     action: select_orbital_convergence
-  instant:
+  void_rift:
+    slot: 25
+    material: ENDER_EYE
+    name: "<!i><dark_aqua>虚空裂隙"
+    lore:
+      - "<!i><gray>候选奖励被裂隙吸入，中奖物品降临"
+      - ""
+      - "{animation_void_rift_state}"
+    action: select_void_rift
+  meteor_judgment:
     slot: 28
+    material: FIRE_CHARGE
+    name: "<!i><gold>流星裁决"
+    lore:
+      - "<!i><gray>诱饵流星落空，金色流星揭晓奖励"
+      - ""
+      - "{animation_meteor_state}"
+    action: select_meteor_judgment
+  instant:
+    slot: 30
     material: FEATHER
     name: "<!i><white>无动画"
     lore:
@@ -81,7 +90,7 @@ items:
       - "<!i><yellow>点击切换"
     action: toggle_physical_animation
   physical_height:
-    slot: 30
+    slot: 34
     material: LADDER
     name: "<!i><aqua>物理动画高度: {physical_animation_height}"
     lore:
@@ -105,12 +114,12 @@ items:
       - "<!i><yellow>点击播放"
     action: preview_animation
   info:
-    slot: 34
+    slot: 39
     material: BOOK
     name: "<!i><gold>动画说明"
     lore:
       - "<!i><gray>GUI动画和物理动画可以同时启用"
-      - "<!i><gray>星轨动画使用玩家独立展示实体"
+      - "<!i><gray>世界动画使用玩家独立展示实体"
   back:
     slot: 36
     material: ARROW

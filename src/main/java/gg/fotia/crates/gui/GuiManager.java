@@ -748,9 +748,10 @@ public class GuiManager {
         placeholders.put("{animation_duration}", String.valueOf(crate.getAnimationDuration()));
         AnimationType currentType = crate.getAnimationType();
         placeholders.put("{animation_roulette_state}", animationTypeState(currentType, AnimationType.ROULETTE));
-        placeholders.put("{animation_triple_reel_state}", animationTypeState(currentType, AnimationType.TRIPLE_REEL));
         placeholders.put("{animation_card_reveal_state}", animationTypeState(currentType, AnimationType.CARD_REVEAL));
         placeholders.put("{animation_orbital_state}", animationTypeState(currentType, AnimationType.ORBITAL_CONVERGENCE));
+        placeholders.put("{animation_void_rift_state}", animationTypeState(currentType, AnimationType.VOID_RIFT));
+        placeholders.put("{animation_meteor_state}", animationTypeState(currentType, AnimationType.METEOR_JUDGMENT));
         placeholders.put("{animation_instant_state}", animationTypeState(currentType, AnimationType.INSTANT));
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
@@ -1711,27 +1712,16 @@ public class GuiManager {
                 .build();
         inventory.setItem(19, roulette);
 
-        ItemStack tripleReel = new ItemBuilder(Material.GOLD_INGOT)
-                .name("<!i><gold>三轴老虎机 (TRIPLE_REEL)")
-                .lore(List.of(
-                        "<!i><gray>三列奖励依次减速停止",
-                        "",
-                        animationTypeState(currentType, AnimationType.TRIPLE_REEL)
-                ))
-                .glow(currentType == AnimationType.TRIPLE_REEL)
-                .build();
-        inventory.setItem(21, tripleReel);
-
         ItemStack cardReveal = new ItemBuilder(Material.PAPER)
                 .name("<!i><light_purple>秘匣翻牌 (CARD_REVEAL)")
                 .lore(List.of(
-                        "<!i><gray>九宫格卡牌逐张揭示",
+                        "<!i><gray>随机卡牌闪烁奖池后由玩家选择",
                         "",
                         animationTypeState(currentType, AnimationType.CARD_REVEAL)
                 ))
                 .glow(currentType == AnimationType.CARD_REVEAL)
                 .build();
-        inventory.setItem(23, cardReveal);
+        inventory.setItem(21, cardReveal);
 
         ItemStack orbital = new ItemBuilder(Material.END_CRYSTAL)
                 .name("<!i><aqua>星轨汇聚 (ORBITAL_CONVERGENCE)")
@@ -1742,7 +1732,29 @@ public class GuiManager {
                 ))
                 .glow(currentType == AnimationType.ORBITAL_CONVERGENCE)
                 .build();
-        inventory.setItem(25, orbital);
+        inventory.setItem(23, orbital);
+
+        ItemStack voidRift = new ItemBuilder(Material.ENDER_EYE)
+                .name("<!i><dark_aqua>虚空裂隙 (VOID_RIFT)")
+                .lore(List.of(
+                        "<!i><gray>候选奖励被裂隙吸入，中奖物品降临",
+                        "",
+                        animationTypeState(currentType, AnimationType.VOID_RIFT)
+                ))
+                .glow(currentType == AnimationType.VOID_RIFT)
+                .build();
+        inventory.setItem(25, voidRift);
+
+        ItemStack meteor = new ItemBuilder(Material.FIRE_CHARGE)
+                .name("<!i><gold>流星裁决 (METEOR_JUDGMENT)")
+                .lore(List.of(
+                        "<!i><gray>诱饵流星落空，金色流星揭晓奖励",
+                        "",
+                        animationTypeState(currentType, AnimationType.METEOR_JUDGMENT)
+                ))
+                .glow(currentType == AnimationType.METEOR_JUDGMENT)
+                .build();
+        inventory.setItem(28, meteor);
 
         // 无动画
         ItemStack instant = new ItemBuilder(Material.FEATHER)
@@ -1754,7 +1766,7 @@ public class GuiManager {
                 ))
                 .glow(currentType == gg.fotia.crates.animation.AnimationType.INSTANT)
                 .build();
-        inventory.setItem(28, instant);
+        inventory.setItem(30, instant);
 
         // ===== 物理动画开关 =====
         boolean physicalAnimEnabled = crate.isPhysicalAnimationEnabled();
@@ -1779,7 +1791,7 @@ public class GuiManager {
                         "<!i><yellow>右键 -0.1"
                 ))
                 .build();
-        inventory.setItem(30, heightSetting);
+        inventory.setItem(34, heightSetting);
 
         // ===== 动画时长设置 =====
         ItemStack durationSetting = new ItemBuilder(Material.CLOCK)
@@ -1817,7 +1829,7 @@ public class GuiManager {
                         "<!i><yellow>两者同时开启时会同步播放"
                 ))
                 .build();
-        inventory.setItem(34, info);
+        inventory.setItem(39, info);
 
         player.openInventory(inventory);
     }

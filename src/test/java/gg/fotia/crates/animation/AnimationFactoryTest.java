@@ -13,10 +13,13 @@ class AnimationFactoryTest {
 
         assertInstanceOf(RouletteAnimation.class, factory.create(AnimationType.ROULETTE));
         assertInstanceOf(RouletteAnimation.class, factory.create(AnimationType.CSGO));
-        assertInstanceOf(TripleReelAnimation.class, factory.create(AnimationType.TRIPLE_REEL));
+        assertInstanceOf(CardRevealAnimation.class, factory.create(AnimationType.TRIPLE_REEL));
         assertInstanceOf(CardRevealAnimation.class, factory.create(AnimationType.CARD_REVEAL));
         assertInstanceOf(OrbitalConvergenceAnimation.class,
                 factory.create(AnimationType.ORBITAL_CONVERGENCE));
+        assertInstanceOf(VoidRiftAnimation.class, factory.create(AnimationType.VOID_RIFT));
+        assertInstanceOf(MeteorJudgmentAnimation.class,
+                factory.create(AnimationType.METEOR_JUDGMENT));
         assertNull(factory.create(AnimationType.INSTANT));
     }
 }

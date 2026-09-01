@@ -6,17 +6,17 @@ selector:
   name: "<!i><light_purple>{template}"
   lore:
     - "<!i><gray>模板ID: <!i><white>{template_id}"
-    - "<!i><gray>九宫格卡牌逐张揭示"
+    - "<!i><gray>随机卡牌闪烁奖池后由玩家选择"
     - ""
     - "{selected_line}"
 
 title: "<!i><dark_purple>神秘卡牌"
 
 layout:
-  - "#########"
-  - "#A#A#A###"
-  - "#A##A##A#"
-  - "#A#A#A###"
+  - "####S####"
+  - "#AAAAAAA#"
+  - "#AAAAAAA#"
+  - "#AAAAAAA#"
   - "#########"
 
 icons:
@@ -24,13 +24,38 @@ icons:
     display:
       material: BLACK_STAINED_GLASS_PANE
       name: " "
+  'S':
+    display:
+      material: NETHER_STAR
+      name: "<!i><gold>奖池闪烁"
+      lore:
+        - "<!i><gray>卡牌闪烁结束后选择一张揭晓奖励"
   'A':
     content: true
 
-animation-slots: [10, 12, 14, 19, 22, 25, 28, 30, 32]
+animation-slots: [10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34]
 center-slot: 22
 
 card-reveal:
   back-material: PURPLE_STAINED_GLASS_PANE
   back-name: "<!i><light_purple>神秘奖励"
+  # 每轮从 animation-slots 随机选择的卡牌数量
+  card-count: 15
+  # 闪烁会至少遍历完整奖池一次，并保证不少于指定时长
+  flicker-interval-ticks: 3
+  flicker-min-cycles: 1
+  flicker-min-ticks: 40
+  # 停止闪烁后，等待多久允许玩家选择
+  cover-delay-ticks: 10
+  # 超时后自动逐张翻开，避免玩家卡住开箱流程
   reveal-interval-ticks: 5
+  # 玩家选择超时、跨页和结果停留时长
+  selection-timeout-ticks: 300
+  page-transition-ticks: 20
+  result-hold-ticks: 40
+  status-slot: 4
+  status:
+    flicker-name: "<!i><gold>奖池闪烁中..."
+    cover-name: "<!i><light_purple>秘匣封牌中..."
+    select-name: "<!i><green>请选择卡牌 <!i><gray>({revealed}/{total})"
+    complete-name: "<!i><gold>全部奖励已揭晓"

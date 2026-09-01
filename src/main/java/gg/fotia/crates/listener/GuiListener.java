@@ -103,7 +103,9 @@ public class GuiListener implements Listener {
             case ADMIN_KEYS -> handleKeysClick(event, player, holder);
             case ADMIN_KEY_EDIT -> handleKeyEditClick(event, player, holder);
             case HISTORY -> handleHistoryClick(event, player, holder);
-            case ANIMATION, MAIN_MENU, MULTI_OPEN_RESULT -> {} // 动画和结果GUI不处理点击
+            case ANIMATION -> plugin.getAnimationManager()
+                    .handleInventoryClick(player, event.getRawSlot());
+            case MAIN_MENU, MULTI_OPEN_RESULT -> {}
         }
     }
 
@@ -345,12 +347,13 @@ public class GuiListener implements Listener {
                 Map.entry(14, "adjust_animation_duration"),
                 Map.entry(16, "toggle_physical_animation"),
                 Map.entry(19, "select_roulette"),
-                Map.entry(21, "select_triple_reel"),
-                Map.entry(23, "select_card_reveal"),
-                Map.entry(25, "select_orbital_convergence"),
-                Map.entry(28, "select_instant"),
-                Map.entry(30, "adjust_physical_height"),
-                Map.entry(32, "preview_animation")
+                Map.entry(21, "select_card_reveal"),
+                Map.entry(23, "select_orbital_convergence"),
+                Map.entry(25, "select_void_rift"),
+                Map.entry(28, "select_meteor_judgment"),
+                Map.entry(30, "select_instant"),
+                Map.entry(32, "preview_animation"),
+                Map.entry(34, "adjust_physical_height")
         ));
         if (action == null) return;
 

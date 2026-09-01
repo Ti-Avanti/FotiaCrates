@@ -4,9 +4,11 @@ import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.animation.AnimationTemplate;
 import gg.fotia.crates.animation.AnimationTemplateSelection;
 import gg.fotia.crates.animation.AnimationType;
+import gg.fotia.crates.animation.AnimationSlotResolver;
 import gg.fotia.crates.animation.CardAnimationSettings;
+import gg.fotia.crates.animation.MeteorAnimationSettings;
 import gg.fotia.crates.animation.OrbitalAnimationSettings;
-import gg.fotia.crates.animation.TripleReelAnimationSettings;
+import gg.fotia.crates.animation.VoidRiftAnimationSettings;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -125,7 +127,8 @@ public class GuiConfigManager {
         ensureDefaultAnimationTemplateMetadata(defaultTemplate);
 
         for (String fileName : List.of(
-                "golden.yml", "triple-reel.yml", "card-reveal.yml", "orbital.yml")) {
+                "golden.yml", "card-reveal.yml", "orbital.yml",
+                "void-rift.yml", "meteor.yml")) {
             File templateFile = new File(templatesFolder, fileName);
             if (!templateFile.exists()) {
                 try {
@@ -136,6 +139,111 @@ public class GuiConfigManager {
                 }
             }
         }
+        migrateBuiltInAnimationTemplates(templatesFolder);
+    }
+
+    private void migrateBuiltInAnimationTemplates(File templatesFolder) {
+        migrateCardRevealTemplate(new File(templatesFolder, "card-reveal.yml"));
+    }
+
+    private void migrateCardRevealTemplate(File file) {
+        if (!file.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        boolean changed = false;
+        List<String> oldLayout = List.of(
+                "#########", "#A#A#A###", "#A##A##A#", "#A#A#A###", "#########");
+        List<Integer> oldSlots = List.of(10, 12, 14, 19, 22, 25, 28, 30, 32);
+        if (oldLayout.equals(config.getStringList("layout"))
+                && oldSlots.equals(config.getIntegerList("animation-slots"))) {
+            config.set("layout", List.of(
+                    "####S####", "#AAAAAAA#", "#AAAAAAA#", "#AAAAAAA#", "#########"));
+            config.set("icons.S.display.material", "NETHER_STAR");
+            config.set("icons.S.display.name", "<!i><gold>奖池展示");
+            config.set("icons.S.display.lore",
+                    List.of("<!i><gray>展示结束后点击牌背揭晓奖励"));
+            config.set("animation-slots", List.of(
+                    10, 11, 12, 13, 14, 15, 16,
+                    19, 20, 21, 22, 23, 24, 25,
+                    28, 29, 30, 31, 32, 33, 34));
+            changed = true;
+        }
+        if ("<!i><gold>奖池展示".equals(config.getString("icons.S.display.name"))) {
+            config.set("icons.S.display.name", "<!i><gold>奖池闪烁");
+            config.set("icons.S.display.lore",
+                    List.of("<!i><gray>卡牌闪烁结束后选择一张揭晓奖励"));
+            changed = true;
+        }
+        int legacyShowcaseTicks = config.getInt("card-reveal.showcase-page-ticks", 20);
+        int legacyShuffleTicks = config.getInt("card-reveal.shuffle-ticks", 30);
+        String legacyFlickerStatus = config.getString("card-reveal.status.showcase-name",
+                "<!i><gold>奖池闪烁中...");
+        String legacyCoverStatus = config.getString("card-reveal.status.shuffle-name",
+                "<!i><light_purple>秘匣封牌中...");
+        boolean legacyBuiltInDefaults = legacyShowcaseTicks == 20 && legacyShuffleTicks == 30;
+        if ("<!i><gold>奖池展示".equals(legacyFlickerStatus)) {
+            legacyFlickerStatus = "<!i><gold>奖池闪烁中...";
+        }
+        if ("<!i><light_purple>秘匣洗牌中...".equals(legacyCoverStatus)) {
+            legacyCoverStatus = "<!i><light_purple>秘匣封牌中...";
+        }
+        boolean previousMigrationDefaults = config.getInt(
+                "card-reveal.flicker-min-ticks", -1) == 50
+                && config.getInt("card-reveal.cover-delay-ticks", -1) == 30
+                && "<!i><gold>奖池展示".equals(config.getString(
+                "card-reveal.status.flicker-name"))
+                && "<!i><light_purple>秘匣洗牌中...".equals(config.getString(
+                "card-reveal.status.cover-name"));
+        if (previousMigrationDefaults) {
+            config.set("card-reveal.flicker-min-ticks", 40);
+            config.set("card-reveal.cover-delay-ticks", 10);
+            config.set("card-reveal.status.flicker-name", "<!i><gold>奖池闪烁中...");
+            config.set("card-reveal.status.cover-name", "<!i><light_purple>秘匣封牌中...");
+            changed = true;
+        }
+        changed |= setIfMissing(config, "card-reveal.card-count", 15);
+        changed |= setIfMissing(config, "card-reveal.flicker-interval-ticks", 3);
+        changed |= setIfMissing(config, "card-reveal.flicker-min-cycles", 1);
+        changed |= setIfMissing(config, "card-reveal.flicker-min-ticks",
+                legacyBuiltInDefaults ? 40 : Math.max(10, legacyShowcaseTicks + legacyShuffleTicks));
+        changed |= setIfMissing(config, "card-reveal.cover-delay-ticks",
+                legacyBuiltInDefaults ? 10 : Math.max(1, Math.min(100, legacyShuffleTicks)));
+        changed |= setIfMissing(config, "card-reveal.selection-timeout-ticks", 300);
+        changed |= setIfMissing(config, "card-reveal.page-transition-ticks", 20);
+        changed |= setIfMissing(config, "card-reveal.result-hold-ticks", 40);
+        changed |= setIfMissing(config, "card-reveal.status-slot", 4);
+        changed |= setIfMissing(config, "card-reveal.status.flicker-name",
+                legacyFlickerStatus);
+        changed |= setIfMissing(config, "card-reveal.status.cover-name",
+                legacyCoverStatus);
+        changed |= setIfMissing(config, "card-reveal.status.select-name",
+                "<!i><green>请选择卡牌 <!i><gray>({revealed}/{total})");
+        changed |= setIfMissing(config, "card-reveal.status.complete-name",
+                "<!i><gold>全部奖励已揭晓");
+        changed |= removeIfPresent(config, "card-reveal.showcase-page-ticks");
+        changed |= removeIfPresent(config, "card-reveal.shuffle-ticks");
+        changed |= removeIfPresent(config, "card-reveal.status.showcase-name");
+        changed |= removeIfPresent(config, "card-reveal.status.shuffle-name");
+        if (changed) {
+            saveMigratedGui(file, config, "animations/card-reveal");
+        }
+    }
+
+    private boolean setIfMissing(YamlConfiguration config, String path, Object value) {
+        if (config.contains(path)) {
+            return false;
+        }
+        config.set(path, value);
+        return true;
+    }
+
+    private boolean removeIfPresent(YamlConfiguration config, String path) {
+        if (!config.contains(path)) {
+            return false;
+        }
+        config.set(path, null);
+        return true;
     }
 
     private void ensureDefaultAnimationTemplateMetadata(File defaultTemplate) {
@@ -183,6 +291,12 @@ public class GuiConfigManager {
                 }
                 AnimationType animationType = parseAnimationType(
                         raw.getString("animation-type", "ROULETTE"));
+                if (animationType == AnimationType.TRIPLE_REEL) {
+                    plugin.getLogger().warning("Ignoring removed TRIPLE_REEL animation template: "
+                            + id);
+                    continue;
+                }
+                warnInvalidAnimationSlots(id, animationType, guiConfig);
                 AnimationTemplate template = new AnimationTemplate(
                         id,
                         animationType,
@@ -195,18 +309,35 @@ public class GuiConfigManager {
                                 raw.getString("selector.item_model", "")),
                         raw.getBoolean("selector.glow", false),
                         guiConfig,
-                        TripleReelAnimationSettings.from(
-                                raw.getConfigurationSection("triple-reel")),
                         CardAnimationSettings.from(
                                 raw.getConfigurationSection("card-reveal")),
                         OrbitalAnimationSettings.from(
-                                raw.getConfigurationSection("orbit"))
+                                raw.getConfigurationSection("orbit")),
+                        VoidRiftAnimationSettings.from(
+                                raw.getConfigurationSection("void-rift")),
+                        MeteorAnimationSettings.from(
+                                raw.getConfigurationSection("meteor"))
                 );
                 animationTemplates.put(id, template);
             } catch (RuntimeException exception) {
                 plugin.getLogger().warning("Failed to load animation template " + id
                         + ": " + exception.getMessage());
             }
+        }
+    }
+
+    private void warnInvalidAnimationSlots(String templateId, AnimationType animationType,
+                                           GuiConfig guiConfig) {
+        AnimationSlotResolver.Resolution resolution;
+        if (animationType == AnimationType.CARD_REVEAL) {
+            resolution = AnimationSlotResolver.forCards(
+                    guiConfig.getAnimationSlots(), guiConfig.getSize(), List.of(10));
+        } else {
+            return;
+        }
+        if (resolution.usedFallback()) {
+            plugin.getLogger().warning("Animation template " + templateId + " "
+                    + resolution.problem() + "; using built-in fallback slots.");
         }
     }
 
@@ -318,6 +449,22 @@ public class GuiConfigManager {
         migrateAnimationTemplateEditorGui(guisFolder);
         migrateAnimationTypeSelectorGui(guisFolder);
         migratePaginationButtonDisplays(guisFolder);
+        migrateAdminLayoutWidth(guisFolder);
+    }
+
+    private void migrateAdminLayoutWidth(File guisFolder) {
+        File file = new File(guisFolder, "admin.yml");
+        if (!file.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        List<String> layout = new ArrayList<>(config.getStringList("layout"));
+        if (layout.size() < 6 || !"#N#K#S#R#X".equals(layout.get(5))) {
+            return;
+        }
+        layout.set(5, "#N#K#S#RX");
+        config.set("layout", layout);
+        saveMigratedGui(file, config, "admin");
     }
 
     private void migrateAnimationTypeSelectorGui(File guisFolder) {
@@ -355,15 +502,31 @@ public class GuiConfigManager {
             changed = true;
         }
 
-        changed |= addAnimationTypeItem(config, "triple_reel", 21, "GOLD_INGOT",
-                "<!i><gold>三轴老虎机", "<!i><gray>三列奖励依次减速停止",
-                "{animation_triple_reel_state}", "select_triple_reel");
-        changed |= addAnimationTypeItem(config, "card_reveal", 23, "PAPER",
-                "<!i><light_purple>秘匣翻牌", "<!i><gray>九宫格卡牌逐张揭示",
+        changed |= removeAnimationItem(config, "triple_reel", "select_triple_reel");
+        changed |= moveAnimationItem(config, "info", 34, 39);
+        changed |= moveAnimationItem(config, "physical_height", 30, 34);
+        changed |= moveAnimationItem(config, "instant", 28, 30);
+        changed |= moveAnimationItem(config, "card_reveal", 23, 21);
+        changed |= moveAnimationItem(config, "orbital_convergence", 25, 23);
+        changed |= replaceKnownLoreLine(config, "items.card_reveal.lore",
+                "<!i><gray>九宫格卡牌逐张揭示",
+                "<!i><gray>随机卡牌闪烁奖池后由玩家选择");
+        changed |= replaceKnownLoreLine(config, "items.info.lore",
+                "<!i><gray>星轨动画使用玩家独立展示实体",
+                "<!i><gray>世界动画使用玩家独立展示实体");
+
+        changed |= addAnimationTypeItem(config, "card_reveal", 21, "PAPER",
+                "<!i><light_purple>秘匣翻牌", "<!i><gray>随机卡牌闪烁奖池后由玩家选择",
                 "{animation_card_reveal_state}", "select_card_reveal");
-        changed |= addAnimationTypeItem(config, "orbital_convergence", 25, "END_CRYSTAL",
+        changed |= addAnimationTypeItem(config, "orbital_convergence", 23, "END_CRYSTAL",
                 "<!i><aqua>星轨汇聚", "<!i><gray>奖励围绕宝箱旋转并收束",
                 "{animation_orbital_state}", "select_orbital_convergence");
+        changed |= addAnimationTypeItem(config, "void_rift", 25, "ENDER_EYE",
+                "<!i><dark_aqua>虚空裂隙", "<!i><gray>候选奖励被裂隙吸入，中奖物品降临",
+                "{animation_void_rift_state}", "select_void_rift");
+        changed |= addAnimationTypeItem(config, "meteor_judgment", 28, "FIRE_CHARGE",
+                "<!i><gold>流星裁决", "<!i><gray>诱饵流星落空，金色流星揭晓奖励",
+                "{animation_meteor_state}", "select_meteor_judgment");
         if (!config.contains("items.preview")) {
             int slot = findAvailableAnimationSlot(config, 32);
             if (slot >= 0) {
@@ -402,6 +565,55 @@ public class GuiConfigManager {
         return true;
     }
 
+    private boolean removeAnimationItem(YamlConfiguration config, String key, String action) {
+        String path = "items." + key;
+        if (!action.equalsIgnoreCase(config.getString(path + ".action", ""))) {
+            return false;
+        }
+        config.set(path, null);
+        return true;
+    }
+
+    private boolean replaceKnownLoreLine(YamlConfiguration config, String path,
+                                         String oldLine, String newLine) {
+        List<String> lore = new ArrayList<>(config.getStringList(path));
+        int index = lore.indexOf(oldLine);
+        if (index < 0) {
+            return false;
+        }
+        lore.set(index, newLine);
+        config.set(path, lore);
+        return true;
+    }
+
+    private boolean moveAnimationItem(YamlConfiguration config, String key,
+                                      int oldSlot, int newSlot) {
+        String path = "items." + key;
+        if (!config.contains(path) || config.getInt(path + ".slot", -1) != oldSlot
+                || isAnimationSlotOccupied(config, newSlot, key)) {
+            return false;
+        }
+        config.set(path + ".slot", newSlot);
+        return true;
+    }
+
+    private boolean isAnimationSlotOccupied(YamlConfiguration config, int slot, String ignoredKey) {
+        ConfigurationSection items = config.getConfigurationSection("items");
+        if (items == null) {
+            return false;
+        }
+        for (String key : items.getKeys(false)) {
+            if (key.equals(ignoredKey)) {
+                continue;
+            }
+            ConfigurationSection item = items.getConfigurationSection(key);
+            if (item != null && item.getInt("slot", -1) == slot) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private int findAvailableAnimationSlot(YamlConfiguration config, int preferredSlot) {
         Set<Integer> occupied = new HashSet<>();
         ConfigurationSection items = config.getConfigurationSection("items");
@@ -416,7 +628,8 @@ public class GuiConfigManager {
         if (!occupied.contains(preferredSlot)) {
             return preferredSlot;
         }
-        for (int candidate : List.of(19, 21, 23, 25, 28, 30, 32, 34, 11, 13, 15)) {
+        for (int candidate : List.of(
+                19, 21, 23, 25, 28, 30, 32, 34, 37, 39, 41, 43, 11, 13, 15)) {
             if (!occupied.contains(candidate)) {
                 return candidate;
             }
@@ -673,15 +886,37 @@ public class GuiConfigManager {
 
         YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
         if (config.contains("items.animation")) {
+            boolean changed = false;
+            String currentName = config.getString("items.animation.name", "");
+            if (currentName.contains("十连首抽动画")) {
+                config.set("items.animation.name",
+                        "<!i><aqua>多连抽动画: {multi_open_animation_enabled}");
+                changed = true;
+            }
+            List<String> lore = config.getStringList("items.animation.lore");
+            if (lore.stream().anyMatch(line -> line.contains("只播放第一抽动画"))) {
+                config.set("items.animation.lore", List.of(
+                        "<!i><gray>翻牌动画会逐张揭示整批奖励",
+                        "<!i><gray>其他动画仅展示第一抽",
+                        "<!i><gray>动画结束后显示全部结果",
+                        "",
+                        "<!i><yellow>点击切换"
+                ));
+                changed = true;
+            }
+            if (changed) {
+                saveMigratedGui(file, config, "admin_multi_open_edit");
+            }
             return;
         }
 
         config.set("items.animation.slot", 13);
         config.set("items.animation.material", "FIREWORK_ROCKET");
-        config.set("items.animation.name", "<!i><aqua>十连首抽动画: {multi_open_animation_enabled}");
+        config.set("items.animation.name", "<!i><aqua>多连抽动画: {multi_open_animation_enabled}");
         config.set("items.animation.lore", List.of(
-                "<!i><gray>开启后只播放第一抽动画",
-                "<!i><gray>随后立即展示全部抽奖结果",
+                "<!i><gray>翻牌动画会逐张揭示整批奖励",
+                "<!i><gray>其他动画仅展示第一抽",
+                "<!i><gray>动画结束后显示全部结果",
                 "",
                 "<!i><yellow>点击切换"
         ));
@@ -738,6 +973,12 @@ public class GuiConfigManager {
 
         // 检查是否使用Layout布局
         List<String> layout = config.getStringList("layout");
+        List<Integer> invalidLayoutRows = GuiLayoutValidator.invalidRows(layout);
+        if (!invalidLayoutRows.isEmpty()) {
+            plugin.getLogger().warning("GUI config " + id
+                    + " has layout rows that are not 9 characters wide: "
+                    + invalidLayoutRows.stream().map(row -> String.valueOf(row + 1)).toList());
+        }
 
         Map<Integer, GuiItem> items = new HashMap<>();
         List<Integer> contentSlots = new ArrayList<>();

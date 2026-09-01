@@ -29,15 +29,17 @@ class AnimationTemplateSelectionTest {
         Map<String, AnimationType> templates = Map.of(
                 "default", AnimationType.ROULETTE,
                 "golden", AnimationType.ROULETTE,
-                "triple-reel", AnimationType.TRIPLE_REEL,
-                "card-reveal", AnimationType.CARD_REVEAL
+                "card-reveal", AnimationType.CARD_REVEAL,
+                "void-rift", AnimationType.VOID_RIFT
         );
 
-        assertEquals("triple-reel", AnimationTemplateSelection.resolve(
+        assertEquals("card-reveal", AnimationTemplateSelection.resolve(
                 "golden", templates, AnimationType.TRIPLE_REEL));
         assertEquals("golden", AnimationTemplateSelection.resolve(
                 "golden", templates, AnimationType.CSGO));
         assertEquals("default", AnimationTemplateSelection.resolve(
                 "missing", templates, AnimationType.ORBITAL_CONVERGENCE));
+        assertEquals("void-rift", AnimationTemplateSelection.resolve(
+                "missing", templates, AnimationType.VOID_RIFT));
     }
 }

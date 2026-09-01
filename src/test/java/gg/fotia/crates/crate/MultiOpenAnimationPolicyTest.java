@@ -9,12 +9,12 @@ class MultiOpenAnimationPolicyTest {
 
     @Test
     void playsOnlyTheFirstDrawAnimationForARealMultiOpenWhenEnabled() {
-        assertTrue(MultiOpenAnimationPolicy.shouldPlayFirstDrawAnimation(true, 10));
+        assertTrue(MultiOpenAnimationPolicy.shouldPlayAnimation(true, 10));
     }
 
     @Test
     void skipsTheAnimationWhenDisabledOrOnlyOneRewardWasPrepared() {
-        assertFalse(MultiOpenAnimationPolicy.shouldPlayFirstDrawAnimation(false, 10));
-        assertFalse(MultiOpenAnimationPolicy.shouldPlayFirstDrawAnimation(true, 1));
+        assertFalse(MultiOpenAnimationPolicy.shouldPlayAnimation(false, 10));
+        assertFalse(MultiOpenAnimationPolicy.shouldPlayAnimation(true, 1));
     }
 }

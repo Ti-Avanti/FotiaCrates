@@ -31,4 +31,50 @@ class CardAnimationSettingsTest {
         assertEquals(Material.PURPLE_STAINED_GLASS_PANE,
                 CardAnimationSettings.from(config.getConfigurationSection("card-reveal")).backMaterial());
     }
+
+    @Test
+    void readsAndClampsInteractiveAnimationSettings() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("card-reveal.card-count", 99);
+        config.set("card-reveal.flicker-interval-ticks", 0);
+        config.set("card-reveal.flicker-min-cycles", 99);
+        config.set("card-reveal.flicker-min-ticks", 1);
+        config.set("card-reveal.cover-delay-ticks", 999);
+        config.set("card-reveal.selection-timeout-ticks", 20);
+        config.set("card-reveal.page-transition-ticks", 0);
+        config.set("card-reveal.result-hold-ticks", 999);
+        config.set("card-reveal.status-slot", 99);
+        config.set("card-reveal.status.select-name", "<!i><green>剩余 {remaining}/{total}");
+
+        CardAnimationSettings settings = CardAnimationSettings.from(
+                config.getConfigurationSection("card-reveal"));
+
+        assertEquals(54, settings.cardCount());
+        assertEquals(1, settings.flickerIntervalTicks());
+        assertEquals(10, settings.flickerMinCycles());
+        assertEquals(10, settings.flickerMinTicks());
+        assertEquals(100, settings.coverDelayTicks());
+        assertEquals(100, settings.selectionTimeoutTicks());
+        assertEquals(5, settings.pageTransitionTicks());
+        assertEquals(200, settings.resultHoldTicks());
+        assertEquals(53, settings.statusSlot());
+        assertEquals("<!i><green>剩余 {remaining}/{total}", settings.selectStatusName());
+    }
+
+    @Test
+    void mapsLegacyShowcaseSettingsToFlickerSettings() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("card-reveal.showcase-page-ticks", 25);
+        config.set("card-reveal.shuffle-ticks", 35);
+        config.set("card-reveal.status.showcase-name", "<!i><gold>旧展示");
+        config.set("card-reveal.status.shuffle-name", "<!i><aqua>旧洗牌");
+
+        CardAnimationSettings settings = CardAnimationSettings.from(
+                config.getConfigurationSection("card-reveal"));
+
+        assertEquals(60, settings.flickerMinTicks());
+        assertEquals(35, settings.coverDelayTicks());
+        assertEquals("<!i><gold>旧展示", settings.flickerStatusName());
+        assertEquals("<!i><aqua>旧洗牌", settings.coverStatusName());
+    }
 }

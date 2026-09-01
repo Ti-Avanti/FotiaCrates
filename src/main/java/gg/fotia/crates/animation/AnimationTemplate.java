@@ -16,21 +16,25 @@ public record AnimationTemplate(
         String selectorItemModel,
         boolean selectorGlow,
         GuiConfig guiConfig,
-        TripleReelAnimationSettings tripleReelSettings,
         CardAnimationSettings cardSettings,
-        OrbitalAnimationSettings orbitalSettings
+        OrbitalAnimationSettings orbitalSettings,
+        VoidRiftAnimationSettings voidRiftSettings,
+        MeteorAnimationSettings meteorSettings
 ) {
 
     public AnimationTemplate {
         animationType = animationType == null ? AnimationType.ROULETTE : animationType;
         selectorLore = selectorLore == null ? List.of() : List.copyOf(selectorLore);
         selectorItemModel = selectorItemModel == null ? "" : selectorItemModel;
-        tripleReelSettings = tripleReelSettings == null
-                ? TripleReelAnimationSettings.from(null)
-                : tripleReelSettings;
         cardSettings = cardSettings == null ? CardAnimationSettings.from(null) : cardSettings;
         orbitalSettings = orbitalSettings == null
                 ? OrbitalAnimationSettings.from(null)
                 : orbitalSettings;
+        voidRiftSettings = voidRiftSettings == null
+                ? VoidRiftAnimationSettings.from(null)
+                : voidRiftSettings;
+        meteorSettings = meteorSettings == null
+                ? MeteorAnimationSettings.from(null)
+                : meteorSettings;
     }
 }

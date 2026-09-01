@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Coordinates batch reward confirmation, optional first-draw animation and safe delivery.
+ * Coordinates batch reward confirmation, optional batch-aware animation and safe delivery.
  */
 public final class MultiOpenService {
 
@@ -60,12 +60,12 @@ public final class MultiOpenService {
 
         // 合并提交：回滚时数据快照取首抽（整批开始前），物理钥匙退还取全批消耗并集
         crateOpenService.commitOpen(player, CrateOpenService.OpenAttempt.mergeForCommit(openAttempts), () -> {
-            if (MultiOpenAnimationPolicy.shouldPlayFirstDrawAnimation(
+            if (MultiOpenAnimationPolicy.shouldPlayAnimation(
                     crate.isMultiOpenAnimationEnabled(), rewardResults.size()) && player.isOnline()) {
                 boolean started = plugin.getAnimationManager().playAnimation(
                         player,
                         crate,
-                        rewardResults.get(0).getDisplayReward(),
+                        rewardResults.stream().map(RewardResult::getDisplayReward).toList(),
                         crateLocation,
                         finish
                 );

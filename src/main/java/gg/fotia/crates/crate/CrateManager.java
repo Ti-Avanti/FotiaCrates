@@ -23,6 +23,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.io.File;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -125,7 +126,7 @@ public class CrateManager {
 
         boolean animationEnabled = config.getBoolean("animation.enabled",
                 plugin.getConfigManager().isDefaultAnimationEnabled());
-        AnimationType animationType = AnimationType.valueOf(config.getString("animation.type", "ROULETTE"));
+        AnimationType animationType = loadAnimationType(config, file);
         String animationTemplate = config.getString("animation.template", "default");
         int animationDuration = config.getInt("animation.duration", 3);
         String animationTitle = config.getString("animation.title", "<!i><dark_gray>" + name);
@@ -224,6 +225,35 @@ public class CrateManager {
                 multiOpenEnabled, multiOpenMax, multiOpenAnimationEnabled,
                 uniqueDrawSettings, permission,
                 plugin.getConfigManager().getRarityIds());
+    }
+
+    private AnimationType loadAnimationType(YamlConfiguration config, File file) {
+        String configured = config.getString("animation.type", "ROULETTE");
+        AnimationType type;
+        try {
+            type = AnimationType.valueOf(configured.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            plugin.getLogger().warning("Unknown animation type " + configured
+                    + " in " + file.getName() + "; using ROULETTE.");
+            return AnimationType.ROULETTE;
+        }
+        if (type != AnimationType.TRIPLE_REEL) {
+            return type;
+        }
+
+        config.set("animation.type", AnimationType.CARD_REVEAL.name());
+        if ("triple-reel".equalsIgnoreCase(config.getString("animation.template", ""))) {
+            config.set("animation.template", "card-reveal");
+        }
+        try {
+            config.save(file);
+            plugin.getLogger().info("Migrated removed TRIPLE_REEL animation to CARD_REVEAL in "
+                    + file.getName() + ".");
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Could not persist animation migration for "
+                    + file.getName() + ": " + exception.getMessage());
+        }
+        return AnimationType.CARD_REVEAL;
     }
 
     private String getModelString(YamlConfiguration config, String newBasePath, String legacyBasePath, String key, String def) {

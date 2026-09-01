@@ -24,6 +24,11 @@ public class AnimationManager {
     }
 
     public boolean playAnimation(Player player, Crate crate, Reward reward, Location crateLocation, Runnable onComplete) {
+        return playAnimation(player, crate, List.of(reward), crateLocation, onComplete);
+    }
+
+    public boolean playAnimation(Player player, Crate crate, List<Reward> rewards,
+                                 Location crateLocation, Runnable onComplete) {
         boolean guiAnimEnabled = crate.isAnimationEnabled();
         boolean physicalAnimEnabled = crate.isPhysicalAnimationEnabled();
         List<Animation> animations = new ArrayList<>(2);
@@ -39,7 +44,9 @@ public class AnimationManager {
             animations.add(new PhysicalAnimation(plugin));
         }
 
-        return startAnimations(player, crate, reward, crateLocation, onComplete, animations);
+        return startAnimations(player, crate,
+                AnimationRewardBatchPolicy.forType(crate.getAnimationType(), rewards),
+                crateLocation, onComplete, animations);
     }
 
     public boolean previewAnimation(Player player, Crate crate, Reward reward,
@@ -52,10 +59,10 @@ public class AnimationManager {
         if (crate.isPhysicalAnimationEnabled()) {
             animations.add(new PhysicalAnimation(plugin));
         }
-        return startAnimations(player, crate, reward, crateLocation, onComplete, animations);
+        return startAnimations(player, crate, List.of(reward), crateLocation, onComplete, animations);
     }
 
-    private boolean startAnimations(Player player, Crate crate, Reward reward,
+    private boolean startAnimations(Player player, Crate crate, List<Reward> rewards,
                                     Location crateLocation, Runnable onComplete,
                                     List<Animation> animations) {
         if (hasActiveAnimation(player)) {
@@ -66,13 +73,23 @@ public class AnimationManager {
             onComplete.run();
             return true;
         }
+        if (rewards == null || rewards.isEmpty()) {
+            onComplete.run();
+            return true;
+        }
 
         UUID playerId = player.getUniqueId();
         AnimationSession session = new AnimationSession(playerId, animations, onComplete);
         activeSessions.put(playerId, session);
         try {
             for (Animation animation : animations) {
-                animation.start(player, crate, reward, crateLocation, session::completeOne);
+                if (animation instanceof BatchAnimation batchAnimation) {
+                    batchAnimation.startBatch(player, crate, rewards,
+                            crateLocation, session::completeOne);
+                } else {
+                    animation.start(player, crate, rewards.get(0),
+                            crateLocation, session::completeOne);
+                }
             }
             return true;
         } catch (RuntimeException exception) {
@@ -101,6 +118,20 @@ public class AnimationManager {
     public Animation getAnimation(Player player) {
         AnimationSession session = activeSessions.get(player.getUniqueId());
         return session == null || session.animations.isEmpty() ? null : session.animations.get(0);
+    }
+
+    public boolean handleInventoryClick(Player player, int slot) {
+        AnimationSession session = activeSessions.get(player.getUniqueId());
+        if (session == null) {
+            return false;
+        }
+        for (Animation animation : session.animations) {
+            if (animation instanceof InteractiveAnimation interactive
+                    && interactive.handleClick(player, slot)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private final class AnimationSession {
