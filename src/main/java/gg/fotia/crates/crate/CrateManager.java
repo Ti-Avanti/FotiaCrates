@@ -1,6 +1,7 @@
 package gg.fotia.crates.crate;
 
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.animation.AnimationTemplate;
 import gg.fotia.crates.animation.AnimationType;
 import gg.fotia.crates.particle.CrateParticleEffect;
 import gg.fotia.crates.particle.ParticleCompat;
@@ -1057,6 +1058,11 @@ public class CrateManager {
         try {
             YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
             config.set("animation.type", type.name());
+            AnimationTemplate template = plugin.getGuiManager().getConfigManager()
+                    .getAnimationTemplate(config.getString("animation.template"), type);
+            if (template != null) {
+                config.set("animation.template", template.id());
+            }
             config.save(file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {

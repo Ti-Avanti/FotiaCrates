@@ -10,9 +10,9 @@ items:
   gui_toggle:
     slot: 10
     material: LIME_DYE
-    name: "<!i><green>GUI动画: {gui_animation_enabled}"
+    name: "<!i><green>主动画: {gui_animation_enabled}"
     lore:
-      - "<!i><gray>玩家界面中的滚动动画"
+      - "<!i><gray>当前选择的抽奖动画"
       - ""
       - "<!i><yellow>点击切换"
     action: toggle_gui_animation
@@ -27,25 +27,52 @@ items:
       - "<!i><yellow>点击选择"
     action: open_animation_templates
   roulette:
-    slot: 13
+    slot: 19
     material: CLOCK
     name: "<!i><yellow>轮盘动画"
     lore:
       - "<!i><gray>当前动画: {animation_type}"
       - ""
-      - "<!i><yellow>点击选择"
+      - "{animation_roulette_state}"
     action: select_roulette
+  triple_reel:
+    slot: 21
+    material: GOLD_INGOT
+    name: "<!i><gold>三轴老虎机"
+    lore:
+      - "<!i><gray>三列奖励依次减速停止"
+      - ""
+      - "{animation_triple_reel_state}"
+    action: select_triple_reel
+  card_reveal:
+    slot: 23
+    material: PAPER
+    name: "<!i><light_purple>秘匣翻牌"
+    lore:
+      - "<!i><gray>九宫格卡牌逐张揭示"
+      - ""
+      - "{animation_card_reveal_state}"
+    action: select_card_reveal
+  orbital_convergence:
+    slot: 25
+    material: END_CRYSTAL
+    name: "<!i><aqua>星轨汇聚"
+    lore:
+      - "<!i><gray>奖励围绕宝箱旋转并收束"
+      - ""
+      - "{animation_orbital_state}"
+    action: select_orbital_convergence
   instant:
-    slot: 15
+    slot: 28
     material: FEATHER
     name: "<!i><white>无动画"
     lore:
       - "<!i><gray>直接显示结果"
       - ""
-      - "<!i><yellow>点击选择"
+      - "{animation_instant_state}"
     action: select_instant
   physical_toggle:
-    slot: 28
+    slot: 16
     material: LIME_DYE
     name: "<!i><green>物理动画: {physical_animation_enabled}"
     lore:
@@ -61,19 +88,29 @@ items:
       - "<!i><yellow>左键 +0.1 / 右键 -0.1"
     action: adjust_physical_height
   duration:
-    slot: 32
+    slot: 14
     material: CLOCK
     name: "<!i><light_purple>动画时长: {animation_duration} 秒"
     lore:
       - "<!i><yellow>左键 +1 / 右键 -1"
       - "<!i><aqua>中键输入精确值"
     action: adjust_animation_duration
+  preview:
+    slot: 32
+    material: SPYGLASS
+    name: "<!i><green>预览当前动画"
+    lore:
+      - "<!i><gray>不扣钥匙、不发奖励、不写历史"
+      - ""
+      - "<!i><yellow>点击播放"
+    action: preview_animation
   info:
     slot: 34
     material: BOOK
     name: "<!i><gold>动画说明"
     lore:
       - "<!i><gray>GUI动画和物理动画可以同时启用"
+      - "<!i><gray>星轨动画使用玩家独立展示实体"
   back:
     slot: 36
     material: ARROW

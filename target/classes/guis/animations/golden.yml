@@ -1,4 +1,5 @@
 # 金色轮盘动画模板示例，可复制此文件创建更多模板
+animation-type: ROULETTE
 display-name: "<!i><gold>鎏金轮盘"
 selector:
   material: GOLD_INGOT

@@ -1,0 +1,36 @@
+# 秘匣翻牌动画模板
+animation-type: CARD_REVEAL
+display-name: "<!i><light_purple>秘匣翻牌"
+selector:
+  material: PAPER
+  name: "<!i><light_purple>{template}"
+  lore:
+    - "<!i><gray>模板ID: <!i><white>{template_id}"
+    - "<!i><gray>九宫格卡牌逐张揭示"
+    - ""
+    - "{selected_line}"
+
+title: "<!i><dark_purple>神秘卡牌"
+
+layout:
+  - "#########"
+  - "#A#A#A###"
+  - "#A##A##A#"
+  - "#A#A#A###"
+  - "#########"
+
+icons:
+  '#':
+    display:
+      material: BLACK_STAINED_GLASS_PANE
+      name: " "
+  'A':
+    content: true
+
+animation-slots: [10, 12, 14, 19, 22, 25, 28, 30, 32]
+center-slot: 22
+
+card-reveal:
+  back-material: PURPLE_STAINED_GLASS_PANE
+  back-name: "<!i><light_purple>神秘奖励"
+  reveal-interval-ticks: 5

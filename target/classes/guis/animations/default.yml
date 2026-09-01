@@ -1,4 +1,5 @@
 # 默认轮盘动画模板
+animation-type: ROULETTE
 display-name: "<!i><yellow>默认轮盘"
 selector:
   material: CLOCK

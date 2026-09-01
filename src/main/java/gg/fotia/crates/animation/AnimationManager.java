@@ -15,31 +15,51 @@ import java.util.UUID;
 public class AnimationManager {
 
     private final FotiaCrates plugin;
+    private final AnimationFactory animationFactory;
     private final Map<UUID, AnimationSession> activeSessions = new HashMap<>();
 
     public AnimationManager(FotiaCrates plugin) {
         this.plugin = plugin;
+        this.animationFactory = new AnimationFactory(plugin);
     }
 
     public boolean playAnimation(Player player, Crate crate, Reward reward, Location crateLocation, Runnable onComplete) {
-        if (hasActiveAnimation(player)) {
-            return false;
-        }
-
         boolean guiAnimEnabled = crate.isAnimationEnabled();
         boolean physicalAnimEnabled = crate.isPhysicalAnimationEnabled();
         List<Animation> animations = new ArrayList<>(2);
 
         if (guiAnimEnabled) {
-            switch (crate.getAnimationType()) {
-                case CSGO, ROULETTE, PHYSICAL -> animations.add(new RouletteAnimation(plugin));
-                case INSTANT -> {
-                }
+            Animation animation = animationFactory.create(crate.getAnimationType());
+            if (animation != null) {
+                animations.add(animation);
             }
         }
 
         if (physicalAnimEnabled) {
             animations.add(new PhysicalAnimation(plugin));
+        }
+
+        return startAnimations(player, crate, reward, crateLocation, onComplete, animations);
+    }
+
+    public boolean previewAnimation(Player player, Crate crate, Reward reward,
+                                    Location crateLocation, Runnable onComplete) {
+        List<Animation> animations = new ArrayList<>(2);
+        Animation selected = animationFactory.create(crate.getAnimationType());
+        if (selected != null) {
+            animations.add(selected);
+        }
+        if (crate.isPhysicalAnimationEnabled()) {
+            animations.add(new PhysicalAnimation(plugin));
+        }
+        return startAnimations(player, crate, reward, crateLocation, onComplete, animations);
+    }
+
+    private boolean startAnimations(Player player, Crate crate, Reward reward,
+                                    Location crateLocation, Runnable onComplete,
+                                    List<Animation> animations) {
+        if (hasActiveAnimation(player)) {
+            return false;
         }
 
         if (animations.isEmpty()) {

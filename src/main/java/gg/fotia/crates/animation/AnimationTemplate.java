@@ -7,6 +7,7 @@ import java.util.List;
 
 public record AnimationTemplate(
         String id,
+        AnimationType animationType,
         String displayName,
         Material selectorMaterial,
         String selectorName,
@@ -14,11 +15,22 @@ public record AnimationTemplate(
         int selectorCustomModelData,
         String selectorItemModel,
         boolean selectorGlow,
-        GuiConfig guiConfig
+        GuiConfig guiConfig,
+        TripleReelAnimationSettings tripleReelSettings,
+        CardAnimationSettings cardSettings,
+        OrbitalAnimationSettings orbitalSettings
 ) {
 
     public AnimationTemplate {
+        animationType = animationType == null ? AnimationType.ROULETTE : animationType;
         selectorLore = selectorLore == null ? List.of() : List.copyOf(selectorLore);
         selectorItemModel = selectorItemModel == null ? "" : selectorItemModel;
+        tripleReelSettings = tripleReelSettings == null
+                ? TripleReelAnimationSettings.from(null)
+                : tripleReelSettings;
+        cardSettings = cardSettings == null ? CardAnimationSettings.from(null) : cardSettings;
+        orbitalSettings = orbitalSettings == null
+                ? OrbitalAnimationSettings.from(null)
+                : orbitalSettings;
     }
 }

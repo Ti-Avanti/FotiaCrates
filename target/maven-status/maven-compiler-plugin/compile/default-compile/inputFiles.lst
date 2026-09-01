@@ -15,8 +15,10 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\KeyItemFa
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\kr\toxicity\model\api\animation\AnimationModifier.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\AbstractSubCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\listener\ModelLifecycleListener.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\OrbitalPath.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\lang\LanguageManager.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\listener\EntityInteractPacketListener.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\AnimationEditorAction.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\CrateLocation.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\kr\toxicity\model\api\BetterModelPlatform.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\UniqueDrawSettings.java
@@ -26,6 +28,7 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\KeyItemPr
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\GuiManager.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\RewardAutoDisplayPolicy.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\PreviewCommand.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\OrbitalAnimationSettings.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\PreviewSortMode.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\distribution\KeyDistributionGrant.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\GuiType.java
@@ -38,12 +41,15 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\data\HistoryW
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\particle\ParticleStage.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\EditorCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\CrateGuiHolder.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\CardAnimationSettings.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\HistoryCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\modelengine\ModelEngineManager.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\pity\PityProgressKey.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\SetCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\listener\BlockListener.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\database\MySQLDatabase.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\CardRevealSchedule.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\CardRevealSequence.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\ItemNameComponentResolver.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\HelpCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\GuiPaginationState.java
@@ -56,8 +62,10 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\Crate.j
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\util\LegacyColorConverter.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\listener\PlayerListener.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\RemoveCommand.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\TripleReelAnimationSettings.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\kr\toxicity\model\api\bukkit\platform\BukkitAdapter.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\PhysicalAnimationSchedule.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\CardRevealAnimation.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\distribution\KeyDistributionConfirmation.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\CrateCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\util\MessageUtil.java
@@ -77,6 +85,8 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\MultiOp
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\kr\toxicity\model\api\data\renderer\ModelRenderer.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\RewardEditContext.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\RewardPreviewSorter.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\OrbitalConvergenceAnimation.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\AnimationFactory.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\AbstractReward.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\KeyItemConfig.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\AnimationManager.java
@@ -131,4 +141,6 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\RewardPre
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\kr\toxicity\model\api\tracker\Tracker.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\ClaimCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\CrateOpenService.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\TripleReelAnimation.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\TripleReelSchedule.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\RewardDisplayNamePolicy.java

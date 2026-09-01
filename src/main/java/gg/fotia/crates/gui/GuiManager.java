@@ -2,6 +2,7 @@ package gg.fotia.crates.gui;
 
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.animation.AnimationTemplate;
+import gg.fotia.crates.animation.AnimationType;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.MultiOpenAmount;
 import gg.fotia.crates.crate.PreviewChanceDisplayMode;
@@ -745,6 +746,12 @@ public class GuiManager {
         placeholders.put("{physical_animation_enabled}", yesNo(crate.isPhysicalAnimationEnabled()));
         placeholders.put("{physical_animation_height}", String.valueOf(crate.getPhysicalAnimationHeight()));
         placeholders.put("{animation_duration}", String.valueOf(crate.getAnimationDuration()));
+        AnimationType currentType = crate.getAnimationType();
+        placeholders.put("{animation_roulette_state}", animationTypeState(currentType, AnimationType.ROULETTE));
+        placeholders.put("{animation_triple_reel_state}", animationTypeState(currentType, AnimationType.TRIPLE_REEL));
+        placeholders.put("{animation_card_reveal_state}", animationTypeState(currentType, AnimationType.CARD_REVEAL));
+        placeholders.put("{animation_orbital_state}", animationTypeState(currentType, AnimationType.ORBITAL_CONVERGENCE));
+        placeholders.put("{animation_instant_state}", animationTypeState(currentType, AnimationType.INSTANT));
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("select_animation", true);
@@ -874,7 +881,7 @@ public class GuiManager {
             return;
         }
 
-        List<AnimationTemplate> templates = configManager.getAnimationTemplates();
+        List<AnimationTemplate> templates = configManager.getAnimationTemplates(crate.getAnimationType());
         String currentTemplate = resolvedAnimationTemplateId(crate);
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{animation_template}", currentTemplate);
@@ -915,8 +922,16 @@ public class GuiManager {
     }
 
     private String resolvedAnimationTemplateId(Crate crate) {
-        AnimationTemplate template = configManager.getAnimationTemplate(crate.getAnimationTemplate());
+        AnimationTemplate template = configManager.getAnimationTemplate(
+                crate.getAnimationTemplate(), crate.getAnimationType());
         return template != null ? template.id() : crate.getAnimationTemplate();
+    }
+
+    private String animationTypeState(AnimationType current, AnimationType option) {
+        boolean selected = option == AnimationType.ROULETTE
+                ? current.templateFamily() == AnimationType.ROULETTE
+                : current == option;
+        return selected ? "<!i><green>✓ 当前选中" : "<!i><yellow>点击选择";
     }
 
     private ItemStack createUniqueObtainedIconPreview(GuiItem guiItem,
@@ -1657,12 +1672,12 @@ public class GuiManager {
                 .build();
         inventory.setItem(36, back);
 
-        // ===== GUI动画开关 =====
+        // ===== 主动画开关 =====
         boolean guiAnimEnabled = crate.isAnimationEnabled();
         ItemStack guiAnimToggle = new ItemBuilder(guiAnimEnabled ? Material.LIME_DYE : Material.GRAY_DYE)
-                .name(guiAnimEnabled ? "<!i><green>GUI动画: 开启" : "<!i><gray>GUI动画: 关闭")
+                .name(guiAnimEnabled ? "<!i><green>主动画: 开启" : "<!i><gray>主动画: 关闭")
                 .lore(List.of(
-                        "<!i><gray>在玩家界面中显示滚动动画",
+                        "<!i><gray>当前选择的抽奖动画",
                         "",
                         "<!i><yellow>点击切换"
                 ))
@@ -1694,7 +1709,40 @@ public class GuiManager {
                 .glow(currentType == gg.fotia.crates.animation.AnimationType.ROULETTE ||
                       currentType == gg.fotia.crates.animation.AnimationType.CSGO)
                 .build();
-        inventory.setItem(13, roulette);
+        inventory.setItem(19, roulette);
+
+        ItemStack tripleReel = new ItemBuilder(Material.GOLD_INGOT)
+                .name("<!i><gold>三轴老虎机 (TRIPLE_REEL)")
+                .lore(List.of(
+                        "<!i><gray>三列奖励依次减速停止",
+                        "",
+                        animationTypeState(currentType, AnimationType.TRIPLE_REEL)
+                ))
+                .glow(currentType == AnimationType.TRIPLE_REEL)
+                .build();
+        inventory.setItem(21, tripleReel);
+
+        ItemStack cardReveal = new ItemBuilder(Material.PAPER)
+                .name("<!i><light_purple>秘匣翻牌 (CARD_REVEAL)")
+                .lore(List.of(
+                        "<!i><gray>九宫格卡牌逐张揭示",
+                        "",
+                        animationTypeState(currentType, AnimationType.CARD_REVEAL)
+                ))
+                .glow(currentType == AnimationType.CARD_REVEAL)
+                .build();
+        inventory.setItem(23, cardReveal);
+
+        ItemStack orbital = new ItemBuilder(Material.END_CRYSTAL)
+                .name("<!i><aqua>星轨汇聚 (ORBITAL_CONVERGENCE)")
+                .lore(List.of(
+                        "<!i><gray>奖励围绕宝箱旋转并收束",
+                        "",
+                        animationTypeState(currentType, AnimationType.ORBITAL_CONVERGENCE)
+                ))
+                .glow(currentType == AnimationType.ORBITAL_CONVERGENCE)
+                .build();
+        inventory.setItem(25, orbital);
 
         // 无动画
         ItemStack instant = new ItemBuilder(Material.FEATHER)
@@ -1706,7 +1754,7 @@ public class GuiManager {
                 ))
                 .glow(currentType == gg.fotia.crates.animation.AnimationType.INSTANT)
                 .build();
-        inventory.setItem(15, instant);
+        inventory.setItem(28, instant);
 
         // ===== 物理动画开关 =====
         boolean physicalAnimEnabled = crate.isPhysicalAnimationEnabled();
@@ -1719,7 +1767,7 @@ public class GuiManager {
                         "<!i><yellow>点击切换"
                 ))
                 .build();
-        inventory.setItem(28, physicalAnimToggle);
+        inventory.setItem(16, physicalAnimToggle);
 
         // 物理动画高度设置
         ItemStack heightSetting = new ItemBuilder(Material.LADDER)
@@ -1744,13 +1792,24 @@ public class GuiManager {
                         "<!i><aqua>中键 输入精确数值"
                 ))
                 .build();
-        inventory.setItem(32, durationSetting);
+        inventory.setItem(14, durationSetting);
+
+        ItemStack preview = new ItemBuilder(Material.SPYGLASS)
+                .name("<!i><green>预览当前动画")
+                .lore(List.of(
+                        "<!i><gray>不扣钥匙、不发奖励、不写历史",
+                        "",
+                        "<!i><yellow>点击播放"
+                ))
+                .build();
+        inventory.setItem(32, preview);
 
         // 提示信息
         ItemStack info = new ItemBuilder(Material.BOOK)
                 .name("<!i><gold>动画设置说明")
                 .lore(List.of(
-                        "<!i><gray>GUI动画和物理动画可以同时开启",
+                        "<!i><gray>主动画和物理动画可以同时开启",
+                        "<!i><gray>星轨动画使用玩家独立展示实体",
                         "",
                         "<!i><aqua>GUI动画: <!i><white>在玩家界面中显示",
                         "<!i><aqua>物理动画: <!i><white>在宝箱上方显示",

@@ -49,7 +49,7 @@ public class RouletteAnimation implements Animation {
 
         // 从GUI配置读取动画设置
         AnimationTemplate template = plugin.getGuiManager().getConfigManager()
-                .getAnimationTemplate(crate.getAnimationTemplate());
+                .getAnimationTemplate(crate.getAnimationTemplate(), AnimationType.ROULETTE);
         GuiConfig animConfig = template != null
                 ? template.guiConfig()
                 : plugin.getGuiManager().getConfigManager().getGuiConfig("animation");

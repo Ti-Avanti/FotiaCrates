@@ -1,0 +1,35 @@
+# 星轨汇聚动画模板
+animation-type: ORBITAL_CONVERGENCE
+display-name: "<!i><aqua>星轨汇聚"
+selector:
+  material: END_CRYSTAL
+  name: "<!i><aqua>{template}"
+  lore:
+    - "<!i><gray>模板ID: <!i><white>{template_id}"
+    - "<!i><gray>奖励围绕宝箱旋转并汇聚"
+    - ""
+    - "{selected_line}"
+
+# 世界动画不会打开此GUI，保留布局用于配置解析和兼容回退
+title: "<!i><aqua>星轨汇聚"
+layout:
+  - "#########"
+  - "####I####"
+  - "#########"
+icons:
+  '#':
+    display:
+      material: BLACK_STAINED_GLASS_PANE
+      name: " "
+  'I':
+    display:
+      material: END_CRYSTAL
+      name: "<!i><aqua>最终奖励"
+animation-slots: []
+center-slot: -1
+
+orbit:
+  radius: 1.4
+  height: 1.5
+  item-count: 8
+  rotations: 2.5

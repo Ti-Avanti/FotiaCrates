@@ -3,6 +3,10 @@ package gg.fotia.crates.gui;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.animation.AnimationTemplate;
 import gg.fotia.crates.animation.AnimationTemplateSelection;
+import gg.fotia.crates.animation.AnimationType;
+import gg.fotia.crates.animation.CardAnimationSettings;
+import gg.fotia.crates.animation.OrbitalAnimationSettings;
+import gg.fotia.crates.animation.TripleReelAnimationSettings;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -120,13 +124,16 @@ public class GuiConfigManager {
         }
         ensureDefaultAnimationTemplateMetadata(defaultTemplate);
 
-        File goldenTemplate = new File(templatesFolder, "golden.yml");
-        if (!goldenTemplate.exists()) {
-            try {
-                plugin.saveResource("guis/animations/golden.yml", false);
-            } catch (Exception exception) {
-                plugin.getLogger().warning("Failed to save golden animation template: "
-                        + exception.getMessage());
+        for (String fileName : List.of(
+                "golden.yml", "triple-reel.yml", "card-reveal.yml", "orbital.yml")) {
+            File templateFile = new File(templatesFolder, fileName);
+            if (!templateFile.exists()) {
+                try {
+                    plugin.saveResource("guis/animations/" + fileName, false);
+                } catch (Exception exception) {
+                    plugin.getLogger().warning("Failed to save animation template " + fileName
+                            + ": " + exception.getMessage());
+                }
             }
         }
     }
@@ -174,8 +181,11 @@ public class GuiConfigManager {
                 if (selectorMaterial == null || !selectorMaterial.isItem()) {
                     selectorMaterial = Material.CLOCK;
                 }
+                AnimationType animationType = parseAnimationType(
+                        raw.getString("animation-type", "ROULETTE"));
                 AnimationTemplate template = new AnimationTemplate(
                         id,
+                        animationType,
                         raw.getString("display-name", id),
                         selectorMaterial,
                         raw.getString("selector.name", "<!i><yellow>{template}"),
@@ -184,13 +194,29 @@ public class GuiConfigManager {
                         raw.getString("selector.item-model",
                                 raw.getString("selector.item_model", "")),
                         raw.getBoolean("selector.glow", false),
-                        guiConfig
+                        guiConfig,
+                        TripleReelAnimationSettings.from(
+                                raw.getConfigurationSection("triple-reel")),
+                        CardAnimationSettings.from(
+                                raw.getConfigurationSection("card-reveal")),
+                        OrbitalAnimationSettings.from(
+                                raw.getConfigurationSection("orbit"))
                 );
                 animationTemplates.put(id, template);
             } catch (RuntimeException exception) {
                 plugin.getLogger().warning("Failed to load animation template " + id
                         + ": " + exception.getMessage());
             }
+        }
+    }
+
+    private AnimationType parseAnimationType(String configuredType) {
+        try {
+            return AnimationType.valueOf(configuredType == null
+                    ? "ROULETTE"
+                    : configuredType.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            return AnimationType.ROULETTE;
         }
     }
 
@@ -290,7 +316,112 @@ public class GuiConfigManager {
         migrateUniqueDrawShortcutGui(guisFolder);
         migrateHistoryBackGui(guisFolder);
         migrateAnimationTemplateEditorGui(guisFolder);
+        migrateAnimationTypeSelectorGui(guisFolder);
         migratePaginationButtonDisplays(guisFolder);
+    }
+
+    private void migrateAnimationTypeSelectorGui(File guisFolder) {
+        File file = new File(guisFolder, "admin_animation_select.yml");
+        if (!file.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        boolean changed = false;
+        boolean legacyDefaultLayout = config.getInt("items.roulette.slot", -1) == 13
+                && config.getInt("items.instant.slot", -1) == 15
+                && config.getInt("items.physical_toggle.slot", -1) == 28
+                && config.getInt("items.duration.slot", -1) == 32;
+        if (legacyDefaultLayout) {
+            config.set("items.roulette.slot", 19);
+            config.set("items.instant.slot", 28);
+            config.set("items.physical_toggle.slot", 16);
+            config.set("items.duration.slot", 14);
+            changed = true;
+        }
+        List<String> rouletteLore = new ArrayList<>(
+                config.getStringList("items.roulette.lore"));
+        if (!containsLine(rouletteLore, "{animation_roulette_state}")) {
+            rouletteLore.removeIf(line -> line != null && line.contains("点击选择"));
+            rouletteLore.add("{animation_roulette_state}");
+            config.set("items.roulette.lore", rouletteLore);
+            changed = true;
+        }
+        List<String> instantLore = new ArrayList<>(
+                config.getStringList("items.instant.lore"));
+        if (!containsLine(instantLore, "{animation_instant_state}")) {
+            instantLore.removeIf(line -> line != null && line.contains("点击选择"));
+            instantLore.add("{animation_instant_state}");
+            config.set("items.instant.lore", instantLore);
+            changed = true;
+        }
+
+        changed |= addAnimationTypeItem(config, "triple_reel", 21, "GOLD_INGOT",
+                "<!i><gold>三轴老虎机", "<!i><gray>三列奖励依次减速停止",
+                "{animation_triple_reel_state}", "select_triple_reel");
+        changed |= addAnimationTypeItem(config, "card_reveal", 23, "PAPER",
+                "<!i><light_purple>秘匣翻牌", "<!i><gray>九宫格卡牌逐张揭示",
+                "{animation_card_reveal_state}", "select_card_reveal");
+        changed |= addAnimationTypeItem(config, "orbital_convergence", 25, "END_CRYSTAL",
+                "<!i><aqua>星轨汇聚", "<!i><gray>奖励围绕宝箱旋转并收束",
+                "{animation_orbital_state}", "select_orbital_convergence");
+        if (!config.contains("items.preview")) {
+            int slot = findAvailableAnimationSlot(config, 32);
+            if (slot >= 0) {
+                config.set("items.preview.slot", slot);
+                config.set("items.preview.material", "SPYGLASS");
+                config.set("items.preview.name", "<!i><green>预览当前动画");
+                config.set("items.preview.lore", List.of(
+                        "<!i><gray>不扣钥匙、不发奖励、不写历史",
+                        "",
+                        "<!i><yellow>点击播放"));
+                config.set("items.preview.action", "preview_animation");
+                changed = true;
+            }
+        }
+        if (changed) {
+            saveMigratedGui(file, config, "admin_animation_select");
+        }
+    }
+
+    private boolean addAnimationTypeItem(YamlConfiguration config, String key, int preferredSlot,
+                                         String material, String name, String description,
+                                         String stateLine, String action) {
+        if (config.contains("items." + key)) {
+            return false;
+        }
+        int slot = findAvailableAnimationSlot(config, preferredSlot);
+        if (slot < 0) {
+            return false;
+        }
+        String path = "items." + key;
+        config.set(path + ".slot", slot);
+        config.set(path + ".material", material);
+        config.set(path + ".name", name);
+        config.set(path + ".lore", List.of(description, "", stateLine));
+        config.set(path + ".action", action);
+        return true;
+    }
+
+    private int findAvailableAnimationSlot(YamlConfiguration config, int preferredSlot) {
+        Set<Integer> occupied = new HashSet<>();
+        ConfigurationSection items = config.getConfigurationSection("items");
+        if (items != null) {
+            for (String key : items.getKeys(false)) {
+                ConfigurationSection item = items.getConfigurationSection(key);
+                if (item != null && item.contains("slot")) {
+                    occupied.add(item.getInt("slot"));
+                }
+            }
+        }
+        if (!occupied.contains(preferredSlot)) {
+            return preferredSlot;
+        }
+        for (int candidate : List.of(19, 21, 23, 25, 28, 30, 32, 34, 11, 13, 15)) {
+            if (!occupied.contains(candidate)) {
+                return candidate;
+            }
+        }
+        return -1;
     }
 
     private void migratePaginationButtonDisplays(File guisFolder) {
@@ -860,8 +991,27 @@ public class GuiConfigManager {
         return animationTemplates.get(resolved);
     }
 
+    public AnimationTemplate getAnimationTemplate(String requestedId, AnimationType animationType) {
+        Map<String, AnimationType> templateTypes = new LinkedHashMap<>();
+        for (AnimationTemplate template : animationTemplates.values()) {
+            templateTypes.put(template.id(), template.animationType());
+        }
+        String resolved = AnimationTemplateSelection.resolve(requestedId, templateTypes, animationType);
+        return animationTemplates.get(resolved);
+    }
+
     public List<AnimationTemplate> getAnimationTemplates() {
         return List.copyOf(animationTemplates.values());
+    }
+
+    public List<AnimationTemplate> getAnimationTemplates(AnimationType animationType) {
+        if (animationType == null) {
+            return List.of();
+        }
+        AnimationType family = animationType.templateFamily();
+        return animationTemplates.values().stream()
+                .filter(template -> template.animationType().templateFamily() == family)
+                .toList();
     }
 
     public List<String> getAnimationTemplateIds() {

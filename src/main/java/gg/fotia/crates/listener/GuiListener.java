@@ -1,8 +1,11 @@
 package gg.fotia.crates.listener;
 
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.animation.AnimationEditorAction;
 import gg.fotia.crates.animation.AnimationTemplate;
+import gg.fotia.crates.animation.AnimationType;
 import gg.fotia.crates.crate.Crate;
+import gg.fotia.crates.crate.CrateLocation;
 import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.crate.MultiOpenAmount;
 import gg.fotia.crates.crate.MultiOpenService;
@@ -21,6 +24,7 @@ import gg.fotia.crates.particle.ParticleEffectMode;
 import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.particle.ParticleTarget;
 import gg.fotia.crates.reward.Reward;
+import gg.fotia.crates.reward.RewardProbability;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -37,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Random;
 import java.util.UUID;
 
 public class GuiListener implements Listener {
@@ -333,17 +338,31 @@ public class GuiListener implements Listener {
     }
 
     private void handleAnimationSelectClick(InventoryClickEvent event, Player player, Crate crate, int slot) {
-        String action = actionOrFallback("admin_animation_select", slot, Map.of(
-                36, "back",
-                10, "toggle_gui_animation",
-                12, "open_animation_templates",
-                13, "select_roulette",
-                15, "select_instant",
-                28, "toggle_physical_animation",
-                30, "adjust_physical_height",
-                32, "adjust_animation_duration"
+        String action = actionOrFallback("admin_animation_select", slot, Map.ofEntries(
+                Map.entry(36, "back"),
+                Map.entry(10, "toggle_gui_animation"),
+                Map.entry(12, "open_animation_templates"),
+                Map.entry(14, "adjust_animation_duration"),
+                Map.entry(16, "toggle_physical_animation"),
+                Map.entry(19, "select_roulette"),
+                Map.entry(21, "select_triple_reel"),
+                Map.entry(23, "select_card_reveal"),
+                Map.entry(25, "select_orbital_convergence"),
+                Map.entry(28, "select_instant"),
+                Map.entry(30, "adjust_physical_height"),
+                Map.entry(32, "preview_animation")
         ));
         if (action == null) return;
+
+        AnimationType selectedType = AnimationEditorAction.selectedType(action).orElse(null);
+        if (selectedType != null) {
+            plugin.getCrateManager().updateAnimationType(crate.getId(), selectedType);
+            plugin.getLanguageManager().send(player, "admin-animation-updated",
+                    LanguageManager.placeholders("type", selectedType.name()));
+            plugin.getGuiManager().openAnimationSelectGui(
+                    player, plugin.getCrateManager().getCrate(crate.getId()));
+            return;
+        }
 
         switch (action) {
             case "back" -> plugin.getGuiManager().openCrateEditGui(player, crate); // 返回
@@ -357,18 +376,7 @@ public class GuiListener implements Listener {
                         LanguageManager.placeholders("type", "GUI动画 " + status));
                 plugin.getGuiManager().openAnimationSelectGui(player, updated);
             }
-            case "select_roulette" -> { // ROULETTE (轮盘动画)
-                plugin.getCrateManager().updateAnimationType(crate.getId(), gg.fotia.crates.animation.AnimationType.ROULETTE);
-                plugin.getLanguageManager().send(player, "admin-animation-updated",
-                        LanguageManager.placeholders("type", "ROULETTE"));
-                plugin.getGuiManager().openAnimationSelectGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
-            case "select_instant" -> { // INSTANT (无动画)
-                plugin.getCrateManager().updateAnimationType(crate.getId(), gg.fotia.crates.animation.AnimationType.INSTANT);
-                plugin.getLanguageManager().send(player, "admin-animation-updated",
-                        LanguageManager.placeholders("type", "INSTANT"));
-                plugin.getGuiManager().openAnimationSelectGui(player, plugin.getCrateManager().getCrate(crate.getId()));
-            }
+            case "preview_animation" -> previewAnimation(player, crate);
             case "toggle_physical_animation" -> { // 物理动画开关
                 plugin.getCrateManager().togglePhysicalAnimation(crate.getId());
                 Crate updated = plugin.getCrateManager().getCrate(crate.getId());
@@ -588,6 +596,60 @@ public class GuiListener implements Listener {
         }
     }
 
+    private void previewAnimation(Player player, Crate crate) {
+        if (plugin.getAnimationManager().hasActiveAnimation(player)) {
+            plugin.getLanguageManager().send(player, "admin-animation-preview-busy");
+            return;
+        }
+        List<Reward> rewards = crate.getAvailableRewardsFor(player);
+        Reward previewReward = RewardProbability.select(rewards, new Random());
+        if (previewReward == null) {
+            plugin.getLanguageManager().send(player, "admin-animation-preview-empty");
+            return;
+        }
+
+        Location location = resolveAnimationPreviewLocation(player, crate);
+        player.closeInventory();
+        plugin.getLanguageManager().send(player, "admin-animation-preview-start");
+        plugin.getAnimationManager().previewAnimation(player, crate, previewReward, location, () -> {
+            if (player.isOnline()) {
+                Crate updated = plugin.getCrateManager().getCrate(crate.getId());
+                if (updated != null) {
+                    plugin.getGuiManager().openAnimationSelectGui(player, updated);
+                }
+            }
+        });
+    }
+
+    private Location resolveAnimationPreviewLocation(Player player, Crate crate) {
+        Location playerLocation = player.getLocation();
+        Location nearest = null;
+        double nearestDistance = 64.0;
+        for (CrateLocation candidate : plugin.getCrateManager().getCrateLocations()) {
+            if (!candidate.getCrateId().equals(crate.getId())
+                    || !candidate.getWorld().equals(player.getWorld().getName())) {
+                continue;
+            }
+            Location location = candidate.toLocation(player.getWorld());
+            double distance = location.distanceSquared(playerLocation);
+            if (distance <= nearestDistance) {
+                nearest = location;
+                nearestDistance = distance;
+            }
+        }
+        if (nearest != null) {
+            return nearest;
+        }
+
+        org.bukkit.util.Vector direction = playerLocation.getDirection().setY(0);
+        if (direction.lengthSquared() < 0.0001) {
+            direction.setX(0).setY(0).setZ(1);
+        } else {
+            direction.normalize();
+        }
+        return playerLocation.clone().add(direction.multiply(2.0)).getBlock().getLocation();
+    }
+
     private void handleAnimationTemplateSelectClick(Player player, Crate crate, int slot) {
         String action = actionOrFallback(
                 "admin_animation_template_select", slot, Map.of(45, "back"));
@@ -604,7 +666,7 @@ public class GuiListener implements Listener {
             return;
         }
         List<AnimationTemplate> templates = plugin.getGuiManager().getConfigManager()
-                .getAnimationTemplates();
+                .getAnimationTemplates(crate.getAnimationType());
         if (templateIndex >= templates.size()) {
             return;
         }
