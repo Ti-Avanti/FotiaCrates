@@ -203,6 +203,15 @@ public class GuiConfigManager {
             changed = true;
         }
         changed |= setIfMissing(config, "card-reveal.card-count", 15);
+        changed |= setIfMissing(config, "card-reveal.back-material",
+                "PURPLE_STAINED_GLASS_PANE");
+        changed |= setIfMissing(config, "card-reveal.back-name",
+                "<!i><light_purple>神秘奖励");
+        changed |= setIfMissing(config, "card-reveal.back-lore",
+                List.of("<!i><gray>点击选择这张卡牌"));
+        changed |= setIfMissing(config, "card-reveal.back-custom-model-data", 0);
+        changed |= setIfMissing(config, "card-reveal.back-item-model", "");
+        changed |= setIfMissing(config, "card-reveal.back-glow", false);
         changed |= setIfMissing(config, "card-reveal.flicker-interval-ticks", 3);
         changed |= setIfMissing(config, "card-reveal.flicker-min-cycles", 1);
         changed |= setIfMissing(config, "card-reveal.flicker-min-ticks",

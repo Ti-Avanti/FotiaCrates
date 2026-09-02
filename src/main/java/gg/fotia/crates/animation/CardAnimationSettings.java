@@ -4,8 +4,7 @@ import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 
 public record CardAnimationSettings(
-        Material backMaterial,
-        String backName,
+        CardBackDisplay backDisplay,
         int cardCount,
         int flickerIntervalTicks,
         int flickerMinCycles,
@@ -22,8 +21,6 @@ public record CardAnimationSettings(
         String completeStatusName
 ) {
 
-    private static final Material DEFAULT_MATERIAL = Material.PURPLE_STAINED_GLASS_PANE;
-    private static final String DEFAULT_NAME = "<!i><light_purple>神秘奖励";
     private static final int DEFAULT_CARD_COUNT = 15;
     private static final int DEFAULT_FLICKER_INTERVAL = 3;
     private static final int DEFAULT_FLICKER_CYCLES = 1;
@@ -40,14 +37,17 @@ public record CardAnimationSettings(
             "<!i><green>请选择卡牌 <!i><gray>({revealed}/{total})";
     private static final String DEFAULT_COMPLETE_STATUS = "<!i><gold>全部奖励已揭晓";
 
+    public Material backMaterial() {
+        return backDisplay.material();
+    }
+
+    public String backName() {
+        return backDisplay.name();
+    }
+
     public static CardAnimationSettings from(ConfigurationSection section) {
         if (section == null) {
             return defaults();
-        }
-        Material material = Material.matchMaterial(
-                section.getString("back-material", DEFAULT_MATERIAL.name()));
-        if (material == null || material == Material.AIR) {
-            material = DEFAULT_MATERIAL;
         }
         int legacyCoverDelay = section.getInt("shuffle-ticks", DEFAULT_COVER_DELAY);
         int legacyFlickerTicks = section.getInt("showcase-page-ticks", 20)
@@ -57,8 +57,7 @@ public record CardAnimationSettings(
         String coverStatus = section.getString("status.cover-name",
                 section.getString("status.shuffle-name", DEFAULT_COVER_STATUS));
         return new CardAnimationSettings(
-                material,
-                section.getString("back-name", DEFAULT_NAME),
+                CardBackDisplay.from(section),
                 clamp(section.getInt("card-count", DEFAULT_CARD_COUNT), 1, 54),
                 clamp(section.getInt("flicker-interval-ticks", DEFAULT_FLICKER_INTERVAL), 1, 20),
                 clamp(section.getInt("flicker-min-cycles", DEFAULT_FLICKER_CYCLES), 1, 10),
@@ -81,8 +80,7 @@ public record CardAnimationSettings(
 
     private static CardAnimationSettings defaults() {
         return new CardAnimationSettings(
-                DEFAULT_MATERIAL,
-                DEFAULT_NAME,
+                CardBackDisplay.from(null),
                 DEFAULT_CARD_COUNT,
                 DEFAULT_FLICKER_INTERVAL,
                 DEFAULT_FLICKER_CYCLES,

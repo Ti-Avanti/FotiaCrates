@@ -1,7 +1,6 @@
 package gg.fotia.crates.animation;
 
 import gg.fotia.crates.reward.Reward;
-import gg.fotia.crates.util.ItemBuilder;
 import gg.fotia.crates.util.MessageUtil;
 import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
@@ -42,10 +41,7 @@ final class CardRevealBoard {
     }
 
     void cover(boolean glow) {
-        ItemStack back = new ItemBuilder(settings.backMaterial())
-                .name(settings.backName())
-                .glow(glow)
-                .build();
+        ItemStack back = settings.backDisplay().createItem(glow);
         for (int slot : cardSlots) {
             inventory.setItem(slot, back.clone());
         }

@@ -4,7 +4,14 @@ import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CardAnimationSettingsTest {
 
@@ -13,13 +20,25 @@ class CardAnimationSettingsTest {
         YamlConfiguration config = new YamlConfiguration();
         config.set("card-reveal.back-material", "BLACK_STAINED_GLASS_PANE");
         config.set("card-reveal.back-name", "<!i><gold>未知奖励");
+        config.set("card-reveal.back-lore", List.of(
+                "<!i><gray>点击翻开",
+                "&e支持旧颜色码"
+        ));
+        config.set("card-reveal.back-custom-model-data", 321);
+        config.set("card-reveal.back-item-model", "fotia:mystery_card");
+        config.set("card-reveal.back-glow", true);
         config.set("card-reveal.reveal-interval-ticks", 99);
 
         CardAnimationSettings settings = CardAnimationSettings.from(
                 config.getConfigurationSection("card-reveal"));
 
-        assertEquals(Material.BLACK_STAINED_GLASS_PANE, settings.backMaterial());
-        assertEquals("<!i><gold>未知奖励", settings.backName());
+        CardBackDisplay back = settings.backDisplay();
+        assertEquals(Material.BLACK_STAINED_GLASS_PANE, back.material());
+        assertEquals("<!i><gold>未知奖励", back.name());
+        assertEquals(List.of("<!i><gray>点击翻开", "&e支持旧颜色码"), back.lore());
+        assertEquals(321, back.customModelData());
+        assertEquals("fotia:mystery_card", back.itemModel());
+        assertTrue(back.glow());
         assertEquals(20, settings.revealIntervalTicks());
     }
 
@@ -29,7 +48,36 @@ class CardAnimationSettingsTest {
         config.set("card-reveal.back-material", "NOT_A_MATERIAL");
 
         assertEquals(Material.PURPLE_STAINED_GLASS_PANE,
-                CardAnimationSettings.from(config.getConfigurationSection("card-reveal")).backMaterial());
+                CardAnimationSettings.from(config.getConfigurationSection("card-reveal"))
+                        .backDisplay().material());
+    }
+
+    @Test
+    void supportsUnderscoreItemModelAliasAndClampsNegativeCustomModelData() {
+        YamlConfiguration config = new YamlConfiguration();
+        config.set("card-reveal.back-item_model", "fotia:legacy_card");
+        config.set("card-reveal.back-custom-model-data", -5);
+
+        CardBackDisplay back = CardAnimationSettings.from(
+                config.getConfigurationSection("card-reveal")).backDisplay();
+
+        assertEquals("fotia:legacy_card", back.itemModel());
+        assertEquals(0, back.customModelData());
+    }
+
+    @Test
+    void bundledTemplateProvidesAVisibleCardBackHint() throws Exception {
+        try (InputStream stream = getClass().getResourceAsStream(
+                "/guis/animations/card-reveal.yml")) {
+            assertNotNull(stream);
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(
+                    new InputStreamReader(stream, StandardCharsets.UTF_8));
+
+            CardBackDisplay back = CardAnimationSettings.from(
+                    config.getConfigurationSection("card-reveal")).backDisplay();
+
+            assertEquals(List.of("<!i><gray>点击选择这张卡牌"), back.lore());
+        }
     }
 
     @Test
