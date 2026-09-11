@@ -42,9 +42,13 @@ public class MoneyReward extends AbstractReward {
         FotiaCrates plugin = FotiaCrates.getInstance();
         if (plugin.hasEconomy()) {
             Economy economy = plugin.getEconomy();
-            economy.depositPlayer(player, amount);
+            var response = economy.depositPlayer(player, amount);
+            if (response == null || !response.transactionSuccess()) {
+                throw new IllegalStateException("Economy rejected the reward: "
+                        + (response == null ? "no response" : response.errorMessage));
+            }
         } else {
-            plugin.getLogger().warning("Vault economy not available! Cannot give money reward to " + player.getName());
+            throw new IllegalStateException("Vault economy is not available for " + player.getName());
         }
     }
 

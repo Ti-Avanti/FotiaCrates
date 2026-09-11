@@ -174,68 +174,22 @@ public class BlockListener implements Listener {
             openAttempt = crateOpenService.prepareOpen(player, crate);
             if (!openAttempt.isSuccess()) {
                 plugin.getOpenSessionManager().finish(playerUuid);
-                crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
+                crateOpenService.sendOpenFailure(player, crate, openAttempt.failureReason());
                 return;
             }
 
             crateOpenService.commitOpen(player, openAttempt, () -> {
-                RewardResult rewardResult = openAttempt.rewardResult();
-                plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-                plugin.getHologramManager().hideHologram(crateLocation);
-
-                boolean hasModel = crate.isModelEnabled()
-                        && plugin.getModelEngineManager().ensureCrateModel(crate, crateLocation);
-                if (hasModel) {
-                    plugin.getModelEngineManager().playOpenAnimation(crate, crateLocation, player);
-                    int delay = crate.getModelEngineOpenDelay();
-                    plugin.getServer().getScheduler().runTaskLater(plugin,
-                            () -> playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation), delay);
-                    return;
-                }
-
-                playGuiAnimationAndGiveReward(player, crate, rewardResult, crateLocation);
+                RewardResult result = openAttempt.rewardResult();
+                Runnable delivery = () -> crateOpenService.deliverRewardSafely(playerUuid, player.getName(), crate,
+                        result, crateLocation, () -> plugin.getOpenSessionManager().finish(playerUuid));
+                plugin.getCratePresentationManager().play(playerUuid, crate, java.util.List.of(result.getDisplayReward()),
+                        crateLocation, true, true, delivery);
             }, () -> plugin.getOpenSessionManager().finish(playerUuid));
         } catch (RuntimeException exception) {
             // 同步段抛异常时必须释放会话，否则该玩家将被永久拦截
             plugin.getOpenSessionManager().finish(playerUuid);
             throw exception;
         }
-    }
-
-    private void playGuiAnimationAndGiveReward(Player player, Crate crate, RewardResult rewardResult, Location crateLocation) {
-        UUID playerUuid = player.getUniqueId();
-        String playerName = player.getName();
-        String crateId = crate.getId();
-
-        Runnable onComplete = () -> {
-            if (!plugin.getCrateManager().isLocationSet(crateLocation)) {
-                plugin.getOpenSessionManager().finish(playerUuid);
-                crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
-                return;
-            }
-
-            if (crate.isModelEnabled()) {
-                plugin.getModelEngineManager().playIdleAnimation(crate, crateLocation);
-            }
-
-            plugin.getHologramManager().showHologram(crateLocation, crateId);
-            plugin.getOpenSessionManager().finish(playerUuid);
-            crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
-        };
-
-        if (crate.isAnimationEnabled() || crate.isPhysicalAnimationEnabled()) {
-            if (!player.isOnline()) {
-                onComplete.run();
-                return;
-            }
-            if (!plugin.getAnimationManager().playAnimation(
-                    player, crate, rewardResult.getDisplayReward(), crateLocation, onComplete)) {
-                onComplete.run();
-            }
-            return;
-        }
-
-        onComplete.run();
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -357,7 +311,7 @@ public class BlockListener implements Listener {
 
         int keys = plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId());
         if (keys < amount) {
-            plugin.getLanguageManager().send(player, "no-key");
+            crateOpenService.sendMissingKeys(player, crate, amount);
             return;
         }
 

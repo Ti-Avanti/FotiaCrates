@@ -18,6 +18,7 @@ import gg.fotia.crates.particle.ParticleEffectMode;
 import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.particle.ParticleTarget;
 import gg.fotia.crates.reward.Reward;
+import gg.fotia.crates.reward.RewardItemSource;
 import gg.fotia.crates.reward.RewardProbability;
 import gg.fotia.crates.util.ItemBuilder;
 import gg.fotia.crates.util.MessageUtil;
@@ -61,12 +62,18 @@ public class GuiManager {
 
     private final FotiaCrates plugin;
     private final GuiConfigManager configManager;
+    private final RarityProbabilityEditor rarityProbabilityEditor;
+    private final GuiRenderSupport renderer;
+    private final KeyEditorGui keyEditorGui;
     // 异步聊天线程会读取（GuiListener.onPlayerChat），必须用并发 Map
     private final Map<UUID, InputSession> inputSessions = new ConcurrentHashMap<>();
 
     public GuiManager(FotiaCrates plugin) {
         this.plugin = plugin;
         this.configManager = new GuiConfigManager(plugin);
+        this.renderer = new GuiRenderSupport(plugin, configManager);
+        this.keyEditorGui = new KeyEditorGui(plugin, configManager, renderer);
+        this.rarityProbabilityEditor = new RarityProbabilityEditor(plugin);
     }
 
     /**
@@ -120,7 +127,7 @@ public class GuiManager {
         );
 
         // 填充背景
-        fillBackground(inventory, config);
+        renderer.fillBackground(inventory, config);
 
         // 放置固定物品（带分页占位符）
         Map<String, String> placeholders = new HashMap<>();
@@ -145,7 +152,7 @@ public class GuiManager {
                 0, rewards.size() - collectedRewardIds.size())));
         placeholders.put("{multi_open_hint}",
                 config.getPreviewMultiOpenHint().render(multiOpenAmount));
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
 
         // 放置奖励图标（分页）
         int startIndex = page * itemsPerPage;
@@ -189,13 +196,13 @@ public class GuiManager {
         );
 
         // 填充背景
-        fillBackground(inventory, config);
+        renderer.fillBackground(inventory, config);
 
         // 放置固定物品（带占位符替换）
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{crate_count}", String.valueOf(plugin.getCrateManager().getAllCrates().size()));
         placeholders.put("{key_count}", String.valueOf(plugin.getKeyManager().getKeyIds().size()));
-        placeFixedItemsWithPlaceholders(inventory, config, player, null, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, null, placeholders);
 
         // 放置抽奖箱列表
         List<Integer> contentSlots = config.getContentSlots();
@@ -233,14 +240,16 @@ public class GuiManager {
         );
 
         // 填充背景
-        fillBackground(inventory, config);
+        renderer.fillBackground(inventory, config);
 
         // 准备占位符
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{crate}", crate.getName());
         placeholders.put("{crate_id}", crate.getId());
         placeholders.put("{reward_count}", String.valueOf(crate.getRewards().size()));
-        placeholders.put("{total_chance}", String.format("%.2f", crate.getRewards().stream().mapToDouble(Reward::getChance).sum()));
+        String totalWeight = RewardProbability.formatWeight(crate.getRewards().stream().mapToDouble(Reward::getChance).sum());
+        placeholders.put("{total_chance}", totalWeight);
+        placeholders.put("{total_weight}", totalWeight);
         placeholders.put("{animation_type}", crate.getAnimationType().name());
         placeholders.put("{animation_template}", resolvedAnimationTemplateId(crate));
         placeholders.put("{animation_duration}", String.valueOf(crate.getAnimationDuration()));
@@ -266,7 +275,7 @@ public class GuiManager {
         placeholders.put("{unique_draw_enabled}", crate.isUniqueDrawEnabled() ? "是" : "否");
         placeholders.put("{unique_preview_replace}", crate.isReplaceObtainedInPreview() ? "是" : "否");
 
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         if (!hasConfiguredAction(config, "edit_particles") && config.getSize() > 3) {
             inventory.setItem(3, createParticleShortcutItem(crate));
         }
@@ -279,193 +288,8 @@ public class GuiManager {
             if (slotIndex >= contentSlots.size()) break;
 
             int slot = contentSlots.get(slotIndex);
-            ItemStack rewardItem = createAdminRewardItem(reward);
+            ItemStack rewardItem = createEditorRewardItem(reward, crate.getRewards(), false);
             inventory.setItem(slot, rewardItem);
-            slotIndex++;
-        }
-
-        player.openInventory(inventory);
-    }
-
-    /**
-     * 打开钥匙管理界面
-     */
-    public void openKeysGui(Player player) {
-        GuiConfig config = configManager.getGuiConfig("admin_keys");
-        if (config == null) {
-            plugin.getLogger().warning("Admin keys GUI config not found!");
-            return;
-        }
-
-        Inventory inventory = Bukkit.createInventory(
-                new CrateGuiHolder(GuiType.ADMIN_KEYS, null),
-                config.getSize(),
-                MessageUtil.parse(config.getTitle())
-        );
-
-        // 填充背景
-        fillBackground(inventory, config);
-
-        // 放置固定物品（带占位符替换）
-        Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("{key_count}", String.valueOf(plugin.getKeyManager().getKeyIds().size()));
-        placeFixedItemsWithPlaceholders(inventory, config, player, null, placeholders);
-
-        // 放置钥匙列表
-        List<Integer> contentSlots = config.getContentSlots();
-        int slotIndex = 0;
-        for (String keyId : plugin.getKeyManager().getKeyIds()) {
-            if (slotIndex >= contentSlots.size()) break;
-
-            Key key = plugin.getKeyManager().getKey(keyId);
-            if (key == null) continue;
-
-            int slot = contentSlots.get(slotIndex);
-            ItemStack keyItem = createAdminKeyItem(key);
-            inventory.setItem(slot, keyItem);
-            slotIndex++;
-        }
-
-        player.openInventory(inventory);
-    }
-
-    /**
-     * 打开钥匙编辑界面
-     */
-    public void openKeyEditGui(Player player, Key key) {
-        GuiConfig config = configManager.getGuiConfig("admin_key_edit");
-        if (config == null) {
-            plugin.getLogger().warning("Admin key edit GUI config not found!");
-            return;
-        }
-
-        String title = config.getTitle()
-                .replace("{key}", MessageUtil.stripColor(key.getName()));
-        CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_KEY_EDIT, null);
-        holder.setData("key_id", key.getId());
-
-        Inventory inventory = Bukkit.createInventory(
-                holder,
-                config.getSize(),
-                MessageUtil.parse(title)
-        );
-
-        // 填充背景
-        fillBackground(inventory, config);
-
-        // 准备占位符
-        Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("{key}", key.getName());
-        placeholders.put("{key_id}", key.getId());
-        placeholders.put("{crate_count}", String.valueOf(key.getCrateIds().size()));
-        placeholders.put("{glow}", key.isGlow() ? "是" : "否");
-
-        placeFixedItemsWithPlaceholders(inventory, config, player, null, placeholders);
-
-        // 放置可开启的宝箱列表
-        List<Integer> contentSlots = config.getContentSlots();
-        int slotIndex = 0;
-        for (String crateId : key.getCrateIds()) {
-            if (slotIndex >= contentSlots.size()) break;
-
-            Crate crate = plugin.getCrateManager().getCrate(crateId);
-            if (crate == null) continue;
-
-            int slot = contentSlots.get(slotIndex);
-            ItemStack crateItem = createKeyEditCrateItem(crate);
-            inventory.setItem(slot, crateItem);
-            slotIndex++;
-        }
-
-        player.openInventory(inventory);
-    }
-
-    /**
-     * 创建管理界面的钥匙物品
-     */
-    private ItemStack createAdminKeyItem(Key key) {
-        List<String> lore = new ArrayList<>();
-        lore.add("<!i><gray>ID: <!i><white>" + key.getId());
-        lore.add("<!i><gray>可开启宝箱: <!i><white>" + key.getCrateIds().size() + "个");
-        lore.add("");
-        lore.add("<!i><yellow>左键 <!i><gray>- 编辑钥匙");
-        lore.add("<!i><red>Shift+右键 <!i><gray>- 删除钥匙");
-
-        ItemBuilder builder = new ItemBuilder(key.getItem())
-                .name(key.getName())
-                .lore(lore);
-
-        if (key.isGlow()) {
-            builder.glow(true);
-        }
-
-        return builder.build();
-    }
-
-    /**
-     * 创建钥匙编辑界面的宝箱物品
-     */
-    private ItemStack createKeyEditCrateItem(Crate crate) {
-        List<String> lore = new ArrayList<>();
-        lore.add("<!i><gray>ID: <!i><white>" + crate.getId());
-        lore.add("");
-        lore.add("<!i><red>Shift+右键 <!i><gray>- 移除此宝箱");
-
-        return new ItemBuilder(crate.getBlockMaterial())
-                .name(crate.getName())
-                .lore(lore)
-                .build();
-    }
-
-    /**
-     * 打开宝箱选择界面（用于钥匙编辑）
-     */
-    public void openCrateSelectGui(Player player, Key key) {
-        if (openConfiguredCrateSelectGui(player, key)) {
-            return;
-        }
-        Inventory inventory = Bukkit.createInventory(
-                new CrateGuiHolder(GuiType.ADMIN_KEY_EDIT, null),
-                54,
-                MessageUtil.parse("<!i><dark_gray>选择宝箱")
-        );
-
-        CrateGuiHolder holder = (CrateGuiHolder) inventory.getHolder();
-        holder.setData("key_id", key.getId());
-        holder.setData("select_mode", true);
-
-        // 填充背景
-        ItemStack fill = new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
-        for (int i = 0; i < 54; i++) {
-            inventory.setItem(i, fill);
-        }
-
-        // 返回按钮
-        ItemStack back = new ItemBuilder(Material.ARROW)
-                .name("<!i><red>返回")
-                .lore(List.of("<!i><gray>返回钥匙编辑界面"))
-                .build();
-        inventory.setItem(45, back);
-
-        // 放置宝箱列表
-        List<Integer> contentSlots = List.of(10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34);
-        int slotIndex = 0;
-        for (Crate crate : plugin.getCrateManager().getAllCrates()) {
-            if (slotIndex >= contentSlots.size()) break;
-
-            // 跳过已添加的宝箱
-            if (key.getCrateIds().contains(crate.getId())) continue;
-
-            int slot = contentSlots.get(slotIndex);
-            ItemStack crateItem = new ItemBuilder(crate.getBlockMaterial())
-                    .name(crate.getName())
-                    .lore(List.of(
-                            "<!i><gray>ID: <!i><white>" + crate.getId(),
-                            "",
-                            "<!i><yellow>左键点击添加"
-                    ))
-                    .build();
-            inventory.setItem(slot, crateItem);
             slotIndex++;
         }
 
@@ -533,7 +357,7 @@ public class GuiManager {
         );
 
         // 填充背景
-        fillBackground(inventory, config);
+        renderer.fillBackground(inventory, config);
 
         // 准备占位符
         Map<String, String> placeholders = new HashMap<>();
@@ -542,7 +366,7 @@ public class GuiManager {
         placeholders.put("{total}", String.valueOf(history.size()));
         placeholders.put("{crate}", crateDisplayName);
 
-        placeFixedItemsWithPlaceholders(inventory, config, player, historyCrate, placeholders, paginationState);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, historyCrate, placeholders, paginationState);
 
         // 放置历史记录
         List<Integer> contentSlots = config.getContentSlots();
@@ -561,177 +385,20 @@ public class GuiManager {
 
     // ==================== 辅助方法 ====================
 
-    /**
-     * 填充背景
-     */
-    private void fillBackground(Inventory inventory, GuiConfig config) {
-        if (!config.isFillEnabled()) return;
-
-        ItemStack fillItem = new ItemBuilder(config.getFillMaterial())
-                .name(config.getFillName())
-                .build();
-
-        for (int i = 0; i < inventory.getSize(); i++) {
-            inventory.setItem(i, fillItem);
-        }
-    }
-
-    /**
-     * 放置固定物品
-     */
-    private Inventory createConfiguredInventory(String guiId, CrateGuiHolder holder,
-                                                String fallbackTitle, int fallbackSize,
-                                                Map<String, String> placeholders) {
-        GuiConfig config = configManager.getGuiConfig(guiId);
-        String title = config != null ? config.getTitle() : fallbackTitle;
-        int size = config != null ? config.getSize() : fallbackSize;
-        Inventory inventory = Bukkit.createInventory(holder, size, MessageUtil.parse(applyPlaceholders(title, placeholders)));
-        holder.setInventory(inventory);
-
-        if (config != null) {
-            fillBackground(inventory, config);
-        } else {
-            ItemStack fill = new ItemBuilder(Material.GRAY_STAINED_GLASS_PANE).name(" ").build();
-            for (int i = 0; i < size; i++) {
-                inventory.setItem(i, fill);
-            }
-        }
-        return inventory;
-    }
-
-    private ItemStack configuredItem(GuiConfig config, String action, ItemStack fallback,
-                                     Map<String, String> placeholders) {
-        GuiItem item = config != null ? config.getItemByAction(action) : null;
-        if (item == null) {
-            return fallback;
-        }
-        return buildConfiguredItem(item, placeholders);
-    }
-
-    private ItemStack buildConfiguredItem(GuiItem guiItem, Map<String, String> placeholders) {
-        String name = applyPlaceholders(guiItem.getName(), placeholders);
-        List<String> lore = applyPlaceholders(guiItem.getLore(), placeholders);
-        ItemBuilder builder = new ItemBuilder(guiItem.getMaterial())
-                .name(name)
-                .lore(lore);
-        if (guiItem.getCustomModelData() > 0) {
-            builder.customModelData(guiItem.getCustomModelData());
-        }
-        if (guiItem.isGlow()) {
-            builder.glow(true);
-        }
-        return builder.build();
-    }
-
-    private void setConfiguredItem(Inventory inventory, GuiConfig config, String action,
-                                   int fallbackSlot, ItemStack fallback,
-                                   Map<String, String> placeholders) {
-        int slot = config != null ? config.getSlotByAction(action, fallbackSlot) : fallbackSlot;
-        if (slot < 0 || slot >= inventory.getSize()) {
-            return;
-        }
-        inventory.setItem(slot, configuredItem(config, action, fallback, placeholders));
-    }
-
-    private void setConfiguredItems(Inventory inventory, GuiConfig config, String action,
-                                    List<Integer> fallbackSlots, ItemStack fallback,
-                                    Map<String, String> placeholders) {
-        List<Integer> slots = config != null ? config.getSlotsByAction(action) : List.of();
-        if (slots.isEmpty()) {
-            slots = fallbackSlots;
-        }
-        ItemStack item = configuredItem(config, action, fallback, placeholders);
-        for (int slot : slots) {
-            if (slot >= 0 && slot < inventory.getSize()) {
-                inventory.setItem(slot, item);
-            }
-        }
-    }
-
-    public String getConfiguredAction(String guiId, int slot) {
-        GuiConfig config = configManager.getGuiConfig(guiId);
-        GuiItem item = config != null ? config.getItem(slot) : null;
-        return item != null ? item.getAction() : null;
-    }
-
-    public int getConfiguredSlot(String guiId, String action, int fallback) {
-        GuiConfig config = configManager.getGuiConfig(guiId);
-        return config != null ? config.getSlotByAction(action, fallback) : fallback;
-    }
-
-    public List<Integer> getConfiguredContentSlots(String guiId, List<Integer> fallback) {
-        GuiConfig config = configManager.getGuiConfig(guiId);
-        if (config == null || config.getContentSlots().isEmpty()) {
-            return new ArrayList<>(fallback);
-        }
-        return config.getContentSlots();
-    }
-
-    private String applyPlaceholders(String input, Map<String, String> placeholders) {
-        if (input == null || placeholders == null || placeholders.isEmpty()) {
-            return input;
-        }
-        String result = input;
-        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-            result = result.replace(entry.getKey(), entry.getValue() != null ? entry.getValue() : "");
-        }
-        return result;
-    }
-
-    private List<String> applyPlaceholders(List<String> input, Map<String, String> placeholders) {
-        if (input == null) {
-            return List.of();
-        }
-        List<String> result = new ArrayList<>(input);
-        if (placeholders == null || placeholders.isEmpty()) {
-            return result;
-        }
-        result.replaceAll(line -> applyPlaceholders(line, placeholders));
-        return result;
-    }
-
     private String yesNo(boolean value) {
         return value ? "是" : "否";
     }
 
-    private String autoDisplayStatus(boolean autoEnabled, boolean fieldEnabled) {
+    private String autoDisplayStatus(Player player, Reward reward, boolean autoEnabled, boolean fieldEnabled) {
         if (!plugin.getConfigManager().isRewardAutoDisplayFromFirstItemEnabled() || !fieldEnabled) {
-            return "已关闭";
+            return plugin.getLanguageManager().getRawMessage(player, "admin-auto-display-disabled");
         }
-        return autoEnabled ? "自动同步" : "手动修改";
-    }
-
-    private boolean openConfiguredCrateSelectGui(Player player, Key key) {
-        String guiId = "admin_crate_select";
-        GuiConfig config = configManager.getGuiConfig(guiId);
-        if (config == null) return false;
-
-        Map<String, String> placeholders = new HashMap<>();
-        placeholders.put("{key}", key.getName());
-        placeholders.put("{key_id}", key.getId());
-
-        CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_KEY_EDIT, null);
-        holder.setData("key_id", key.getId());
-        holder.setData("select_mode", true);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>选择宝箱", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, null, placeholders);
-
-        List<Integer> contentSlots = getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_21);
-        int slotIndex = 0;
-        for (Crate crate : plugin.getCrateManager().getAllCrates()) {
-            if (key.getCrateIds().contains(crate.getId())) continue;
-            if (slotIndex >= contentSlots.size()) break;
-            inventory.setItem(contentSlots.get(slotIndex++), new ItemBuilder(crate.getBlockMaterial())
-                    .name(crate.getName())
-                    .lore(List.of(
-                            "<!i><gray>ID: <!i><white>" + crate.getId(),
-                            "",
-                            "<!i><yellow>左键点击添加"
-                    ))
-                    .build());
+        if (!autoEnabled && plugin.getConfigManager().isRewardAutoDisplayOnlyWhenNotCustomized()) {
+            return plugin.getLanguageManager().getRawMessage(player, "admin-auto-display-manual");
         }
-        player.openInventory(inventory);
-        return true;
+        return plugin.getLanguageManager().getRawMessage(player,
+                RewardItemSource.first(reward.getItem(), reward.getExtraItems()) == null
+                        ? "admin-auto-display-waiting" : "admin-auto-display-enabled");
     }
 
     private boolean openConfiguredAnimationSelectGui(Player player, Crate crate) {
@@ -756,8 +423,8 @@ public class GuiManager {
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("select_animation", true);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>动画设置", 45, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>动画设置", 45, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         player.openInventory(inventory);
         return true;
     }
@@ -774,10 +441,10 @@ public class GuiManager {
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("edit_pity", true);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>多级保底设置", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>多级保底设置", 54, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
 
-        List<Integer> tierSlots = getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_21);
+        List<Integer> tierSlots = renderer.getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_21);
         List<Crate.PityTier> tiers = crate.getPityTiers();
         for (int i = 0; i < tierSlots.size(); i++) {
             if (i < tiers.size()) {
@@ -817,8 +484,8 @@ public class GuiManager {
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("edit_basic", true);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>基本设置", 27, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>基本设置", 27, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         player.openInventory(inventory);
         return true;
     }
@@ -835,8 +502,8 @@ public class GuiManager {
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("edit_multi_open", true);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>多连抽设置", 27, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>多连抽设置", 27, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         player.openInventory(inventory);
         return true;
     }
@@ -858,9 +525,9 @@ public class GuiManager {
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("edit_unique_draw", true);
-        Inventory inventory = createConfiguredInventory(
+        Inventory inventory = renderer.createConfiguredInventory(
                 guiId, holder, "<!i><dark_gray>不重复抽奖设置", 45, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
 
         for (Map.Entry<Integer, GuiItem> entry : config.getItems().entrySet()) {
             if ("preview_unique_icon".equalsIgnoreCase(entry.getValue().getAction())) {
@@ -891,9 +558,9 @@ public class GuiManager {
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("select_animation", true);
         holder.setData("select_animation_template", true);
-        Inventory inventory = createConfiguredInventory(
+        Inventory inventory = renderer.createConfiguredInventory(
                 guiId, holder, "<!i><dark_gray>选择动画模板", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
 
         List<Integer> contentSlots = config.getContentSlots();
         for (int index = 0; index < templates.size() && index < contentSlots.size(); index++) {
@@ -960,7 +627,7 @@ public class GuiManager {
             return false;
         }
 
-        List<Integer> materialSlots = getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_28);
+        List<Integer> materialSlots = renderer.getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_28);
         int itemsPerPage = Math.max(1, materialSlots.size());
         int totalPages = Math.max(1,
                 (int) Math.ceil((double) ITEM_MATERIAL_OPTIONS.size() / itemsPerPage));
@@ -979,9 +646,9 @@ public class GuiManager {
         holder.setData("unique_icon_material_select", true);
         holder.setData("unique_icon_material_page", currentPage);
         holder.setData("pagination_state", paginationState);
-        Inventory inventory = createConfiguredInventory(
+        Inventory inventory = renderer.createConfiguredInventory(
                 guiId, holder, "<!i><dark_gray>选择已获得图标材质", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
 
         int startIndex = currentPage * itemsPerPage;
         for (int index = 0; index < materialSlots.size(); index++) {
@@ -1038,14 +705,14 @@ public class GuiManager {
         placeholders.put("{reward_type}", reward.getType().name());
         placeholders.put("{reward_item_count}", String.valueOf(totalItems));
         placeholders.put("{command_count}", String.valueOf(commands.size()));
-        placeholders.put("{chance}", String.format("%.2f", reward.getChance()));
+        placeholders.put("{chance}", RewardProbability.formatWeight(reward.getChance()));
         placeholders.put("{probability}", RewardProbability.format(RewardProbability.percentage(reward, crate.getRewards())));
         placeholders.put("{rarity}", getRarityDisplayName(reward.getRarity()));
         placeholders.put("{broadcast}", yesNo(reward.shouldBroadcast()));
         placeholders.put("{display_name}", reward.getDisplayName());
-        placeholders.put("{auto_icon_status}", autoDisplayStatus(reward.isAutoDisplayIcon(),
+        placeholders.put("{auto_icon_status}", autoDisplayStatus(player, reward, reward.isAutoDisplayIcon(),
                 plugin.getConfigManager().isRewardAutoDisplayIconFromFirstItem()));
-        placeholders.put("{auto_name_status}", autoDisplayStatus(reward.isAutoDisplayName(),
+        placeholders.put("{auto_name_status}", autoDisplayStatus(player, reward, reward.isAutoDisplayName(),
                 plugin.getConfigManager().isRewardAutoDisplayNameFromFirstItem()));
         placeholders.put("{permission_check}", yesNo(reward.isPermissionCheckEnabled()));
         placeholders.put("{permission_node}", reward.getCheckPermission() == null || reward.getCheckPermission().isEmpty() ? "未设置" : reward.getCheckPermission());
@@ -1058,8 +725,8 @@ public class GuiManager {
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_REWARD_EDIT, crate);
         holder.setData("reward_id", reward.getId());
         holder.setData(RewardEditContext.HOLDER_KEY, editContext);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>编辑奖励: {reward}", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>编辑奖励: {reward}", 54, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         player.openInventory(inventory);
         return true;
     }
@@ -1078,9 +745,9 @@ public class GuiManager {
         holder.setData("reward_id", rewardId);
         holder.setData("input_type", inputType);
         holder.setData(RewardEditContext.HOLDER_KEY, editContext);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>放入物品", 27, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
-        for (int slot : getConfiguredContentSlots(guiId, List.of(13))) {
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>放入物品", 27, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        for (int slot : renderer.getConfiguredContentSlots(guiId, List.of(13))) {
             if (slot >= 0 && slot < inventory.getSize()) {
                 inventory.setItem(slot, new ItemStack(Material.AIR));
             }
@@ -1104,15 +771,15 @@ public class GuiManager {
             return true;
         }
 
-        List<Integer> itemSlots = getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_21);
+        List<Integer> itemSlots = renderer.getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_21);
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{max_items}", String.valueOf(itemSlots.size()));
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.REWARD_ITEMS, crate);
         holder.setData("reward_id", rewardId);
         holder.setData(RewardEditContext.HOLDER_KEY, editContext);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>奖励物品管理", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>奖励物品管理", 54, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
 
         for (int slot : itemSlots) {
             if (slot >= 0 && slot < inventory.getSize()) {
@@ -1144,10 +811,10 @@ public class GuiManager {
         holder.setData("source_reward_id", sourceRewardId);
         holder.setData("alternative_select", true);
         holder.setData(RewardEditContext.HOLDER_KEY, editContext);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>选择替代奖励", 54, Map.of());
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, Map.of());
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>选择替代奖励", 54, Map.of());
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, Map.of());
 
-        List<Integer> rewardSlots = getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_28);
+        List<Integer> rewardSlots = renderer.getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_28);
         List<Reward> rewards = crate.getRewards().stream()
                 .filter(reward -> !reward.getId().equals(sourceRewardId))
                 .toList();
@@ -1176,7 +843,7 @@ public class GuiManager {
         GuiConfig config = configManager.getGuiConfig(guiId);
         if (config == null) return false;
 
-        List<Integer> rewardSlots = getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_28);
+        List<Integer> rewardSlots = renderer.getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_28);
         List<Reward> rewards = crate.getRewards();
         int itemsPerPage = Math.max(1, rewardSlots.size());
         int maxPage = Math.max(0, (rewards.size() - 1) / itemsPerPage);
@@ -1189,20 +856,21 @@ public class GuiManager {
         placeholders.put("{page}", String.valueOf(currentPage + 1));
         placeholders.put("{max_page}", String.valueOf(maxPage + 1));
         placeholders.put("{reward_count}", String.valueOf(rewards.size()));
-        placeholders.put("{total_chance}", String.format("%.2f", totalChance));
+        placeholders.put("{total_chance}", RewardProbability.formatWeight(totalChance));
+        placeholders.put("{total_weight}", RewardProbability.formatWeight(totalChance));
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_REWARD_EDIT, crate);
         holder.setData("reward_manager", true);
         holder.setCurrentPage(currentPage);
         holder.setData("pagination_state", paginationState);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>奖励管理: {crate}", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>奖励管理: {crate}", 54, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
 
         int startIndex = currentPage * itemsPerPage;
         for (int i = 0; i < rewardSlots.size(); i++) {
             int rewardIndex = startIndex + i;
             if (rewardIndex < rewards.size()) {
-                inventory.setItem(rewardSlots.get(i), createManagerRewardItem(rewards.get(rewardIndex)));
+                inventory.setItem(rewardSlots.get(i), createEditorRewardItem(rewards.get(rewardIndex), rewards, true));
             }
         }
         player.openInventory(inventory);
@@ -1216,10 +884,10 @@ public class GuiManager {
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN, null);
         holder.setData("rarity_manager", true);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>稀有度管理", 54, Map.of());
-        placeFixedItemsWithPlaceholders(inventory, config, player, null, Map.of());
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>稀有度管理", 54, Map.of());
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, null, Map.of());
 
-        List<Integer> raritySlots = getConfiguredContentSlots(guiId, DEFAULT_RARITY_SLOTS);
+        List<Integer> raritySlots = renderer.getConfiguredContentSlots(guiId, DEFAULT_RARITY_SLOTS);
         List<String> rarityIds = plugin.getConfigManager().getRarityIds();
         for (int i = 0; i < raritySlots.size() && i < rarityIds.size(); i++) {
             String rarityId = rarityIds.get(i);
@@ -1262,8 +930,8 @@ public class GuiManager {
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("edit_particles", true);
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>粒子特效设置", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>粒子特效设置", 54, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         player.openInventory(inventory);
         return true;
     }
@@ -1295,8 +963,8 @@ public class GuiManager {
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.ADMIN_CRATE_EDIT, crate);
         holder.setData("edit_particles", true);
         holder.setData("particle_stage", stage.name());
-        Inventory inventory = createConfiguredInventory(guiId, holder, "<!i><dark_gray>粒子阶段: {stage}", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder, "<!i><dark_gray>粒子阶段: {stage}", 54, placeholders);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
         player.openInventory(inventory);
         return true;
     }
@@ -1309,7 +977,7 @@ public class GuiManager {
 
         boolean blockMode = "block".equalsIgnoreCase(materialKey);
         List<Material> materials = getParticleMaterialOptions(materialKey);
-        List<Integer> materialSlots = getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_28);
+        List<Integer> materialSlots = renderer.getConfiguredContentSlots(guiId, DEFAULT_CONTENT_SLOTS_28);
         int itemsPerPage = Math.max(1, materialSlots.size());
         int totalPages = Math.max(1, (int) Math.ceil((double) materials.size() / itemsPerPage));
         int currentPage = Math.max(0, Math.min(page, totalPages - 1));
@@ -1330,9 +998,9 @@ public class GuiManager {
         holder.setData("particle_material_key", blockMode ? "block" : "item");
         holder.setData("particle_material_page", currentPage);
         holder.setData("pagination_state", paginationState);
-        Inventory inventory = createConfiguredInventory(guiId, holder,
+        Inventory inventory = renderer.createConfiguredInventory(guiId, holder,
                 "<!i><dark_gray>选择{material_type}粒子材质", 54, placeholders);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders, paginationState);
 
         int startIndex = currentPage * itemsPerPage;
         for (int i = 0; i < materialSlots.size(); i++) {
@@ -1350,67 +1018,6 @@ public class GuiManager {
         }
         player.openInventory(inventory);
         return true;
-    }
-
-    private void placeFixedItems(Inventory inventory, GuiConfig config, Player player, Crate crate) {
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, new HashMap<>());
-    }
-
-    /**
-     * 放置固定物品（带占位符）
-     */
-    private void placeFixedItemsWithPlaceholders(Inventory inventory, GuiConfig config,
-                                                  Player player, Crate crate,
-                                                  Map<String, String> extraPlaceholders) {
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, extraPlaceholders, null);
-    }
-
-    private void placeFixedItemsWithPlaceholders(Inventory inventory, GuiConfig config,
-                                                  Player player, Crate crate,
-                                                  Map<String, String> extraPlaceholders,
-                                                  GuiPaginationState paginationState) {
-        // 公共占位符只算一次：{keys} 触发全背包扫描，不能放进每个物品的循环里；
-        // 调用方已算好的值（extraPlaceholders）优先，不再重复计算
-        Map<String, String> placeholders = new HashMap<>(extraPlaceholders);
-        if (player != null) {
-            placeholders.put("{player}", player.getName());
-        }
-        if (crate != null) {
-            placeholders.put("{crate}", crate.getName());
-            if (player != null) {
-                placeholders.putIfAbsent("{keys}",
-                        String.valueOf(plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId())));
-            }
-            placeholders.put("{reward_count}", String.valueOf(crate.getRewards().size()));
-        }
-
-        for (Map.Entry<Integer, GuiItem> entry : config.getItems().entrySet()) {
-            int slot = entry.getKey();
-            GuiItem guiItem = entry.getValue();
-            GuiItemDisplay display = GuiItemDisplayResolver.resolve(guiItem, paginationState);
-
-            String name = display.name();
-            List<String> lore = new ArrayList<>(display.lore());
-
-            for (Map.Entry<String, String> ph : placeholders.entrySet()) {
-                name = name.replace(ph.getKey(), ph.getValue());
-                lore.replaceAll(line -> line.replace(ph.getKey(), ph.getValue()));
-            }
-
-            ItemBuilder builder = new ItemBuilder(display.material())
-                    .name(name)
-                    .lore(lore);
-
-            if (display.customModelData() > 0) {
-                builder.customModelData(display.customModelData());
-            }
-            if (display.glow()) {
-                builder.glow(true);
-            }
-            builder.itemModel(display.itemModel());
-
-            inventory.setItem(slot, builder.build());
-        }
     }
 
     /**
@@ -1507,37 +1114,11 @@ public class GuiManager {
     /**
      * 创建管理界面的奖励物品
      */
-    private ItemStack createAdminRewardItem(Reward reward) {
-        ItemStack item = reward.getDisplayItem();
-        ItemBuilder builder = new ItemBuilder(item);
-
-        List<String> lore = new ArrayList<>();
-        lore.add("");
-        lore.add("<!i><gray>ID: <!i><white>" + reward.getId());
-        lore.add("<!i><gray>类型: <!i><white>" + reward.getType().name());
-        lore.add("<!i><gray>概率: <!i><yellow>" + String.format("%.2f%%", reward.getChance()));
-        lore.add("<!i><gray>稀有度: <!i><white>" + reward.getRarity());
-        lore.add("");
-        lore.add("<!i><yellow>左键 <!i><gray>- 编辑奖励");
-        lore.add("<!i><red>Shift+右键 <!i><gray>- 删除奖励");
-
-        replaceRawRarityLine(lore, reward.getRarity());
-
-        if (item.hasItemMeta() && item.getItemMeta().hasLore()) {
-            List<Component> originalLore = item.getItemMeta().lore();
-            List<Component> newLore = new ArrayList<>();
-            if (originalLore != null) {
-                newLore.addAll(originalLore);
-            }
-            for (String line : lore) {
-                newLore.add(MessageUtil.parse(line));
-            }
-            builder.loreComponents(newLore);
-        } else {
-            builder.lore(lore);
-        }
-
-        return builder.build();
+    private ItemStack createEditorRewardItem(Reward reward, List<Reward> rewards, boolean manager) {
+        GuiConfig config = configManager.getGuiConfig(manager ? "admin_reward_manager" : "admin_crate_edit");
+        RewardPreviewDisplayConfig display = config == null
+                ? RewardPreviewDisplayConfig.editorDefaults(manager) : config.getRewardPreviewDisplay();
+        return createRewardPreviewItem(reward, rewards, PreviewChanceDisplayMode.PERCENTAGE, display, null);
     }
 
     /**
@@ -1590,6 +1171,10 @@ public class GuiManager {
      * 处理玩家输入
      */
     public boolean handleInput(Player player, String input) {
+        if (rarityProbabilityEditor.isSaving()) {
+            plugin.getLanguageManager().send(player, "rarity-probability-busy");
+            return true;
+        }
         InputSession session = inputSessions.remove(player.getUniqueId());
         if (session == null) return false;
 
@@ -1601,7 +1186,14 @@ public class GuiManager {
      * 取消输入会话
      */
     public void cancelInputSession(Player player) {
-        inputSessions.remove(player.getUniqueId());
+        cancelInputSession(player, false);
+    }
+
+    public void cancelInputSession(Player player, boolean returnToEditor) {
+        InputSession session = inputSessions.remove(player.getUniqueId());
+        if (returnToEditor && session != null && "rarity_probability".equals(session.getType())) {
+            session.getCallback().onInput(player, "cancel", session.getData());
+        }
     }
 
     /**
@@ -1614,8 +1206,20 @@ public class GuiManager {
     /**
      * 获取GUI配置管理器
      */
+    public String getConfiguredAction(String guiId, int slot) { return renderer.getConfiguredAction(guiId, slot); }
+    public int getConfiguredSlot(String guiId, String action, int fallback) { return renderer.getConfiguredSlot(guiId, action, fallback); }
+    public List<Integer> getConfiguredContentSlots(String guiId, List<Integer> fallback) { return renderer.getConfiguredContentSlots(guiId, fallback); }
+
+    public void openKeysGui(Player player) { keyEditorGui.openKeysGui(player); }
+    public void openKeyEditGui(Player player, Key key) { keyEditorGui.openKeyEditGui(player, key); }
+    public void openCrateSelectGui(Player player, Key key) { keyEditorGui.openCrateSelectGui(player, key); }
+
     public GuiConfigManager getConfigManager() {
         return configManager;
+    }
+
+    public RarityProbabilityEditor getRarityProbabilityEditor() {
+        return rarityProbabilityEditor;
     }
 
     /**
@@ -2038,7 +1642,7 @@ public class GuiManager {
         // ===== 第三行：基本属性 =====
         // 概率设置
         ItemStack chance = new ItemBuilder(Material.PAPER)
-                .name("<!i><yellow>权重: " + String.format("%.2f", reward.getChance()))
+                .name("<!i><yellow>权重: " + RewardProbability.formatWeight(reward.getChance()))
                 .lore(List.of(
                         "<!i><gray>玩家展示概率: <!i><white>" + RewardProbability.format(RewardProbability.percentage(reward, crate.getRewards())),
                         "<!i><gray>用于计算此奖励的相对掉落概率",
@@ -2554,7 +2158,7 @@ public class GuiManager {
 
             if (rewardIndex < rewards.size()) {
                 Reward reward = rewards.get(rewardIndex);
-                inventory.setItem(slot, createManagerRewardItem(reward));
+                inventory.setItem(slot, createEditorRewardItem(reward, rewards, true));
             }
             // 空槽位保持背景
         }
@@ -2582,9 +2186,9 @@ public class GuiManager {
                 .name("<!i><gold>奖励统计")
                 .lore(List.of(
                         "<!i><gray>奖励数量: <!i><white>" + rewards.size(),
-                        "<!i><gray>总概率: <!i><white>" + String.format("%.2f%%", totalChance),
+                        "<!i><gray>总权重: <!i><white>" + RewardProbability.formatWeight(totalChance),
                         "",
-                        totalChance != 100 ? "<!i><red>⚠ 建议总概率为100%" : "<!i><green>✓ 概率配置正确"
+                        "<!i><gray>概率由奖励权重占总权重的比例计算"
                 ))
                 .build();
         inventory.setItem(49, info);
@@ -2600,12 +2204,12 @@ public class GuiManager {
 
         // 概率平衡
         ItemStack balance = new ItemBuilder(Material.GOLDEN_APPLE)
-                .name("<!i><gold>概率平衡")
+                .name("<!i><gold>权重调整")
                 .lore(List.of(
-                        "<!i><gray>自动调整所有奖励概率",
-                        "<!i><gray>使总概率等于100%",
+                        "<!i><gray>归一化保留原比例，平均分配会改变概率",
                         "",
-                        "<!i><yellow>点击执行"
+                        "<!i><yellow>左键 按比例归一化",
+                        "<!i><red>Shift+右键 平均分配"
                 ))
                 .build();
         inventory.setItem(52, balance);
@@ -2623,34 +2227,6 @@ public class GuiManager {
         inventory.setItem(53, addReward);
 
         player.openInventory(inventory);
-    }
-
-    /**
-     * 创建奖励管理界面的奖励物品
-     */
-    private ItemStack createManagerRewardItem(Reward reward) {
-        ItemStack item = reward.getDisplayItem().clone();
-        ItemBuilder builder = new ItemBuilder(item);
-
-        List<String> lore = new ArrayList<>();
-        if (item.hasItemMeta() && item.getItemMeta().hasLore()) {
-            lore.addAll(item.getItemMeta().getLore().stream()
-                    .map(MessageUtil::toLegacy).toList());
-        }
-        lore.add("");
-        lore.add("<!i><gray>ID: <!i><white>" + reward.getId());
-        lore.add("<!i><gray>概率: <!i><yellow>" + String.format("%.2f%%", reward.getChance()));
-        lore.add("<!i><gray>稀有度: " + getRarityColor(reward.getRarity()) + getRarityDisplayName(reward.getRarity()));
-        if (reward.shouldBroadcast()) {
-            lore.add("<!i><gold>★ 全服广播");
-        }
-        lore.add("");
-        lore.add("<!i><yellow>左键 编辑奖励");
-        lore.add("<!i><aqua>中键 复制奖励");
-        lore.add("<!i><red>Shift+右键 删除");
-
-        builder.lore(lore);
-        return builder.build();
     }
 
     /**
@@ -2789,10 +2365,10 @@ public class GuiManager {
         placeholders.put("{result_count}", String.valueOf(rewardResults.size()));
 
         CrateGuiHolder holder = new CrateGuiHolder(GuiType.MULTI_OPEN_RESULT, crate);
-        Inventory inventory = createConfiguredInventory(
+        Inventory inventory = renderer.createConfiguredInventory(
                 "multi_open_result", holder, "<!i><dark_gray>{crate} 抽奖结果", 45, placeholders);
-        fillBackground(inventory, config);
-        placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
+        renderer.fillBackground(inventory, config);
+        renderer.placeFixedItemsWithPlaceholders(inventory, config, player, crate, placeholders);
 
         List<Integer> contentSlots = config.getContentSlots();
         for (int index = 0; index < rewardResults.size() && index < contentSlots.size(); index++) {
@@ -3017,7 +2593,7 @@ public class GuiManager {
     }
 
     public Material getUniqueIconMaterialSelection(int page, int slot) {
-        List<Integer> materialSlots = getConfiguredContentSlots(
+        List<Integer> materialSlots = renderer.getConfiguredContentSlots(
                 "admin_unique_icon_material_select", DEFAULT_CONTENT_SLOTS_28);
         int slotIndex = materialSlots.indexOf(slot);
         if (slotIndex < 0) {
@@ -3030,13 +2606,13 @@ public class GuiManager {
     }
 
     public int getUniqueIconMaterialMaxPage() {
-        int pageSize = Math.max(1, getConfiguredContentSlots(
+        int pageSize = Math.max(1, renderer.getConfiguredContentSlots(
                 "admin_unique_icon_material_select", DEFAULT_CONTENT_SLOTS_28).size());
         return Math.max(0, (ITEM_MATERIAL_OPTIONS.size() - 1) / pageSize);
     }
 
     public Material getParticleMaterialSelection(String materialKey, int page, int slot) {
-        List<Integer> materialSlots = getConfiguredContentSlots("admin_particle_material_select", DEFAULT_CONTENT_SLOTS_28);
+        List<Integer> materialSlots = renderer.getConfiguredContentSlots("admin_particle_material_select", DEFAULT_CONTENT_SLOTS_28);
         int slotIndex = materialSlots.indexOf(slot);
         if (slotIndex < 0) {
             return null;
@@ -3049,7 +2625,7 @@ public class GuiManager {
 
     public int getParticleMaterialMaxPage(String materialKey) {
         int size = getParticleMaterialOptions(materialKey).size();
-        int pageSize = Math.max(1, getConfiguredContentSlots("admin_particle_material_select", DEFAULT_CONTENT_SLOTS_28).size());
+        int pageSize = Math.max(1, renderer.getConfiguredContentSlots("admin_particle_material_select", DEFAULT_CONTENT_SLOTS_28).size());
         return Math.max(0, (size - 1) / pageSize);
     }
 

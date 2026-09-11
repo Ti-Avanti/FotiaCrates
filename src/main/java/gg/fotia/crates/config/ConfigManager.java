@@ -30,6 +30,11 @@ public class ConfigManager {
         plugin.reloadConfig();
         config = plugin.getConfig();
 
+        boolean updated = RarityProbabilitySettings.installDefaults(config);
+        if (OptimizationSettings.installDefaults(config) | updated) {
+            plugin.saveConfig();
+        }
+
         loadRarities();
     }
 
@@ -236,6 +241,23 @@ public class ConfigManager {
         return Math.max(1L, config.getLong("persistence.flush-interval-ticks", 20L));
     }
 
+    public long getConfigurationWriteDelayTicks() {
+        return Math.max(0L, Math.min(200L, config.getLong("persistence.configuration.write-delay-ticks", 2L)));
+    }
+
+    public long getConfigurationWriteRetryDelayTicks() {
+        return Math.max(1L, Math.min(1200L, config.getLong("persistence.configuration.retry-delay-ticks", 100L)));
+    }
+
+    public long getPlayerLoadRetryDelayTicks() {
+        return Math.max(1L, Math.min(72000L, config.getLong("persistence.player-load.retry-delay-ticks", 40L)));
+    }
+
+    public long getPlayerLoadMaxRetryDelayTicks() {
+        return Math.max(getPlayerLoadRetryDelayTicks(), Math.min(72000L,
+                config.getLong("persistence.player-load.max-retry-delay-ticks", 600L)));
+    }
+
     public int getPersistenceExecutorQueueCapacity() {
         return Math.max(16, config.getInt("persistence.executor-queue-capacity", 1024));
     }
@@ -283,6 +305,10 @@ public class ConfigManager {
 
     public int getModelHealthChecksPerRun() {
         return Math.max(1, config.getInt("performance.models.max-checks-per-run", 16));
+    }
+
+    public int getMultiOpenDeliveryBatchSize() {
+        return Math.max(1, Math.min(100, config.getInt("performance.multi-open.delivery-batch-size", 10)));
     }
 
     public int getPendingRewardClaimBatchSize() {

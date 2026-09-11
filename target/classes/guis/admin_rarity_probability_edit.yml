@@ -1,0 +1,83 @@
+title: '<!i><dark_gray>概率预览: {rarity} ({page}/{pages})'
+size: 54
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: ' '
+# 同一稀有度的所有奖励分页显示，包括未参与调整的零权重奖励。
+content-slots: [19, 21, 23, 25, 28, 30, 32, 34, 37, 39, 41, 43]
+items:
+  info:
+    slot: 4
+    material: BOOK
+    name: '<!i><gold>调整摘要: {rarity}'
+    lore:
+      - '<!i><gray>宝箱: {crate}'
+      - '<!i><gray>可调整奖励: {matched}，零权重排除: {excluded}'
+      - '<!i><gray>稀有度合计: {old_total} → {new_total}'
+      - '<!i><gray>其他奖励合计将变为: {other_total}'
+      - '<!i><yellow>其他奖励也会调整，但保持它们原有的比例'
+      - '<!i><gray>这是基础概率，保底/权限/不重复抽取可能影响实际结果'
+      - '{status}'
+  mode:
+    slot: 10
+    material: COMPARATOR
+    name: '<!i><aqua>概率含义: {mode}'
+    lore:
+      - '{mode_per_reward}'
+      - '{mode_rarity_total}'
+      - '<!i><gray>每个奖励: 每一件匹配奖励都占指定百分比'
+      - '<!i><gray>稀有度合计: 匹配奖励平均分配指定百分比'
+      - '<!i><yellow>点击切换，预览会立即更新'
+    action: probability_mode
+  input:
+    slot: 12
+    material: PAPER
+    name: '<!i><yellow>目标基础概率: {percentage}'
+    lore: ['<!i><gray>单位是百分比，不是原始权重', '<!i><yellow>点击输入 0 到 100 的数值，支持小数']
+    action: probability_input
+  preset:
+    slot: 14
+    material: CLOCK
+    name: '<!i><aqua>恢复稀有度预设'
+    lore: ['<!i><gray>重新读取配置中的快捷填充值', '<!i><yellow>只改变预览，不立即保存']
+    action: probability_preset
+  reminder:
+    slot: 16
+    material: REDSTONE_TORCH
+    name: '<!i><red>确认前请检查'
+    lore: ['<!i><gray>取消或关闭菜单不会保存', '<!i><gray>设置为0会停止这些奖励的普通随机抽取', '<!i><gray>稀有度合计100%会把其他奖励权重设为0']
+  reward:
+    slot: 19
+    material: PAPER
+    name: '<!i>{reward}'
+    lore:
+      - '<!i><gray>ID: {reward_id}'
+      - '<!i><gray>基础概率: {old_probability} → {new_probability}'
+      - '<!i><gray>权重: {old_weight} → {new_weight}'
+      - '<!i><gray>原权重为0的奖励保持为0'
+    action: probability_reward
+  cancel:
+    slot: 45
+    material: ARROW
+    name: '<!i><red>取消并返回'
+    lore: ['<!i><gray>放弃本次预览，返回原奖励管理页']
+    action: cancel
+  previous:
+    slot: 48
+    material: ARROW
+    name: '<!i><yellow>上一页'
+    lore: ['<!i><gray>{page}/{pages}']
+    action: previous_page
+  next:
+    slot: 50
+    material: ARROW
+    name: '<!i><yellow>下一页'
+    lore: ['<!i><gray>{page}/{pages}']
+    action: next_page
+  confirm:
+    slot: 53
+    material: EMERALD
+    name: '<!i><green>确认应用'
+    lore: ['<!i><gray>保存当前宝箱的概率调整', '{status}', '<!i><yellow>此操作也会改变其他稀有度的概率']
+    action: probability_confirm

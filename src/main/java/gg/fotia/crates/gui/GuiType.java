@@ -12,6 +12,7 @@ public enum GuiType {
     ADMIN,              // 管理主界面
     ADMIN_CRATE_EDIT,   // 编辑抽奖箱
     ADMIN_REWARD_EDIT,  // 编辑奖励
+    ADMIN_RARITY_PROBABILITY,
     ADMIN_KEYS,         // 管理钥匙
     ADMIN_KEY_EDIT,     // 编辑钥匙
     INPUT_WAITING,      // 等待输入

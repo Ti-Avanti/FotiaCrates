@@ -14,6 +14,14 @@ public class ReloadCommand extends AbstractSubCommand {
 
     @Override
     public void execute(CommandSender sender, String[] args) {
+        if (plugin.getCrateManager().isConfigSavePending() || plugin.getKeyManager().isConfigSavePending()) {
+            sender.sendMessage(plugin.getLanguageManager().getMessage("configuration-save-busy"));
+            return;
+        }
+        if (plugin.getGuiManager().getRarityProbabilityEditor().isSaving()) {
+            sender.sendMessage(plugin.getLanguageManager().getMessage("rarity-probability-busy"));
+            return;
+        }
         plugin.reload();
 
         if (sender instanceof Player p) {

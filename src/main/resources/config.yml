@@ -54,6 +54,10 @@ hologram:
   scale: 1.0
   # 全息显示的更新/可见半径，单位为方块（启用模型的宝箱会取模型 view-range 与此值中的较大者）
   update-radius: 32.0
+  # 一轮全息刷新的最小间隔，单位为 tick；忙碌时会在后续 tick 继续处理
+  update-interval-ticks: 20
+  # 单个 tick 最多检查的全息候选数量，避免大量玩家和宝箱集中更新
+  max-updates-per-tick: 128
   # 全息显示内容
   # 可用占位符: {crate_name} {crate_id} {keys}
   lines:
@@ -82,6 +86,16 @@ persistence:
   executor-queue-capacity: 1024
   # 插件关闭时等待异步数据落盘的最长时间，单位为毫秒
   shutdown-flush-timeout-millis: 5000
+  player-load:
+    # 玩家数据加载失败后的首次重试间隔，单位为 tick
+    retry-delay-ticks: 40
+    # 连续失败时指数退避的最大间隔，单位为 tick
+    max-retry-delay-ticks: 600
+  configuration:
+    # 合并短时间内连续编辑后再异步保存，单位为 tick；0 表示立即提交
+    write-delay-ticks: 2
+    # 配置文件写入失败后的重试间隔，单位为 tick
+    retry-delay-ticks: 100
   history:
     # 单次批量写入的最大历史记录数
     batch-size: 100
@@ -124,6 +138,8 @@ performance:
   multi-open:
     # 所有命令、GUI 和实体交互共同遵守的多连抽安全上限
     hard-limit: 100
+    # 每批在主线程实际发放的奖励数量，后续批次在下一 tick 继续
+    delivery-batch-size: 10
   particles:
     # 只播放玩家附近该距离内的待机粒子，单位为方块
     idle-view-distance: 32.0
@@ -137,6 +153,20 @@ performance:
 # 编辑器设置
 editor:
   rewards:
+    # 稀有度快捷概率设置：仅确认应用时修改当前宝箱，不自动覆盖已有奖励。
+    rarity-probability:
+      enabled: true
+      # PER_REWARD: 每个奖励的基础百分比；RARITY_TOTAL: 同稀有度合计百分比。
+      default-mode: PER_REWARD
+      # 按稀有度 ID 设置快捷填充值（单位 %），不要求预设之间相加为100。
+      # 没有预设的自定义稀有度仍可选择，再手动输入；零权重奖励不会被启用。
+      presets:
+        common: 10.0
+        uncommon: 5.0
+        rare: 2.0
+        epic: 1.0
+        legendary: 0.5
+        mythic: 0.1
     # 设置奖励物品后，是否默认用第一个奖励物品同步奖励图标和名称
     auto-display-from-first-item:
       # 总开关

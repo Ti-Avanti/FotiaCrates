@@ -39,6 +39,19 @@ public final class RewardPreviewDisplayConfig {
         return appendItemLore;
     }
 
+    public static RewardPreviewDisplayConfig editorDefaults(boolean manager) {
+        List<String> lines = new ArrayList<>(List.of("",
+                "<!i><gray>ID: <!i><white>{reward_id}",
+                "<!i><gray>权重: <!i><yellow>{weight}",
+                "<!i><gray>概率: <!i><yellow>{probability}",
+                "<!i><gray>稀有度: {rarity}", "{broadcast_line}", "",
+                "<!i><yellow>左键 编辑奖励"));
+        if (manager) lines.add("<!i><aqua>中键 复制奖励");
+        lines.add("<!i><red>Shift+右键 删除");
+        return new RewardPreviewDisplayConfig(true, lines, defaults().getPercentageLine(),
+                defaults().getWeightLine(), "<!i><gold>★ 全服广播");
+    }
+
     public List<String> getLore() {
         return new ArrayList<>(lore);
     }

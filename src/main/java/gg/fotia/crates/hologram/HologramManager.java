@@ -3,6 +3,7 @@ package gg.fotia.crates.hologram;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.crate.Crate;
 import gg.fotia.crates.crate.CrateLocation;
+import gg.fotia.crates.key.PlayerKeyCountSnapshot;
 import gg.fotia.crates.util.MessageUtil;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -15,7 +16,6 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Transformation;
 import org.joml.AxisAngle4f;
 import org.joml.Vector3f;
-
 import java.util.*;
 
 /**
@@ -29,6 +29,11 @@ public class HologramManager {
     private final Map<String, Map<UUID, PlayerHologram>> playerHolograms = new HashMap<>();
     // 定时更新任务
     private BukkitTask updateTask;
+    private final Map<UUID, Set<String>> playerLocations = new HashMap<>();
+    private final Map<String, Integer> hiddenLocations = new HashMap<>();
+    private final HologramUpdateQueue updateQueue;
+    private int updateInterval;
+    private int updateBudget;
 
     // 配置
     private boolean enabled;
@@ -58,6 +63,14 @@ public class HologramManager {
 
     public HologramManager(FotiaCrates plugin) {
         this.plugin = plugin;
+        this.updateQueue = new HologramUpdateQueue(plugin, new HologramUpdateQueue.Target() {
+            public Set<UUID> knownPlayers() { return playerLocations.keySet(); }
+            public double searchRadius() { return maxSearchRadius; }
+            public String update(Player player, CrateLocation location, PlayerKeyCountSnapshot keys) {
+                return updateNearbyHologram(player, location, keys);
+            }
+            public void finish(UUID playerId, Set<String> visible) { cleanupPlayerHolograms(playerId, visible); }
+        });
         loadConfig();
         startUpdateTask();
     }
@@ -69,6 +82,9 @@ public class HologramManager {
         this.scale = (float) config.getDouble("hologram.scale", 1.0);
         this.lines = config.getStringList("hologram.lines");
         this.updateRadius = config.getDouble("hologram.update-radius", 32.0);
+        if (!Double.isFinite(updateRadius) || updateRadius <= 0) updateRadius = 32.0;
+        this.updateInterval = Math.max(1, config.getInt("hologram.update-interval-ticks", 20));
+        this.updateBudget = Math.max(1, config.getInt("hologram.max-updates-per-tick", 128));
         refreshMaxSearchRadius();
         if (this.lines.isEmpty()) {
             this.lines = List.of(
@@ -86,8 +102,8 @@ public class HologramManager {
         if (updateTask != null) {
             updateTask.cancel();
         }
-        // 每秒更新一次
-        updateTask = Bukkit.getScheduler().runTaskTimer(plugin, this::updateAllHolograms, 20L, 20L);
+        // 每 tick 分摊更新工作；一轮刷新周期由配置控制
+        updateTask = Bukkit.getScheduler().runTaskTimer(plugin, this::updateAllHolograms, 1L, 1L);
     }
 
     /**
@@ -96,61 +112,44 @@ public class HologramManager {
     private void updateAllHolograms() {
         if (!enabled) return;
 
-        if (++searchRadiusRefreshCounter >= 20) {
+        if (++searchRadiusRefreshCounter >= 400) {
             searchRadiusRefreshCounter = 0;
             refreshMaxSearchRadius();
         }
-
-        Map<String, Set<UUID>> visiblePlayers = new HashMap<>();
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            Location playerLocation = player.getLocation();
-            Collection<CrateLocation> nearbyCrates = plugin.getCrateManager().getNearbyCrateLocations(
-                    player.getWorld().getName(), playerLocation.getBlockX(), playerLocation.getBlockZ(),
-                    maxSearchRadius);
-            for (CrateLocation crateLocation : nearbyCrates) {
-                World world = player.getWorld();
-                if (!world.isChunkLoaded(Math.floorDiv(crateLocation.getX(), 16),
-                        Math.floorDiv(crateLocation.getZ(), 16))) {
-                    continue;
-                }
-
-                Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
-                if (crate == null) {
-                    continue;
-                }
-                Location location = crateLocation.toLocation(world);
-                double viewRadius = getViewRadius(crate);
-                if (location.distanceSquared(playerLocation) > viewRadius * viewRadius) {
-                    continue;
-                }
-
-                String key = getLocationKey(location);
-                visiblePlayers.computeIfAbsent(key, ignored -> new HashSet<>()).add(player.getUniqueId());
-                updateOrCreatePlayerHologram(location, crate, player);
-            }
-        }
-
-        cleanupInvisiblePlayerHolograms(visiblePlayers);
+        updateQueue.tick(updateInterval, updateBudget);
     }
 
-    private void cleanupInvisiblePlayerHolograms(Map<String, Set<UUID>> visiblePlayers) {
-        Iterator<Map.Entry<String, Map<UUID, PlayerHologram>>> locationIterator = playerHolograms.entrySet().iterator();
-        while (locationIterator.hasNext()) {
-            Map.Entry<String, Map<UUID, PlayerHologram>> locationEntry = locationIterator.next();
-            Set<UUID> visibleAtLocation = visiblePlayers.getOrDefault(locationEntry.getKey(), Set.of());
-            Iterator<Map.Entry<UUID, PlayerHologram>> playerIterator = locationEntry.getValue().entrySet().iterator();
-            while (playerIterator.hasNext()) {
-                Map.Entry<UUID, PlayerHologram> playerEntry = playerIterator.next();
-                if (visibleAtLocation.contains(playerEntry.getKey())) {
-                    continue;
-                }
-                removeDisplay(playerEntry.getValue());
-                playerIterator.remove();
-            }
-            if (locationEntry.getValue().isEmpty()) {
-                locationIterator.remove();
-            }
+    private String updateNearbyHologram(Player player, CrateLocation crateLocation,
+                                        PlayerKeyCountSnapshot keys) {
+        World world = player.getWorld();
+        if (!world.getName().equals(crateLocation.getWorld())
+                || !world.isChunkLoaded(Math.floorDiv(crateLocation.getX(), 16), Math.floorDiv(crateLocation.getZ(), 16))) {
+            return null;
         }
+        Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
+        if (crate == null) return null;
+        Location location = crateLocation.toLocation(world);
+        double radius = getViewRadius(crate);
+        String key = getLocationKey(location);
+        if (!plugin.getCrateManager().isLocationSet(location) || hiddenLocations.containsKey(key) || location.distanceSquared(player.getLocation()) > radius * radius) return null;
+        updateOrCreatePlayerHologram(location, crate, player, keys::count);
+        return key;
+    }
+
+    private void cleanupPlayerHolograms(UUID playerId, Set<String> visible) {
+        Set<String> previous = playerLocations.get(playerId);
+        if (previous == null) return;
+        for (Iterator<String> iterator = previous.iterator(); iterator.hasNext();) {
+            String key = iterator.next();
+            if (visible.contains(key)) continue;
+            Map<UUID, PlayerHologram> holograms = playerHolograms.get(key);
+            if (holograms != null) {
+                removeDisplay(holograms.remove(playerId));
+                if (holograms.isEmpty()) playerHolograms.remove(key);
+            }
+            iterator.remove();
+        }
+        if (previous.isEmpty()) playerLocations.remove(playerId);
     }
 
     private void refreshMaxSearchRadius() {
@@ -163,7 +162,7 @@ public class HologramManager {
 
     private double getViewRadius(Crate crate) {
         if (crate.isModelEnabled() && crate.getModelEngineViewRange() > 0) {
-            return crate.getModelEngineViewRange();
+            return Math.max(updateRadius, crate.getModelEngineViewRange());
         }
         return updateRadius;
     }
@@ -174,7 +173,7 @@ public class HologramManager {
     public void createAllHolograms() {
         if (!enabled) return;
         refreshMaxSearchRadius();
-        updateAllHolograms();
+        updateQueue.reset();
     }
 
     /**
@@ -188,7 +187,7 @@ public class HologramManager {
         if (crate == null) return;
 
         // 检查附近是否有玩家
-        Collection<Player> nearbyPlayers = location.getNearbyPlayers(updateRadius);
+        Collection<Player> nearbyPlayers = location.getNearbyPlayers(getViewRadius(crate));
         for (Player player : nearbyPlayers) {
             updateOrCreatePlayerHologram(location, crate, player);
         }
@@ -198,7 +197,14 @@ public class HologramManager {
      * 为玩家创建或更新专属全息
      */
     private void updateOrCreatePlayerHologram(Location location, Crate crate, Player player) {
+        updateOrCreatePlayerHologram(location, crate, player, id -> plugin.getKeyManager().getKeyCountForCrate(player, id));
+    }
+
+    private void updateOrCreatePlayerHologram(Location location, Crate crate, Player player,
+                                             java.util.function.ToIntFunction<String> keyCounts) {
         String key = getLocationKey(location);
+        if (hiddenLocations.containsKey(key)) return;
+        playerLocations.computeIfAbsent(player.getUniqueId(), ignored -> new HashSet<>()).add(key);
         Map<UUID, PlayerHologram> playerMap = playerHolograms.computeIfAbsent(key, k -> new HashMap<>());
 
         PlayerHologram existing = playerMap.get(player.getUniqueId());
@@ -214,7 +220,7 @@ public class HologramManager {
         }
         final float finalViewRange = viewRange;
 
-        String rawText = buildHologramString(crate, player);
+        String rawText = buildHologramString(crate, keyCounts);
 
         if (existing != null && !existing.display.isDead()) {
             // 增量更新：内容、位置、视距未变化时不重发包，也不重新解析 MiniMessage
@@ -282,6 +288,13 @@ public class HologramManager {
         String key = getLocationKey(location);
         Map<UUID, PlayerHologram> playerMap = playerHolograms.remove(key);
         if (playerMap != null) {
+            for (UUID playerId : playerMap.keySet()) {
+                Set<String> locations = playerLocations.get(playerId);
+                if (locations != null) {
+                    locations.remove(key);
+                    if (locations.isEmpty()) playerLocations.remove(playerId);
+                }
+            }
             for (PlayerHologram hologram : playerMap.values()) {
                 removeDisplay(hologram);
             }
@@ -301,6 +314,8 @@ public class HologramManager {
      * 临时隐藏全息显示（开箱时）
      */
     public void hideHologram(Location location) {
+        if (location == null || location.getWorld() == null) return;
+        hiddenLocations.merge(getLocationKey(location), 1, Integer::sum);
         removeHologram(location);
     }
 
@@ -308,7 +323,9 @@ public class HologramManager {
      * 恢复全息显示（开箱结束后）
      */
     public void showHologram(Location location, String crateId) {
-        createHologram(location, crateId);
+        if (location == null || location.getWorld() == null) return;
+        hiddenLocations.computeIfPresent(getLocationKey(location), (key, count) -> count <= 1 ? null : count - 1);
+        if (plugin.isEnabled() && plugin.getCrateManager().isLocationSet(location)) createHologram(location, crateId);
     }
 
     /**
@@ -327,7 +344,7 @@ public class HologramManager {
     /**
      * 构建全息显示原始文本；{keys} 的背包扫描只在模板确实包含该占位符时计算一次
      */
-    private String buildHologramString(Crate crate, Player player) {
+    private String buildHologramString(Crate crate, java.util.function.ToIntFunction<String> keyCounts) {
         List<String> displayLines = crate.getHologramLines();
         if (displayLines == null || displayLines.isEmpty()) {
             displayLines = lines;
@@ -344,9 +361,7 @@ public class HologramManager {
 
             if (line.contains("{keys}")) {
                 if (keysValue == null) {
-                    keysValue = player != null
-                            ? String.valueOf(plugin.getKeyManager().getKeyCountForCrate(player, crate.getId()))
-                            : "?";
+                    keysValue = String.valueOf(keyCounts.applyAsInt(crate.getId()));
                 }
                 line = line.replace("{keys}", keysValue);
             }
@@ -370,6 +385,8 @@ public class HologramManager {
             }
         }
         playerHolograms.clear();
+        playerLocations.clear();
+        updateQueue.reset();
     }
 
     /**
@@ -390,6 +407,7 @@ public class HologramManager {
             updateTask = null;
         }
         removeAllHolograms();
+        hiddenLocations.clear();
     }
 
     /**

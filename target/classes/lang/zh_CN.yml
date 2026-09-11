@@ -5,9 +5,42 @@
 prefix: "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> "
 
 messages:
+  rarity-probability-mode-per-reward: '<!i><gray>每个奖励'
+  rarity-probability-mode-rarity-total: '<!i><gray>同稀有度合计'
+  rarity-probability-mode-selected: '<!i><green>[当前] {mode}'
+  rarity-probability-ready: '<!i><green>校验通过，确认后应用。'
+  rarity-probability-input: '<!i><yellow>请输入基础百分比（0-100，支持小数和%），输入 cancel 返回预览。'
+  rarity-probability-missing-preset: '<!i><yellow>尚无有效预设，请先输入概率。'
+  rarity-probability-invalid-number: '<!i><red>请输入0到100之间的有限数值，不能输入NaN或无穷大。'
+  rarity-probability-no-matches: '<!i><red>此稀有度没有可调整的正权重奖励，零权重奖励不会自动启用。'
+  rarity-probability-total-exceeded: '<!i><red>选中奖励的合计概率超过100%，请降低数值或切换合计模式。'
+  rarity-probability-no-remainder: '<!i><red>剩余概率没有其他正权重奖励可以接收，无法应用。'
+  rarity-probability-invalid-weights: '<!i><red>奖池包含负数或无效权重，请先修正原配置。'
+  rarity-probability-precision: '<!i><red>数值差异过大，无法安全保留非零概率，请调整原始权重。'
+  rarity-probability-disabled: '<!i><red>稀有度快捷概率功能已关闭，或本次操作权限已失效。'
+  rarity-probability-busy: '<!i><yellow>概率配置正在保存，请稍后再编辑或重载。'
+  rarity-probability-stale: '<!i><red>奖池配置已变化，本次未应用，请重新打开快捷设置。'
+  rarity-probability-save-failed: '<!i><red>概率调整保存失败，请检查控制台日志。'
+  rarity-probability-saved: '<!i><green>已保存基础概率调整，其他奖励保持原有比例。'
+  rarity-probability-gui-invalid: '<!i><red>快捷概率菜单配置缺少内容槽位或模板，请检查GUI配置。'
+  admin-input-weight: '<!i><yellow>请在聊天中输入非负权重（不是百分比，可输入小数；0表示不参与普通随机抽取）：'
+  admin-reward-weights-normalized: '<!i><green>已按原比例归一化权重，保留原有概率比例。'
+  admin-reward-weights-equalized: '<!i><green>已平均分配权重，所有奖励基础概率相同。'
+  admin-reward-weights-failed: '<!i><red>未能调整权重，请检查奖励配置和控制台日志。'
+  admin-auto-display-disabled: '已关闭'
+  admin-auto-display-manual: '手动修改'
+  admin-auto-display-waiting: '等待奖励物品'
+  admin-auto-display-enabled: '自动同步'
+  admin-reward-auto-display-pending: '<!i><yellow>未完成同步，请检查是否已保存奖励物品、自动同步开关及控制台日志。'
   # 通用消息
   no-permission: "<!i><red>你没有权限执行此操作！"
-  no-key: "<!i><red>你没有足够的钥匙！"
+  # {keys}/{key}: 可用钥匙名称，多种钥匙任选；{crate}: 宝箱名称
+  # {required}: 本次需要数量；{owned}: 已有总数；{missing}: 缺少数量
+  no-key: "<!i><red>钥匙不足！需要 {keys}<!i><red>（还差 {missing} 把，本次需要 {required} 把，已有 {owned} 把）。"
+  # 旧的自定义 no-key 没有 {keys}/{key} 时追加此提示，留空可禁用追加。
+  no-key-detail: " <!i><red>需要 {keys}<!i><red>（还差 {missing} 把，本次需要 {required} 把，已有 {owned} 把）。"
+  no-key-separator: "<!i><gray> 或 "
+  no-key-configured: "<!i><red>宝箱 {crate}<!i><red> 尚未配置可用钥匙，请联系管理员。"
   player-data-loading: "<!i><yellow>玩家数据正在同步，请稍后再试。"
   player-data-save-failed: "<!i><red>数据保存失败，本次抽奖已取消。"
   reward-received: "<!i><green>恭喜！你获得了 {reward}<!i><green>！"
@@ -180,3 +213,6 @@ messages:
   admin-alternative-reward-cleared: "<!i><green>替代奖励已清除！"
   help-claim: "<!i><yellow>/crate claim <!i><gray>- 领取待领取奖励"
   pending-reward-unavailable: "<!i><red>部分待领取奖励暂时无法恢复，请联系管理员。"
+  reward-delivery-pending: "<!i><yellow>奖励已保留，将转入待领取奖励，请稍后使用 /crate claim 领取。"
+  reward-delivery-review: "<!i><red>奖励发放未能确认，记录已保留，请联系管理员核查。"
+  configuration-save-busy: "<!i><yellow>配置正在保存，请稍后重试重载。"

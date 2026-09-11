@@ -156,6 +156,10 @@ public final class KeyDistributionManager {
 
     private void deliverPhysicalGrants(UUID playerId, List<KeyDistributionGrant> grants,
                                        int limit, boolean moreVirtualMayRemain) {
+        if (stopping || !plugin.isEnabled()) {
+            finishDelivery(playerId, false);
+            return;
+        }
         if (grants.isEmpty()) {
             finishDelivery(playerId, moreVirtualMayRemain);
             return;
@@ -225,7 +229,7 @@ public final class KeyDistributionManager {
     }
 
     private void notifyPlayer(UUID playerId, Map<String, Integer> amounts) {
-        if (!plugin.getConfigManager().isKeyDistributionRecipientNotificationEnabled()
+        if (stopping || !plugin.getConfigManager().isKeyDistributionRecipientNotificationEnabled()
                 || amounts.isEmpty()) {
             return;
         }

@@ -3,6 +3,7 @@ package gg.fotia.crates.crate;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.animation.AnimationTemplate;
 import gg.fotia.crates.animation.AnimationType;
+import gg.fotia.crates.config.CrateConfigurationStore;
 import gg.fotia.crates.particle.CrateParticleEffect;
 import gg.fotia.crates.particle.ParticleCompat;
 import gg.fotia.crates.particle.ParticleEffectMode;
@@ -12,16 +13,15 @@ import gg.fotia.crates.reward.*;
 import gg.fotia.crates.util.ItemBuilder;
 import gg.fotia.crates.util.MessageUtil;
 import net.kyori.adventure.text.Component;
+import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.meta.ItemMeta;
-
 import java.io.File;
 import java.io.IOException;
 import java.sql.Connection;
@@ -34,16 +34,19 @@ import java.util.function.Consumer;
 public class CrateManager {
 
     private final FotiaCrates plugin;
+    private final CrateConfigurationStore configurationStore;
     private final Map<String, Crate> crates = new HashMap<>();
     private final CrateLocationIndex crateLocations = new CrateLocationIndex();
     private final NamespacedKey crateBlockKey;
 
     public CrateManager(FotiaCrates plugin) {
         this.plugin = plugin;
+        this.configurationStore = new CrateConfigurationStore(plugin);
         this.crateBlockKey = new NamespacedKey(plugin, "crate_block");
     }
 
     public void loadCrates() {
+        configurationStore.reset();
         crates.clear();
         File cratesFolder = new File(plugin.getDataFolder(), "crates");
         if (!cratesFolder.exists()) {
@@ -72,7 +75,7 @@ public class CrateManager {
 
     public Crate reloadCrate(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) {
+        if (!configurationStore.exists(file)) {
             crates.remove(crateId);
             return null;
         }
@@ -92,7 +95,18 @@ public class CrateManager {
     }
 
     private Crate loadCrate(String id, File file) {
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        YamlConfiguration config = configurationStore.read(file);
+        return loadCrate(id, file, config);
+    }
+
+    public Crate reloadCrate(String crateId, YamlConfiguration config) {
+        configurationStore.remember(new File(plugin.getDataFolder(), "crates/" + crateId + ".yml"), config);
+        Crate crate = loadCrate(crateId, new File(plugin.getDataFolder(), "crates/" + crateId + ".yml"), config);
+        crates.put(crateId, crate);
+        return crate;
+    }
+
+    private Crate loadCrate(String id, File file, YamlConfiguration config) {
 
         String name = config.getString("name", id);
         Material blockMaterial = Material.valueOf(config.getString("block.material", "CHEST"));
@@ -246,7 +260,7 @@ public class CrateManager {
             config.set("animation.template", "card-reveal");
         }
         try {
-            config.save(file);
+            configurationStore.save(config, file);
             plugin.getLogger().info("Migrated removed TRIPLE_REEL animation to CARD_REVEAL in "
                     + file.getName() + ".");
         } catch (IOException exception) {
@@ -398,7 +412,8 @@ public class CrateManager {
             return section.getItemStack("item");
         }
 
-        return loadItemFromSection(itemSection, defaultName);
+        // 实际奖励物品不能继承奖励标题，否则自动同步会再次读回旧标题。
+        return loadItemFromSection(itemSection, null);
     }
 
     private List<ItemStack> loadExtraItems(ConfigurationSection section) {
@@ -429,9 +444,9 @@ public class CrateManager {
                                       PermissionAction permAction, String alternativeRewardId,
                                       boolean autoDisplayIcon, boolean autoDisplayName) {
         ItemStack item = loadOptionalRewardItem(section, displayName);
-        if (item == null) {
+        if (item == null && RewardItemSource.usesLegacyDisplay(section)) {
             // 未配置 item 时回退到显示图标，保证抽中后仍有物品可发
-            item = displayItem.clone();
+            item = loadDisplayItem(section, null);
         }
         List<ItemStack> extraItems = loadExtraItems(section);
         List<String> commands = section.getStringList("commands");
@@ -637,12 +652,12 @@ public class CrateManager {
      */
     public void updateCrateName(String crateId, String newName) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("name", newName);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update crate name: " + e.getMessage());
@@ -654,13 +669,13 @@ public class CrateManager {
      */
     public void updateCrateBlock(String crateId, Material material) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("block.material", material.name());
             config.set("block.item.template", null);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update crate block: " + e.getMessage());
@@ -675,13 +690,13 @@ public class CrateManager {
         if (storedItem == null) return;
 
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("block.material", storedItem.getType().name());
             config.set("block.item.template", storedItem);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update crate block item: " + e.getMessage());
@@ -693,12 +708,12 @@ public class CrateManager {
      */
     public void updateAnimationDuration(String crateId, int duration) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("animation.duration", duration);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update animation duration: " + e.getMessage());
@@ -707,12 +722,12 @@ public class CrateManager {
 
     public void updateAnimationTemplate(String crateId, String templateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("animation.template", templateId);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update animation template: " + e.getMessage());
@@ -724,13 +739,13 @@ public class CrateManager {
      */
     public void updateMultiOpenMax(String crateId, int max) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("multi-open.max", Math.max(1,
                     Math.min(max, plugin.getConfigManager().getMultiOpenHardLimit())));
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update multi-open max: " + e.getMessage());
@@ -742,13 +757,13 @@ public class CrateManager {
      */
     public void toggleParticles(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("particles.enabled", true);
             config.set("particles.enabled", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle particles: " + e.getMessage());
@@ -823,12 +838,12 @@ public class CrateManager {
 
     private void updateParticleConfig(String crateId, Consumer<YamlConfiguration> updater, String actionName) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             updater.accept(config);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to " + actionName + ": " + e.getMessage());
@@ -856,13 +871,13 @@ public class CrateManager {
      */
     public void togglePreview(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("preview.enabled", true);
             config.set("preview.enabled", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle preview: " + e.getMessage());
@@ -874,13 +889,13 @@ public class CrateManager {
      */
     public void toggleMultiOpen(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("multi-open.enabled", true);
             config.set("multi-open.enabled", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle multi-open: " + e.getMessage());
@@ -935,13 +950,13 @@ public class CrateManager {
     private void updateUniqueDrawConfig(String crateId, Consumer<YamlConfiguration> updater,
                                         String actionName) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) {
+        if (!configurationStore.exists(file)) {
             return;
         }
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             updater.accept(config);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to " + actionName + ": " + e.getMessage());
@@ -950,17 +965,17 @@ public class CrateManager {
 
     public void cyclePreviewChanceDisplayMode(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             PreviewChanceDisplayMode current = PreviewChanceDisplayMode.fromConfig(
                     config.getString("preview.chance-display"),
                     config.getBoolean("preview.show-chance", true));
             PreviewChanceDisplayMode next = current.next();
             config.set("preview.chance-display", next.name());
             config.set("preview.show-chance", next != PreviewChanceDisplayMode.HIDDEN);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update preview chance display mode: " + e.getMessage());
@@ -969,14 +984,14 @@ public class CrateManager {
 
     public void cyclePreviewSortMode(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             PreviewSortMode current = PreviewSortMode.fromConfig(
                     config.getString("preview.sort-mode"));
             config.set("preview.sort-mode", current.next().name());
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update preview sort mode: " + e.getMessage());
@@ -985,13 +1000,13 @@ public class CrateManager {
 
     public void toggleMultiOpenAnimation(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("multi-open.animation.enabled", false);
             config.set("multi-open.animation.enabled", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle multi-open animation: " + e.getMessage());
@@ -1003,10 +1018,10 @@ public class CrateManager {
      */
     public void addReward(String crateId, ItemStack item, double chance, String rarity) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String rewardId = "reward_" + java.util.UUID.randomUUID().toString().substring(0, 8);
             String path = "rewards." + rewardId;
 
@@ -1019,7 +1034,7 @@ public class CrateManager {
             config.set(path + ".display-auto.name", true);
             applyAutoDisplayFromFirstItem(config, path, item);
 
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to add reward: " + e.getMessage());
@@ -1031,12 +1046,12 @@ public class CrateManager {
      */
     public void removeReward(String crateId, String rewardId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("rewards." + rewardId, null);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to remove reward: " + e.getMessage());
@@ -1048,12 +1063,12 @@ public class CrateManager {
      */
     public void updateRewardChance(String crateId, String rewardId, double chance) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("rewards." + rewardId + ".chance", chance);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward chance: " + e.getMessage());
@@ -1065,13 +1080,13 @@ public class CrateManager {
      */
     public void updateRewardRarity(String crateId, String rewardId, String rarity) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("rewards." + rewardId + ".rarity", rarity);
             config.set("rewards." + rewardId + ".broadcast", rarity.equalsIgnoreCase("legendary") || rarity.equalsIgnoreCase("epic"));
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward rarity: " + e.getMessage());
@@ -1083,17 +1098,17 @@ public class CrateManager {
      */
     public void updateAnimationType(String crateId, AnimationType type) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("animation.type", type.name());
             AnimationTemplate template = plugin.getGuiManager().getConfigManager()
                     .getAnimationTemplate(config.getString("animation.template"), type);
             if (template != null) {
                 config.set("animation.template", template.id());
             }
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update animation type: " + e.getMessage());
@@ -1105,13 +1120,13 @@ public class CrateManager {
      */
     public void toggleGuiAnimation(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("animation.enabled", true);
             config.set("animation.enabled", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle GUI animation: " + e.getMessage());
@@ -1123,13 +1138,13 @@ public class CrateManager {
      */
     public void togglePhysicalAnimation(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("physical-animation.enabled", false);
             config.set("physical-animation.enabled", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle physical animation: " + e.getMessage());
@@ -1141,12 +1156,12 @@ public class CrateManager {
      */
     public void updatePhysicalAnimationHeight(String crateId, double height) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("physical-animation.height", height);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update physical animation height: " + e.getMessage());
@@ -1158,13 +1173,13 @@ public class CrateManager {
      */
     public void togglePity(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("pity.enabled", false);
             config.set("pity.enabled", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle pity: " + e.getMessage());
@@ -1173,13 +1188,13 @@ public class CrateManager {
 
     public void togglePityEarlyReset(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("pity.reset-on-early-qualifying-reward", false);
             config.set("pity.reset-on-early-qualifying-reward", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle early pity reset: " + e.getMessage());
@@ -1191,14 +1206,14 @@ public class CrateManager {
      */
     public void addPityTier(String crateId, int count, String rarity) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String tierId = "tier_" + System.currentTimeMillis();
             config.set("pity.tiers." + tierId + ".count", count);
             config.set("pity.tiers." + tierId + ".rarity", rarity);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to add pity tier: " + e.getMessage());
@@ -1210,13 +1225,13 @@ public class CrateManager {
      */
     public void updatePityTier(String crateId, int tierIndex, int count, String rarity) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
             Crate crate = crates.get(crateId);
             if (crate == null || tierIndex < 0 || tierIndex >= crate.getPityTiers().size()) return;
 
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             ConfigurationSection tiersSection = config.getConfigurationSection("pity.tiers");
             if (tiersSection == null) return;
 
@@ -1224,7 +1239,7 @@ public class CrateManager {
             if (!tiersSection.contains(tierKey)) return;
             config.set("pity.tiers." + tierKey + ".count", count);
             config.set("pity.tiers." + tierKey + ".rarity", rarity);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update pity tier: " + e.getMessage());
@@ -1236,20 +1251,20 @@ public class CrateManager {
      */
     public void removePityTier(String crateId, int tierIndex) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
             Crate crate = crates.get(crateId);
             if (crate == null || tierIndex < 0 || tierIndex >= crate.getPityTiers().size()) return;
 
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             ConfigurationSection tiersSection = config.getConfigurationSection("pity.tiers");
             if (tiersSection == null) return;
 
             String tierKey = crate.getPityTiers().get(tierIndex).getId();
             if (!tiersSection.contains(tierKey)) return;
             config.set("pity.tiers." + tierKey, null);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to remove pity tier: " + e.getMessage());
@@ -1262,14 +1277,14 @@ public class CrateManager {
     @Deprecated
     public void updatePity(String crateId, boolean enabled, int count, String rarity) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("pity.enabled", enabled);
             config.set("pity.count", count);
             config.set("pity.rarity", rarity);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update pity: " + e.getMessage());
@@ -1279,6 +1294,14 @@ public class CrateManager {
     /**
      * 保存宝箱配置
      */
+    public boolean isConfigSavePending() {
+        return configurationStore.isSaving();
+    }
+
+    public void shutdownConfigurationStore() {
+        configurationStore.shutdown();
+    }
+
     public void saveCrate(String crateId) {
         // 配置已经在每次修改时保存，这里只是重新加载确保同步
         reloadCrate(crateId);
@@ -1301,18 +1324,22 @@ public class CrateManager {
         }
 
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (file.exists()) {
-            file.delete();
+        try {
+            configurationStore.delete(file);
+        } catch (IOException exception) {
+            plugin.getLogger().severe("Failed to queue crate deletion: " + exception.getMessage());
+            return;
         }
         crates.remove(crateId);
 
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement("DELETE FROM crate_locations WHERE crate_id = ?")) {
-            stmt.setString(1, crateId);
-            stmt.executeUpdate();
-        } catch (SQLException exception) {
-            plugin.getLogger().severe("Failed to delete crate locations: " + exception.getMessage());
-        }
+        plugin.getAsyncPlayerDataManager().executeDatabaseOperation(() -> {
+            try (Connection connection = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement statement = connection.prepareStatement("DELETE FROM crate_locations WHERE crate_id = ?")) {
+                statement.setString(1, crateId);
+                statement.executeUpdate();
+            }
+            return null;
+        }, null, exception -> plugin.getLogger().severe("Failed to delete crate locations: " + exception.getMessage()));
 
         crateLocations.removeByCrateId(crateId);
     }
@@ -1322,7 +1349,7 @@ public class CrateManager {
      */
     public void createCrate(String crateId, String name) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (file.exists()) return;
+        if (configurationStore.exists(file)) return;
 
         try {
             YamlConfiguration config = new YamlConfiguration();
@@ -1362,7 +1389,7 @@ public class CrateManager {
             config.set("unique-draw.preview.obtained-icon.material", "BARRIER");
             config.set("unique-draw.preview.obtained-icon.custom-model-data", 0);
             config.set("unique-draw.preview.obtained-icon.item-model", "");
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to create crate: " + e.getMessage());
@@ -1379,13 +1406,13 @@ public class CrateManager {
      */
     public void toggleRewardBroadcast(String crateId, String rewardId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("rewards." + rewardId + ".broadcast", false);
             config.set("rewards." + rewardId + ".broadcast", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle reward broadcast: " + e.getMessage());
@@ -1397,10 +1424,10 @@ public class CrateManager {
      */
     public void updateRewardItem(String crateId, String rewardId, ItemStack item) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String path = "rewards." + rewardId + ".item";
 
             // 只更新item配置（实际给予的物品）
@@ -1424,7 +1451,7 @@ public class CrateManager {
                 config.set(path + ".lore", null);
             }
 
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward item: " + e.getMessage());
@@ -1436,12 +1463,12 @@ public class CrateManager {
      */
     public void updateRewardType(String crateId, String rewardId, String type) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("rewards." + rewardId + ".type", type);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward type: " + e.getMessage());
@@ -1457,17 +1484,18 @@ public class CrateManager {
 
     public void updateRewardDisplayIconFull(String crateId, String rewardId, ItemStack item, boolean manual) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             // 使用Bukkit序列化完整保存物品（包含所有NBT）
             String basePath = "rewards." + rewardId;
             config.set(basePath + ".display", item);
             if (manual) {
                 config.set(basePath + ".display-auto.icon", false);
             }
-            config.save(file);
+            syncDisplayNameFromFirstItem(config, basePath);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward display icon: " + e.getMessage());
@@ -1483,10 +1511,10 @@ public class CrateManager {
 
     public void updateRewardDisplayIcon(String crateId, String rewardId, ItemStack item, boolean manual) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String basePath = "rewards." + rewardId;
             String path = basePath + ".display";
 
@@ -1514,7 +1542,8 @@ public class CrateManager {
                 config.set(basePath + ".display-auto.icon", false);
             }
 
-            config.save(file);
+            syncDisplayNameFromFirstItem(config, basePath);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward display icon: " + e.getMessage());
@@ -1526,17 +1555,17 @@ public class CrateManager {
      */
     public void updateRewardItemFull(String crateId, String rewardId, ItemStack item) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String path = "rewards." + rewardId + ".item";
 
             // 使用Bukkit序列化完整保存物品（包含所有NBT）
             config.set(path, item);
             applyAutoDisplayFromFirstItem(config, "rewards." + rewardId, item);
 
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward item: " + e.getMessage());
@@ -1548,13 +1577,13 @@ public class CrateManager {
      */
     public void clearRewardItem(String crateId, String rewardId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            config.set("rewards." + rewardId + ".item", null);
+            YamlConfiguration config = configurationStore.read(file);
+            config.set("rewards." + rewardId + ".item", new ItemStack(Material.AIR));
             config.set("rewards." + rewardId + ".extra-items", null);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to clear reward item: " + e.getMessage());
@@ -1573,14 +1602,14 @@ public class CrateManager {
      */
     public void updateRewardItems(String crateId, String rewardId, List<ItemStack> items) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String basePath = "rewards." + rewardId;
 
             if (items.isEmpty()) {
-                config.set(basePath + ".item", null);
+                config.set(basePath + ".item", new ItemStack(Material.AIR));
                 config.set(basePath + ".extra-items", null);
             } else {
                 // 第一个物品作为主物品
@@ -1596,7 +1625,7 @@ public class CrateManager {
                 applyAutoDisplayFromFirstItem(config, basePath, items.get(0));
             }
 
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward items: " + e.getMessage());
@@ -1608,12 +1637,12 @@ public class CrateManager {
      */
     public void clearRewardCommands(String crateId, String rewardId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("rewards." + rewardId + ".commands", new ArrayList<String>());
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to clear reward commands: " + e.getMessage());
@@ -1625,14 +1654,14 @@ public class CrateManager {
      */
     public void addRewardCommand(String crateId, String rewardId, String command) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             List<String> commands = config.getStringList("rewards." + rewardId + ".commands");
             commands.add(command);
             config.set("rewards." + rewardId + ".commands", commands);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to add reward command: " + e.getMessage());
@@ -1648,16 +1677,16 @@ public class CrateManager {
 
     public void updateRewardDisplayName(String crateId, String rewardId, String displayName, boolean manual) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String basePath = "rewards." + rewardId;
             config.set(basePath + ".display-name", displayName);
             if (manual) {
                 config.set(basePath + ".display-auto.name", false);
             }
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward display name: " + e.getMessage());
@@ -1667,20 +1696,20 @@ public class CrateManager {
     /**
      * 恢复奖励显示自动同步状态
      */
-    public void resetRewardDisplayIconAuto(String crateId, String rewardId) {
-        resetRewardAutoDisplay(crateId, rewardId, true, false);
+    public boolean resetRewardDisplayIconAuto(String crateId, String rewardId) {
+        return resetRewardAutoDisplay(crateId, rewardId, true, false);
     }
 
-    public void resetRewardDisplayNameAuto(String crateId, String rewardId) {
-        resetRewardAutoDisplay(crateId, rewardId, false, true);
+    public boolean resetRewardDisplayNameAuto(String crateId, String rewardId) {
+        return resetRewardAutoDisplay(crateId, rewardId, false, true);
     }
 
-    private void resetRewardAutoDisplay(String crateId, String rewardId, boolean icon, boolean name) {
+    private boolean resetRewardAutoDisplay(String crateId, String rewardId, boolean icon, boolean name) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return false;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String basePath = "rewards." + rewardId;
             if (icon) {
                 config.set(basePath + ".display-auto.icon", true);
@@ -1689,18 +1718,23 @@ public class CrateManager {
                 config.set(basePath + ".display-auto.name", true);
             }
             ItemStack firstItem = loadFirstRewardItem(config, basePath);
+            boolean synced = false;
             if (hasRewardItem(firstItem) && plugin.getConfigManager().isRewardAutoDisplayFromFirstItemEnabled()) {
                 if (icon && plugin.getConfigManager().isRewardAutoDisplayIconFromFirstItem()) {
                     applyAutoDisplayIcon(config, basePath, firstItem);
+                    synced = true;
                 }
                 if (name && plugin.getConfigManager().isRewardAutoDisplayNameFromFirstItem()) {
                     applyAutoDisplayName(config, basePath, firstItem);
+                    synced = true;
                 }
             }
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
+            return synced;
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to reset reward auto display: " + e.getMessage());
+            return false;
         }
     }
 
@@ -1738,10 +1772,10 @@ public class CrateManager {
      */
     public String copyReward(String crateId, String rewardId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return null;
+        if (!configurationStore.exists(file)) return null;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             ConfigurationSection sourceSection = config.getConfigurationSection("rewards." + rewardId);
             if (sourceSection == null) return null;
 
@@ -1756,7 +1790,7 @@ public class CrateManager {
                 }
             }
 
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
             return newRewardId;
         } catch (java.io.IOException e) {
@@ -1769,43 +1803,23 @@ public class CrateManager {
      * 平衡所有奖励概率使总和为100%
      */
     public void balanceRewardChances(String crateId) {
+        adjustRewardWeights(crateId, false);
+    }
+
+    public boolean adjustRewardWeights(String crateId, boolean equalize) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return false;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
-            ConfigurationSection rewardsSection = config.getConfigurationSection("rewards");
-            if (rewardsSection == null) return;
+            YamlConfiguration config = configurationStore.read(file);
+            if (!RewardWeightAdjustment.apply(config.getConfigurationSection("rewards"), equalize)) return false;
 
-            Set<String> rewardIds = rewardsSection.getKeys(false);
-            if (rewardIds.isEmpty()) return;
-
-            // 计算当前总概率
-            double totalChance = 0;
-            for (String id : rewardIds) {
-                totalChance += config.getDouble("rewards." + id + ".chance", 0);
-            }
-
-            if (totalChance <= 0) {
-                // 如果总概率为0，平均分配
-                double equalChance = 100.0 / rewardIds.size();
-                for (String id : rewardIds) {
-                    config.set("rewards." + id + ".chance", Math.round(equalChance * 100.0) / 100.0);
-                }
-            } else {
-                // 按比例调整
-                double ratio = 100.0 / totalChance;
-                for (String id : rewardIds) {
-                    double currentChance = config.getDouble("rewards." + id + ".chance", 0);
-                    double newChance = currentChance * ratio;
-                    config.set("rewards." + id + ".chance", Math.round(newChance * 100.0) / 100.0);
-                }
-            }
-
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
+            return true;
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to balance reward chances: " + e.getMessage());
+            return false;
         }
     }
 
@@ -1838,8 +1852,24 @@ public class CrateManager {
     }
 
     private void applyAutoDisplayName(YamlConfiguration config, String basePath, ItemStack firstItem) {
-        config.set(basePath + ".display-name", resolveAutoDisplayName(firstItem));
+        String name = resolveAutoDisplayName(firstItem);
+        config.set(basePath + ".display-name", name);
         config.set(basePath + ".display-auto.name", true);
+        ConfigurationSection section = config.getConfigurationSection(basePath);
+        ItemStack icon = loadDisplayItem(section, null);
+        config.set(basePath + ".display", new ItemBuilder(icon).name(name).build());
+    }
+
+    private void syncDisplayNameFromFirstItem(YamlConfiguration config, String basePath) {
+        ConfigurationSection section = config.getConfigurationSection(basePath);
+        if (section != null && RewardAutoDisplayPolicy.shouldApply(
+                plugin.getConfigManager().isRewardAutoDisplayFromFirstItemEnabled(),
+                plugin.getConfigManager().isRewardAutoDisplayNameFromFirstItem(),
+                plugin.getConfigManager().isRewardAutoDisplayOnlyWhenNotCustomized(),
+                section.getBoolean("display-auto.name", true))) {
+            ItemStack first = loadFirstRewardItem(config, basePath);
+            if (hasRewardItem(first)) applyAutoDisplayName(config, basePath, first);
+        }
     }
 
     private ItemStack loadFirstRewardItem(YamlConfiguration config, String basePath) {
@@ -1847,8 +1877,11 @@ public class CrateManager {
         if (rewardSection == null) {
             return null;
         }
-        String defaultName = rewardSection.getString("display-name", "reward");
-        return loadOptionalRewardItem(rewardSection, defaultName);
+        ItemStack main = loadOptionalRewardItem(rewardSection, null);
+        if (main == null && RewardItemSource.usesLegacyDisplay(rewardSection)) {
+            main = loadDisplayItem(rewardSection, null);
+        }
+        return RewardItemSource.first(main, loadExtraItems(rewardSection));
     }
 
     private boolean hasRewardItem(ItemStack item) {
@@ -1865,10 +1898,10 @@ public class CrateManager {
      */
     public String createEmptyReward(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return null;
+        if (!configurationStore.exists(file)) return null;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String rewardId = "reward_" + java.util.UUID.randomUUID().toString().substring(0, 8);
             String path = "rewards." + rewardId;
 
@@ -1877,6 +1910,8 @@ public class CrateManager {
             config.set(path + ".rarity", plugin.getConfigManager().getDefaultRarityId());
             config.set(path + ".broadcast", false);
             config.set(path + ".display-name", "新奖励");
+            // 新建奖励显式为空；缺少 item 的旧配置仍保留图标奖励回退。
+            config.set(path + ".item", new ItemStack(Material.AIR));
 
             // 设置默认显示物品为钻石
             config.set(path + ".display-auto.icon", true);
@@ -1884,7 +1919,7 @@ public class CrateManager {
             config.set(path + ".display.material", "DIAMOND");
             config.set(path + ".display.amount", 1);
 
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
             return rewardId;
         } catch (java.io.IOException e) {
@@ -1898,10 +1933,10 @@ public class CrateManager {
      */
     public String addRewardEnhanced(String crateId, ItemStack item, double chance, String rarity, String displayName) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return null;
+        if (!configurationStore.exists(file)) return null;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             String rewardId = "reward_" + java.util.UUID.randomUUID().toString().substring(0, 8);
             String path = "rewards." + rewardId;
 
@@ -1951,7 +1986,7 @@ public class CrateManager {
             }
             applyAutoDisplayFromFirstItem(config, path, item);
 
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
             return rewardId;
         } catch (java.io.IOException e) {
@@ -1975,13 +2010,13 @@ public class CrateManager {
      */
     public void toggleRewardPermissionCheck(String crateId, String rewardId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             boolean current = config.getBoolean("rewards." + rewardId + ".permission-check.enabled", false);
             config.set("rewards." + rewardId + ".permission-check.enabled", !current);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to toggle reward permission check: " + e.getMessage());
@@ -2001,12 +2036,12 @@ public class CrateManager {
      */
     public void updateRewardCheckPermission(String crateId, String rewardId, String permission) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("rewards." + rewardId + ".permission-check.permission", permission);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward check permission: " + e.getMessage());
@@ -2026,12 +2061,12 @@ public class CrateManager {
      */
     public void updateRewardPermissionAction(String crateId, String rewardId, PermissionAction action) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("rewards." + rewardId + ".permission-check.action", action.name().toLowerCase());
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward permission action: " + e.getMessage());
@@ -2051,12 +2086,12 @@ public class CrateManager {
      */
     public void updateRewardAlternativeReward(String crateId, String rewardId, String alternativeRewardId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!file.exists()) return;
+        if (!configurationStore.exists(file)) return;
 
         try {
-            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            YamlConfiguration config = configurationStore.read(file);
             config.set("rewards." + rewardId + ".permission-check.alternative-reward", alternativeRewardId);
-            config.save(file);
+            configurationStore.save(config, file);
             reloadCrate(crateId);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to update reward alternative reward: " + e.getMessage());

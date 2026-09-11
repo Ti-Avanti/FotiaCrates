@@ -2,7 +2,6 @@ package gg.fotia.crates.crate;
 
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.lang.LanguageManager;
-import gg.fotia.crates.particle.ParticleStage;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
@@ -39,7 +38,6 @@ public final class MultiOpenService {
                             "actual", String.valueOf(openAttempts.size()),
                             "requested", String.valueOf(amount)));
         }
-        plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
 
         List<RewardResult> rewardResults = openAttempts.stream()
                 .map(CrateOpenService.OpenAttempt::rewardResult)
@@ -47,46 +45,42 @@ public final class MultiOpenService {
 
         UUID playerUuid = player.getUniqueId();
         String playerName = player.getName();
-        Runnable finish = () -> {
-            for (int index = 0; index < rewardResults.size(); index++) {
-                crateOpenService.deliverRewardSafely(playerUuid, playerName, crate,
-                        rewardResults.get(index), crateLocation, index == 0);
-            }
-            if (player.isOnline() && crate.isMultiOpenAnimationEnabled() && rewardResults.size() > 1) {
-                plugin.getGuiManager().openMultiOpenResultGui(player, crate, rewardResults);
-            }
-            onComplete.run();
-        };
+        Runnable finish = () -> crateOpenService.deliverRewardsSafely(playerUuid, playerName, crate,
+                rewardResults, crateLocation, () -> {
+                    Player current = plugin.getServer().getPlayer(playerUuid);
+                    try {
+                        if (plugin.isEnabled() && current != null && current.isOnline()
+                                && crate.isMultiOpenAnimationEnabled() && rewardResults.size() > 1) {
+                            plugin.getGuiManager().openMultiOpenResultGui(current, crate, rewardResults);
+                        }
+                    } finally {
+                        onComplete.run();
+                    }
+                });
 
         // 合并提交：回滚时数据快照取首抽（整批开始前），物理钥匙退还取全批消耗并集
         crateOpenService.commitOpen(player, CrateOpenService.OpenAttempt.mergeForCommit(openAttempts), () -> {
-            if (MultiOpenAnimationPolicy.shouldPlayAnimation(
-                    crate.isMultiOpenAnimationEnabled(), rewardResults.size()) && player.isOnline()) {
-                boolean started = plugin.getAnimationManager().playAnimation(
-                        player,
-                        crate,
-                        rewardResults.stream().map(RewardResult::getDisplayReward).toList(),
-                        crateLocation,
-                        finish
-                );
-                if (!started) {
-                    finish.run();
-                }
-                return;
-            }
-            finish.run();
+            plugin.getCratePresentationManager().play(playerUuid, crate,
+                    rewardResults.stream().map(RewardResult::getDisplayReward).toList(), crateLocation,
+                    false, MultiOpenAnimationPolicy.shouldPlayAnimation(
+                            crate.isMultiOpenAnimationEnabled(), rewardResults.size()), finish);
         }, onComplete);
     }
 
     private List<CrateOpenService.OpenAttempt> prepareRewards(Player player, Crate crate, int amount) {
         List<CrateOpenService.OpenAttempt> openAttempts = new ArrayList<>();
+        if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
+            crateOpenService.sendOpenFailure(player, crate, CrateOpenService.OpenFailureReason.PLAYER_DATA_PENDING);
+            return openAttempts;
+        }
+        var batchSnapshot = plugin.getAsyncPlayerDataManager().snapshot(player.getUniqueId());
         MultiOpenPermissionContext permissionContext = crateOpenService.createSelectionContext(player, crate);
         for (int index = 0; index < amount; index++) {
             CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(
-                    player, crate, permissionContext);
+                    player, crate, permissionContext, batchSnapshot);
             if (!openAttempt.isSuccess()) {
                 if (openAttempts.isEmpty()) {
-                    crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
+                    crateOpenService.sendOpenFailure(player, crate, openAttempt.failureReason());
                 }
                 break;
             }

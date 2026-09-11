@@ -4,13 +4,14 @@ import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.data.PlayerDataCache;
 import gg.fotia.crates.key.KeyManager;
 import gg.fotia.crates.key.KeyType;
+import gg.fotia.crates.key.MissingKeyMessage;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.particle.ParticleStage;
 import gg.fotia.crates.pity.PityResetPolicy;
 import gg.fotia.crates.reward.Reward;
+import gg.fotia.crates.reward.settlement.OpenRewardJournal;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,11 +44,17 @@ public class CrateOpenService {
     }
 
     OpenAttempt prepareOpen(Player player, Crate crate, MultiOpenPermissionContext permissionContext) {
+        return prepareOpen(player, crate, permissionContext, null);
+    }
+
+    OpenAttempt prepareOpen(Player player, Crate crate, MultiOpenPermissionContext permissionContext,
+                            PlayerDataCache.Snapshot batchSnapshot) {
         if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
             return OpenAttempt.failure(OpenFailureReason.PLAYER_DATA_PENDING);
         }
 
-        PlayerDataCache.Snapshot previousData = plugin.getAsyncPlayerDataManager().snapshot(player.getUniqueId());
+        PlayerDataCache.Snapshot previousData = batchSnapshot != null ? batchSnapshot
+                : plugin.getAsyncPlayerDataManager().snapshot(player.getUniqueId());
         ResolvedReward resolvedReward = resolveRewardResult(player, crate, permissionContext);
         if (resolvedReward == null) {
             return OpenAttempt.failure(OpenFailureReason.NO_AVAILABLE_REWARD);
@@ -68,7 +75,7 @@ public class CrateOpenService {
         }
         updatePityCounter(player, crate, resolvedReward);
         return OpenAttempt.success(resolvedReward.rewardResult(), previousData,
-                consumedKey.physical() ? List.of(consumedKey.keyId()) : List.of());
+                consumedKey.physical() ? List.of(consumedKey.keyId()) : List.of(), crate.getId());
     }
 
     MultiOpenPermissionContext createSelectionContext(Player player, Crate crate) {
@@ -88,14 +95,23 @@ public class CrateOpenService {
             return;
         }
 
-        plugin.getAsyncPlayerDataManager().commitNow(player.getUniqueId(), onSuccess, () -> {
-            // 精确回滚：数据快照还原虚拟钥匙/保底计数，物理钥匙按消耗明细退还。
-            // 不再整包覆盖背包——提交是异步的，覆盖会把期间拾取/丢弃的物品抹掉或复活
+        Runnable rollback = () -> {
             plugin.getAsyncPlayerDataManager().restore(player.getUniqueId(), openAttempt.previousData());
             refundPhysicalKeys(player, openAttempt.consumedPhysicalKeyIds());
             plugin.getLanguageManager().send(player, "player-data-save-failed");
             onFailure.run();
-        });
+        };
+        var journal = plugin.getRewardSettlementCoordinator().journal();
+        final List<OpenRewardJournal.Entry> entries;
+        try {
+            entries = journal.snapshot(player.getUniqueId(), openAttempt.crateId(), openAttempt.rewardsToCommit());
+        } catch (RuntimeException exception) {
+            plugin.getLogger().severe("Could not snapshot crate rewards: " + exception.getMessage());
+            rollback.run();
+            return;
+        }
+        plugin.getAsyncPlayerDataManager().commitNow(player.getUniqueId(),
+                connection -> journal.insert(connection, entries), onSuccess, rollback);
     }
 
     private void refundPhysicalKeys(Player player, List<String> keyIds) {
@@ -106,7 +122,7 @@ public class CrateOpenService {
         for (String keyId : keyIds) {
             grouped.merge(keyId, 1, Integer::sum);
         }
-        if (player.isOnline()) {
+        if (plugin.isEnabled() && player.isOnline()) {
             grouped.forEach((keyId, amount) -> plugin.getKeyManager().givePhysicalKeys(player, keyId, amount));
             return;
         }
@@ -126,7 +142,7 @@ public class CrateOpenService {
                 + player.getUniqueId() + '.');
     }
 
-    public void sendOpenFailure(Player player, OpenFailureReason reason) {
+    public void sendOpenFailure(Player player, Crate crate, OpenFailureReason reason) {
         if (reason == OpenFailureReason.PLAYER_DATA_PENDING) {
             plugin.getLanguageManager().send(player, "player-data-loading");
             return;
@@ -136,7 +152,26 @@ public class CrateOpenService {
             return;
         }
 
-        plugin.getLanguageManager().send(player, "no-key");
+        sendMissingKeys(player, crate, 1);
+    }
+
+    public void sendMissingKeys(Player player, Crate crate, int required) {
+        var language = plugin.getLanguageManager();
+        var keys = plugin.getKeyManager().getKeysForCrate(crate.getId());
+        if (keys.isEmpty()) {
+            language.send(player, "no-key-configured",
+                    LanguageManager.placeholders("crate", crate.getName()));
+            return;
+        }
+        var placeholders = MissingKeyMessage.placeholders(crate.getName(), keys,
+                language.getRawMessage(player, "no-key-separator"), required,
+                plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId()));
+        var message = language.getMessage(player, "no-key", placeholders);
+        // 保留旧的自定义提示，未包含钥匙占位符时补充可配置的说明。
+        if (MissingKeyMessage.needsDetails(language.getRawMessage(player, "no-key"))) {
+            message = message.append(language.getMessageNoPrefix(player, "no-key-detail", placeholders));
+        }
+        player.sendMessage(message);
     }
 
     public void deliverReward(Player player, Crate crate, RewardResult rewardResult) {
@@ -149,11 +184,19 @@ public class CrateOpenService {
 
     public void deliverReward(Player player, Crate crate, RewardResult rewardResult, Location crateLocation,
                               boolean playPresentation) {
+        Reward actualReward = rewardResult.getActualReward();
+        actualReward.give(player);
+        try {
+            presentReward(player, crate, rewardResult, crateLocation, playPresentation);
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning("Reward was delivered but presentation failed: " + exception.getMessage());
+        }
+    }
+
+    private void presentReward(Player player, Crate crate, RewardResult rewardResult,
+                               Location crateLocation, boolean playPresentation) {
         Reward displayReward = rewardResult.getDisplayReward();
         Reward actualReward = rewardResult.getActualReward();
-
-        actualReward.give(player);
-
         if (rewardResult.wasReplaced()) {
             plugin.getLanguageManager().send(player, "reward-replaced",
                     LanguageManager.placeholders(
@@ -204,37 +247,39 @@ public class CrateOpenService {
     public void deliverRewardSafely(UUID playerUuid, String playerName, Crate crate,
                                     RewardResult rewardResult, Location crateLocation,
                                     boolean playPresentation) {
-        Player player = plugin.getServer().getPlayer(playerUuid);
-        Reward displayReward = rewardResult.getDisplayReward();
-        Reward actualReward = rewardResult.getActualReward();
+        deliverRewardsSafely(playerUuid, playerName, crate, List.of(rewardResult), crateLocation,
+                playPresentation, () -> {});
+    }
 
-        if (player == null || !player.isOnline()) {
-            plugin.getPendingRewardManager().addPendingReward(playerUuid, crate.getId(), actualReward);
-            plugin.getLogger().info("Player " + playerName + " is offline, reward stored for later claim.");
+    public void deliverRewardSafely(UUID playerUuid, String playerName, Crate crate,
+                                    RewardResult rewardResult, Location crateLocation, Runnable completion) {
+        deliverRewardsSafely(playerUuid, playerName, crate, List.of(rewardResult), crateLocation, true, completion);
+    }
 
-            plugin.getHistoryManager().addHistory(
-                    playerUuid,
-                    playerName,
-                    crate.getId(),
-                    displayReward.getId(),
-                    displayReward.getDisplayName()
-            );
+    public void deliverRewardsSafely(UUID playerUuid, String playerName, Crate crate,
+                                     List<RewardResult> results, Location crateLocation, Runnable completion) {
+        deliverRewardsSafely(playerUuid, playerName, crate, results, crateLocation, true, completion);
+    }
 
-            if (displayReward.shouldBroadcast() && plugin.getConfigManager().isBroadcastRareRewards()) {
-                var message = plugin.getLanguageManager().getMessage("broadcast-rare",
-                        LanguageManager.placeholders(
-                                "player", playerName,
-                                "crate", crate.getName(),
-                                "reward", displayReward.getDisplayName()
-                        ));
-                plugin.getServer().broadcast(message);
-            }
-            return;
+    private void deliverRewardsSafely(UUID playerUuid, String playerName, Crate crate,
+                                      List<RewardResult> results, Location crateLocation,
+                                      boolean playPresentation, Runnable completion) {
+        RewardResult first = results.isEmpty() ? null : results.get(0);
+        plugin.getRewardSettlementCoordinator().deliver(playerUuid, results,
+                (player, result) -> deliverReward(player, crate, result, crateLocation,
+                        playPresentation && result == first),
+                result -> recordDeferredReward(playerUuid, playerName, crate, result), completion);
+    }
+
+    private void recordDeferredReward(UUID playerUuid, String playerName, Crate crate, RewardResult result) {
+        Reward reward = result.getDisplayReward();
+        plugin.getHistoryManager().addHistory(playerUuid, playerName, crate.getId(),
+                reward.getId(), reward.getDisplayName());
+        if (plugin.isEnabled() && reward.shouldBroadcast() && plugin.getConfigManager().isBroadcastRareRewards()) {
+            plugin.getServer().broadcast(plugin.getLanguageManager().getMessage("broadcast-rare",
+                    LanguageManager.placeholders("player", playerName, "crate", crate.getName(),
+                            "reward", reward.getDisplayName())));
         }
-
-        Location resolvedCrateLocation = crateLocation != null ? crateLocation
-                : plugin.getParticleManager().resolveCrateLocation(player, crate);
-        deliverReward(player, crate, rewardResult, resolvedCrateLocation, playPresentation);
     }
 
     private ResolvedReward resolveRewardResult(Player player, Crate crate,
@@ -318,15 +363,16 @@ public class CrateOpenService {
     }
 
     public record OpenAttempt(RewardResult rewardResult, OpenFailureReason failureReason,
-                              PlayerDataCache.Snapshot previousData, List<String> consumedPhysicalKeyIds) {
+                              PlayerDataCache.Snapshot previousData, List<String> consumedPhysicalKeyIds,
+                              String crateId, List<RewardResult> rewardsToCommit) {
 
         public static OpenAttempt success(RewardResult rewardResult, PlayerDataCache.Snapshot previousData,
-                                          List<String> consumedPhysicalKeyIds) {
-            return new OpenAttempt(rewardResult, null, previousData, consumedPhysicalKeyIds);
+                                          List<String> consumedPhysicalKeyIds, String crateId) {
+            return new OpenAttempt(rewardResult, null, previousData, consumedPhysicalKeyIds, crateId, List.of(rewardResult));
         }
 
         public static OpenAttempt failure(OpenFailureReason failureReason) {
-            return new OpenAttempt(null, failureReason, null, List.of());
+            return new OpenAttempt(null, failureReason, null, List.of(), null, List.of());
         }
 
         /**
@@ -338,7 +384,8 @@ public class CrateOpenService {
             for (OpenAttempt attempt : attempts) {
                 mergedKeys.addAll(attempt.consumedPhysicalKeyIds());
             }
-            return new OpenAttempt(first.rewardResult(), null, first.previousData(), mergedKeys);
+            return new OpenAttempt(first.rewardResult(), null, first.previousData(), mergedKeys, first.crateId(),
+                    attempts.stream().flatMap(attempt -> attempt.rewardsToCommit().stream()).toList());
         }
 
         public boolean isSuccess() {

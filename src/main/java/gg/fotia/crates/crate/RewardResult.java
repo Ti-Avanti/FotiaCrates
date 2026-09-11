@@ -2,10 +2,13 @@ package gg.fotia.crates.crate;
 
 import gg.fotia.crates.reward.Reward;
 
+import java.util.UUID;
+
 /**
  * 抽奖结果，包含显示奖励和实际奖励
  */
 public class RewardResult {
+    private final UUID settlementId = UUID.randomUUID();
     private final Reward displayReward;  // 用于动画显示的奖励
     private final Reward actualReward;   // 实际给予玩家的奖励
     private final boolean wasReplaced;   // 是否被替代
@@ -29,6 +32,8 @@ public class RewardResult {
     public static RewardResult replaced(Reward displayReward, Reward actualReward) {
         return new RewardResult(displayReward, actualReward, true);
     }
+
+    public UUID getSettlementId() { return settlementId; }
 
     public Reward getDisplayReward() { return displayReward; }
     public Reward getActualReward() { return actualReward; }

@@ -23,7 +23,11 @@ public final class RewardAutoDisplayNameResolver {
             return RewardAutoDisplayPolicy.fallbackName(Material.PAPER);
         }
 
-        return toConfigName(resolveNameComponent(item), item.getType());
+        Component name = resolveNameComponent(item);
+        if (name == null) {
+            name = Component.translatable(item.translationKey());
+        }
+        return toConfigName(name, item.getType());
     }
 
     static String toConfigName(Component itemName, Material fallbackMaterial) {

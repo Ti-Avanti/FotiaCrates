@@ -43,6 +43,7 @@ items:
     name: "<!i><red>返回"
     lore:
       - "<!i><gray>返回奖励编辑界面"
+      - "<!i><yellow>不会保存本次修改，请使用右侧保存按钮"
     action: back
   clear:
     slot: 49

@@ -1,12 +1,9 @@
 package gg.fotia.crates.reward;
 
 import gg.fotia.crates.FotiaCrates;
-import org.bukkit.Material;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.io.StringReader;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -14,7 +11,6 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -118,7 +114,7 @@ public class PendingRewardManager {
 
     public void addPendingReward(UUID playerUuid, String crateId, Reward reward) {
         PendingInsert pendingInsert = new PendingInsert(
-                UUID.randomUUID(), playerUuid, crateId, reward.getId(), serializeReward(reward));
+                UUID.randomUUID(), playerUuid, crateId, reward.getId(), RewardSnapshotCodec.serialize(reward));
         pendingInserts.put(pendingInsert.operationId(), pendingInsert);
         submitPendingInsert(pendingInsert, 0);
     }
@@ -505,40 +501,8 @@ public class PendingRewardManager {
         });
     }
 
-    private String serializeReward(Reward reward) {
-        YamlConfiguration config = new YamlConfiguration();
-        config.set("id", reward.getId());
-        config.set("display-name", reward.getDisplayName());
-        config.set("rarity", reward.getRarity());
-        config.set("chance", reward.getChance());
-        config.set("broadcast", reward.shouldBroadcast());
-        config.set("type", reward.getType().name());
-        config.set("display-item", reward.getDisplayItem());
-        config.set("commands", reward.getCommands());
-        config.set("item", reward.getItem());
-        config.set("extra-items", reward.getExtraItems());
-
-        switch (reward.getType()) {
-            case ITEM, COMMAND -> {
-            }
-            case MONEY -> {
-                if (reward instanceof MoneyReward moneyReward) {
-                    config.set("amount", moneyReward.getAmount());
-                }
-            }
-            case EXPERIENCE -> {
-                if (reward instanceof ExperienceReward experienceReward) {
-                    config.set("amount", experienceReward.getAmount());
-                    config.set("levels", experienceReward.isLevels());
-                }
-            }
-        }
-
-        return config.saveToString();
-    }
-
     private Reward resolvePendingReward(String crateId, String rewardId, String rewardData) {
-        Reward storedReward = deserializeReward(rewardData);
+        Reward storedReward = RewardSnapshotCodec.deserialize(rewardData, plugin.getConfigManager().getDefaultRarityId());
         if (storedReward != null) {
             return storedReward;
         }
@@ -554,54 +518,6 @@ public class PendingRewardManager {
                 .orElse(null);
     }
 
-    private Reward deserializeReward(String rewardData) {
-        if (rewardData == null || rewardData.isBlank()) {
-            return null;
-        }
-
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(new StringReader(rewardData));
-        String typeName = config.getString("type");
-        if (typeName == null || typeName.isBlank()) {
-            return null;
-        }
-
-        RewardType rewardType;
-        try {
-            rewardType = RewardType.valueOf(typeName.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
-
-        String id = config.getString("id", "pending_reward");
-        String displayName = config.getString("display-name", id);
-        String rarity = config.getString("rarity", plugin.getConfigManager().getDefaultRarityId());
-        double chance = config.getDouble("chance", 0D);
-        boolean broadcast = config.getBoolean("broadcast", false);
-        ItemStack displayItem = config.getItemStack("display-item");
-        if (displayItem == null) {
-            displayItem = new ItemStack(Material.PAPER);
-        }
-
-        ItemStack item = config.getItemStack("item");
-        List<ItemStack> extraItems = new ArrayList<>();
-        for (Object extraItem : config.getList("extra-items", List.of())) {
-            if (extraItem instanceof ItemStack extraStack) {
-                extraItems.add(extraStack);
-            }
-        }
-        List<String> commands = config.getStringList("commands");
-
-        return switch (rewardType) {
-            case ITEM -> new ItemReward(id, displayName, rarity, chance, broadcast, displayItem,
-                    item, extraItems, commands);
-            case COMMAND -> new CommandReward(id, displayName, rarity, chance, broadcast, displayItem,
-                    commands, item, extraItems);
-            case MONEY -> new MoneyReward(id, displayName, rarity, chance, broadcast, displayItem,
-                    config.getDouble("amount", 0D));
-            case EXPERIENCE -> new ExperienceReward(id, displayName, rarity, chance, broadcast, displayItem,
-                    config.getInt("amount", 0), config.getBoolean("levels", false));
-        };
-    }
 
     /**
      * 数据库中的待领取奖励快照。

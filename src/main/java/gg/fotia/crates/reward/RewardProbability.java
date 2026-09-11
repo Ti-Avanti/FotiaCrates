@@ -1,6 +1,7 @@
 package gg.fotia.crates.reward;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.List;
 import java.util.Random;
@@ -31,11 +32,20 @@ public final class RewardProbability {
             return "0%";
         }
 
-        String value = BigDecimal.valueOf(percentage)
-                .setScale(2, RoundingMode.HALF_UP)
+        BigDecimal precise = BigDecimal.valueOf(percentage);
+        BigDecimal rounded = precise.setScale(2, RoundingMode.HALF_UP);
+        if (rounded.signum() == 0) {
+            rounded = precise.round(new MathContext(2, RoundingMode.HALF_UP));
+        }
+        String value = rounded
                 .stripTrailingZeros()
                 .toPlainString();
         return value + "%";
+    }
+
+    public static String formatWeight(double weight) {
+        return Double.isFinite(weight)
+                ? BigDecimal.valueOf(weight).stripTrailingZeros().toPlainString() : "0";
     }
 
     public static Reward select(List<? extends Reward> rewards, Random random) {

@@ -96,7 +96,7 @@ icons:
         - '<!i><gray>抽奖箱ID: {crate_id}'
         - ''
         - '<!i><yellow>奖励数量: <!i><white>{reward_count}'
-        - '<!i><yellow>总概率: <!i><white>{total_chance}%'
+        - '<!i><yellow>总权重: <!i><white>{total_weight}'
 
   'R':
     display:
@@ -185,3 +185,18 @@ icons:
         - '<!i><red>此操作不可撤销！'
         - '<!i><yellow>Shift+左键确认删除'
     action: delete_crate
+
+# 编辑页奖励说明可独立配置，权重与换算概率分开显示。
+reward-display:
+  append-item-lore: true
+  lore:
+    - ''
+    - '<!i><gray>ID: <!i><white>{reward_id}'
+    - '<!i><gray>权重: <!i><yellow>{weight}'
+    - '<!i><gray>概率: <!i><yellow>{probability}'
+    - '<!i><gray>稀有度: {rarity}'
+    - '{broadcast_line}'
+    - ''
+    - '<!i><yellow>左键 编辑奖励'
+    - '<!i><red>Shift+右键 删除'
+  broadcast-line: '<!i><gold>★ 全服广播'

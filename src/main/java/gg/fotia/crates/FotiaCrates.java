@@ -1,12 +1,13 @@
 package gg.fotia.crates;
 
-import gg.fotia.crates.command.CrateCommand;
 import gg.fotia.crates.animation.AnimationManager;
+import gg.fotia.crates.command.CrateCommand;
 import gg.fotia.crates.config.ConfigManager;
 import gg.fotia.crates.crate.CrateManager;
+import gg.fotia.crates.crate.CratePresentationManager;
 import gg.fotia.crates.crate.OpenSessionManager;
-import gg.fotia.crates.database.DatabaseManager;
 import gg.fotia.crates.data.AsyncPlayerDataManager;
+import gg.fotia.crates.database.DatabaseManager;
 import gg.fotia.crates.gui.GuiManager;
 import gg.fotia.crates.history.HistoryManager;
 import gg.fotia.crates.hologram.HologramManager;
@@ -24,6 +25,7 @@ import gg.fotia.crates.particle.ParticleManager;
 import gg.fotia.crates.pity.PityManager;
 import gg.fotia.crates.reward.PendingRewardManager;
 import gg.fotia.crates.reward.RewardItemDeliveryService;
+import gg.fotia.crates.reward.settlement.RewardSettlementCoordinator;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -44,10 +46,12 @@ public class FotiaCrates extends JavaPlugin {
     private ModelEngineManager modelEngineManager;
     private PendingRewardManager pendingRewardManager;
     private RewardItemDeliveryService rewardItemDeliveryService;
+    private RewardSettlementCoordinator rewardSettlementCoordinator;
     private HologramManager hologramManager;
     private ParticleManager particleManager;
     private AnimationManager animationManager;
     private OpenSessionManager openSessionManager;
+    private CratePresentationManager cratePresentationManager;
     private EntityInteractPacketListener entityInteractPacketListener;
     private Economy economy;
 
@@ -82,10 +86,18 @@ public class FotiaCrates extends JavaPlugin {
         modelEngineManager = new ModelEngineManager(this);
         pendingRewardManager = new PendingRewardManager(this);
         rewardItemDeliveryService = new RewardItemDeliveryService(this);
+        try {
+            rewardSettlementCoordinator = new RewardSettlementCoordinator(this);
+        } catch (java.io.IOException | java.sql.SQLException | IllegalArgumentException exception) {
+            getLogger().severe("Could not initialize durable reward settlement: " + exception.getMessage());
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
         hologramManager = new HologramManager(this);
         particleManager = new ParticleManager(this);
         animationManager = new AnimationManager(this);
         openSessionManager = new OpenSessionManager();
+        cratePresentationManager = new CratePresentationManager(this);
         keyDistributionManager.start();
         asyncPlayerDataManager.start();
 
@@ -134,9 +146,11 @@ public class FotiaCrates extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (rewardSettlementCoordinator != null) rewardSettlementCoordinator.beginShutdown();
         if (entityInteractPacketListener != null) {
             entityInteractPacketListener.unregister();
         }
+        if (cratePresentationManager != null) cratePresentationManager.cancelAll();
         if (animationManager != null) {
             animationManager.cancelAllAnimations();
         }
@@ -162,6 +176,9 @@ public class FotiaCrates extends JavaPlugin {
         if (asyncPlayerDataManager != null) {
             persistenceStopped = asyncPlayerDataManager.shutdown();
         }
+        if (rewardSettlementCoordinator != null && persistenceStopped) {
+            rewardSettlementCoordinator.finishShutdown();
+        }
         if (pendingRewardManager != null) {
             if (persistenceStopped) {
                 pendingRewardManager.flushPendingInserts();
@@ -171,6 +188,8 @@ public class FotiaCrates extends JavaPlugin {
                         + " pending reward inserts because the persistence worker is still running.");
             }
         }
+        if (crateManager != null) crateManager.shutdownConfigurationStore();
+        if (keyManager != null) keyManager.shutdownConfigurationWriter();
         if (databaseManager != null) {
             databaseManager.close();
         }
@@ -194,7 +213,6 @@ public class FotiaCrates extends JavaPlugin {
 
     public void reload() {
         var previousLocations = crateManager.getCrateLocations();
-        openSessionManager.clear();
         configManager.loadConfigs();
         languageManager.reload();
         keyManager.reload();
@@ -214,6 +232,14 @@ public class FotiaCrates extends JavaPlugin {
      */
     private void spawnAllCrateModels() {
         modelEngineManager.reconcileLoadedModels(null);
+    }
+
+    public RewardSettlementCoordinator getRewardSettlementCoordinator() {
+        return rewardSettlementCoordinator;
+    }
+
+    public CratePresentationManager getCratePresentationManager() {
+        return cratePresentationManager;
     }
 
     public static FotiaCrates getInstance() {

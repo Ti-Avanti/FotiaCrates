@@ -1,0 +1,47 @@
+title: '<!i><dark_gray>快捷概率: {crate} ({page}/{pages})'
+size: 54
+fill:
+  enabled: true
+  material: GRAY_STAINED_GLASS_PANE
+  name: ' '
+# 自定义稀有度自动读取并分页，按钮布局可自由调整。
+content-slots: [10, 12, 14, 16, 19, 21, 23, 25, 28, 30, 32, 34, 37, 39, 41, 43]
+items:
+  info:
+    slot: 4
+    material: BOOK
+    name: '<!i><gold>按稀有度批量设置基础概率'
+    lore:
+      - '<!i><gray>作用于当前宝箱的所有奖励页'
+      - '<!i><gray>当前默认模式: {mode}'
+      - '<!i><gray>选择稀有度后可以修改模式和数值'
+      - '<!i><yellow>此时不会修改奖励，确认后才保存'
+  rarity:
+    slot: 10
+    material: DIAMOND
+    name: '<!i>{rarity}'
+    lore:
+      - '<!i><gray>ID: {rarity_id}'
+      - '<!i><gray>可调整奖励: {matched}，零权重排除: {excluded}'
+      - '<!i><gray>当前合计概率: {old_total}'
+      - '<!i><gray>快捷填充值: {percentage}'
+      - '<!i><yellow>点击查看调整预览'
+    action: select_rarity
+  back:
+    slot: 45
+    material: ARROW
+    name: '<!i><red>取消并返回'
+    lore: ['<!i><gray>返回原来的奖励管理页，不修改任何概率']
+    action: back
+  previous:
+    slot: 48
+    material: ARROW
+    name: '<!i><yellow>上一页'
+    lore: ['<!i><gray>{page}/{pages}']
+    action: previous_page
+  next:
+    slot: 50
+    material: ARROW
+    name: '<!i><yellow>下一页'
+    lore: ['<!i><gray>{page}/{pages}']
+    action: next_page

@@ -57,6 +57,26 @@ public class LanguageManager {
                 FileConfiguration bundledConfig = loadBundledLanguage(file.getName());
                 if (bundledConfig != null) {
                     bundledLanguages.put(langCode, bundledConfig);
+                    boolean changed = KeyMessageMigration.apply(config, bundledConfig);
+                    var messages = bundledConfig.getConfigurationSection("messages");
+                    if (messages != null) {
+                        for (String key : messages.getKeys(false)) {
+                            String path = "messages." + key;
+                            if ((key.startsWith("rarity-probability-") || key.startsWith("reward-delivery-")
+                                    || key.equals("configuration-save-busy")) && !config.isSet(path)) {
+                                config.set(path, messages.get(key));
+                                changed = true;
+                            }
+                        }
+                    }
+                    if (changed) {
+                        try {
+                            config.save(file);
+                        } catch (IOException exception) {
+                            plugin.getLogger().warning("Failed to save key message defaults for "
+                                    + file.getName() + ": " + exception.getMessage());
+                        }
+                    }
                 }
                 languages.put(langCode, config);
                 plugin.getLogger().info("Loaded language: " + langCode);

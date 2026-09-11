@@ -12,6 +12,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class RewardProbabilityTest {
 
     @Test
+    void doesNotDisplayAPositiveRareProbabilityAsZero() {
+        assertEquals("0.001%", RewardProbability.format(0.001));
+    }
+
+    @Test
     void convertsConfiguredWeightsIntoNormalizedPercentages() {
         TestReward rare = new TestReward("rare", 1.0);
         TestReward common = new TestReward("common", 3.0);

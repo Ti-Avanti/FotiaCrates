@@ -1,6 +1,7 @@
 package gg.fotia.crates.key;
 
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.config.AsyncConfigurationWriter;
 import gg.fotia.crates.hook.CraftEngineKeyItemProvider;
 import gg.fotia.crates.util.ItemBuilder;
 import org.bukkit.Material;
@@ -12,7 +13,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
-
 import java.io.File;
 import java.util.*;
 
@@ -26,9 +26,11 @@ public class KeyManager {
     private final NamespacedKey keyIdentifier;
     private final Map<String, Key> keys = new HashMap<>();
     private final KeyItemFactory keyItemFactory;
+    private final AsyncConfigurationWriter configurationWriter;
 
     public KeyManager(FotiaCrates plugin) {
         this.plugin = plugin;
+        this.configurationWriter = new AsyncConfigurationWriter(plugin);
         this.keyIdentifier = new NamespacedKey(plugin, "key_id");
         this.keyItemFactory = new KeyItemFactory(createCraftEngineProvider());
         loadKeys();
@@ -52,6 +54,8 @@ public class KeyManager {
      * 加载所有钥匙配置
      */
     public void loadKeys() {
+        if (configurationWriter.isPending()) throw new IllegalStateException("Key configuration writes are still pending");
+        configurationWriter.reload();
         keys.clear();
 
         File keysFolder = new File(plugin.getDataFolder(), "keys");
@@ -423,6 +427,9 @@ public class KeyManager {
     /**
      * 重新加载钥匙配置
      */
+    public boolean isConfigSavePending() { return configurationWriter.isPending(); }
+    public void shutdownConfigurationWriter() { configurationWriter.shutdown(); }
+
     public void reload() {
         loadKeys();
     }
@@ -465,7 +472,7 @@ public class KeyManager {
         }
 
         try {
-            config.save(file);
+            configurationWriter.save(file.toPath(), config.saveToString());
             keys.put(key.getId(), key);
         } catch (java.io.IOException e) {
             plugin.getLogger().severe("Failed to save key " + key.getId() + ": " + e.getMessage());
@@ -477,9 +484,11 @@ public class KeyManager {
      */
     public void deleteKey(String keyId) {
         File file = new File(plugin.getDataFolder(), "keys/" + keyId + ".yml");
-        if (file.exists()) {
-            file.delete();
+        try {
+            configurationWriter.delete(file.toPath());
+            keys.remove(keyId);
+        } catch (java.io.IOException exception) {
+            plugin.getLogger().severe("Failed to delete key " + keyId + ": " + exception.getMessage());
         }
-        keys.remove(keyId);
     }
 }

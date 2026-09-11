@@ -4,7 +4,6 @@ import gg.fotia.crates.crate.PreviewChanceDisplayMode;
 import gg.fotia.crates.reward.Reward;
 import gg.fotia.crates.reward.RewardProbability;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,10 +28,12 @@ public final class RewardPreviewLoreFormatter {
 
         Map<String, String> placeholders = new LinkedHashMap<>();
         placeholders.put("{reward_name}", reward.getDisplayName());
+        placeholders.put("{reward_id}", reward.getId());
+        placeholders.put("{reward_type}", reward.getType().name());
         placeholders.put("{rarity}", rarityDisplayName != null ? rarityDisplayName : reward.getRarity());
         placeholders.put("{rarity_id}", reward.getRarity());
         placeholders.put("{probability}", RewardProbability.format(RewardProbability.percentage(reward, rewards)));
-        placeholders.put("{weight}", formatWeight(reward.getChance()));
+        placeholders.put("{weight}", RewardProbability.formatWeight(reward.getChance()));
 
         String chanceTemplate = switch (resolvedMode) {
             case PERCENTAGE -> resolvedConfig.getPercentageLine();
@@ -71,10 +72,4 @@ public final class RewardPreviewLoreFormatter {
         return rendered.isBlank() && ("{chance_line}".equals(trimmed) || "{broadcast_line}".equals(trimmed));
     }
 
-    private static String formatWeight(double weight) {
-        if (!Double.isFinite(weight)) {
-            return "0";
-        }
-        return BigDecimal.valueOf(weight).stripTrailingZeros().toPlainString();
-    }
 }

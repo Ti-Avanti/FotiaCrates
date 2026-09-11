@@ -49,10 +49,12 @@ public class GuiListener implements Listener {
     private final FotiaCrates plugin;
     private final CrateOpenService crateOpenService;
     private final MultiOpenService multiOpenService;
+    private final KeyEditorController keyEditor;
     private static final long INTERACT_COOLDOWN_MS = 500; // 500毫秒冷却
 
     public GuiListener(FotiaCrates plugin) {
         this.plugin = plugin;
+        this.keyEditor = new KeyEditorController(plugin, this::handleAction);
         this.crateOpenService = new CrateOpenService(plugin);
         this.multiOpenService = new MultiOpenService(plugin, crateOpenService);
     }
@@ -70,6 +72,12 @@ public class GuiListener implements Listener {
         }
 
         GuiType guiType = holder.getGuiType();
+        if (plugin.getGuiManager().getRarityProbabilityEditor().isSaving()
+                && (guiType.name().startsWith("ADMIN") || guiType == GuiType.ITEM_INPUT || guiType == GuiType.REWARD_ITEMS)) {
+            event.setCancelled(true);
+            plugin.getLanguageManager().send(player, "rarity-probability-busy");
+            return;
+        }
 
         // 物品输入界面特殊处理 - 允许物品交互
         if (guiType == GuiType.ITEM_INPUT) {
@@ -100,8 +108,9 @@ public class GuiListener implements Listener {
             case ADMIN -> handleAdminClick(event, player, holder);
             case ADMIN_CRATE_EDIT -> handleCrateEditClick(event, player, holder);
             case ADMIN_REWARD_EDIT -> handleRewardEditClick(event, player, holder);
-            case ADMIN_KEYS -> handleKeysClick(event, player, holder);
-            case ADMIN_KEY_EDIT -> handleKeyEditClick(event, player, holder);
+            case ADMIN_RARITY_PROBABILITY -> plugin.getGuiManager().getRarityProbabilityEditor().click(event, player, holder);
+            case ADMIN_KEYS -> keyEditor.handleKeysClick(event, player, holder);
+            case ADMIN_KEY_EDIT -> keyEditor.handleKeyEditClick(event, player, holder);
             case HISTORY -> handleHistoryClick(event, player, holder);
             case ANIMATION -> plugin.getAnimationManager()
                     .handleInventoryClick(player, event.getRawSlot());
@@ -1235,8 +1244,9 @@ public class GuiListener implements Listener {
             case 45 -> openRewardEditReturn(player, crate.getId(), editContext); // 返回
             case 4 -> { // 显示图标 - 点击打开物品输入界面
                 if (event.isRightClick()) {
-                    plugin.getCrateManager().resetRewardDisplayIconAuto(crate.getId(), rewardId);
-                    plugin.getLanguageManager().send(player, "admin-reward-auto-display-icon-reset");
+                    boolean synced = plugin.getCrateManager().resetRewardDisplayIconAuto(crate.getId(), rewardId);
+                    plugin.getLanguageManager().send(player, synced ? "admin-reward-auto-display-icon-reset"
+                            : "admin-reward-auto-display-pending");
                     refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
                 } else {
                     plugin.getGuiManager().openItemInputGui(player, crate, rewardId, "display_icon", editContext);
@@ -1264,13 +1274,12 @@ public class GuiListener implements Listener {
             case 28 -> { // 调整概率
                 if (event.getClick() == org.bukkit.event.inventory.ClickType.MIDDLE) {
                     // 中键输入精确数值
-                    plugin.getLanguageManager().send(player, "admin-input-chance");
+                    plugin.getLanguageManager().send(player, "admin-input-weight");
                     plugin.getGuiManager().startInputSession(player, "reward_chance",
                             new RewardEditInput(crate.getId(), rewardId, editContext), (p, input, data) -> {
                         RewardEditInput ids = (RewardEditInput) data;
                         try {
-                            double newChance = Double.parseDouble(input);
-                            newChance = Math.max(0.01, Math.min(100, newChance));
+                            double newChance = gg.fotia.crates.reward.RewardWeightAdjustment.parse(input);
                             plugin.getCrateManager().updateRewardChance(ids.crateId(), ids.rewardId(), newChance);
                             refreshRewardEditGui(p, ids.crateId(), ids.rewardId(), ids.editContext());
                         } catch (NumberFormatException e) {
@@ -1285,7 +1294,11 @@ public class GuiListener implements Listener {
                     } else if (event.isRightClick()) {
                         delta = event.isShiftClick() ? -5.0 : -1.0;
                     }
-                    double newChance = Math.max(0.01, Math.min(100, reward.getChance() + delta));
+                    double newChance = Math.max(0.0, reward.getChance() + delta);
+                    if (!Double.isFinite(newChance)) {
+                        plugin.getLanguageManager().send(player, "invalid-number");
+                        return;
+                    }
                     plugin.getCrateManager().updateRewardChance(crate.getId(), rewardId, newChance);
                     refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
                 }
@@ -1304,8 +1317,9 @@ public class GuiListener implements Listener {
             }
             case 34 -> { // 显示名称
                 if (event.isRightClick()) {
-                    plugin.getCrateManager().resetRewardDisplayNameAuto(crate.getId(), rewardId);
-                    plugin.getLanguageManager().send(player, "admin-reward-auto-display-name-reset");
+                    boolean synced = plugin.getCrateManager().resetRewardDisplayNameAuto(crate.getId(), rewardId);
+                    plugin.getLanguageManager().send(player, synced ? "admin-reward-auto-display-name-reset"
+                            : "admin-reward-auto-display-pending");
                     refreshRewardEditGui(player, crate.getId(), rewardId, editContext);
                 } else {
                     plugin.getLanguageManager().send(player, "admin-input-name");
@@ -1458,6 +1472,12 @@ public class GuiListener implements Listener {
             return;
         }
 
+        if ("rarity_probability".equals(plugin.getGuiManager().getConfiguredAction("admin_reward_manager", slot))) {
+            Crate current = plugin.getCrateManager().getCrate(crate.getId());
+            if (current != null) plugin.getGuiManager().getRarityProbabilityEditor().open(player, current, page);
+            return;
+        }
+
         // 奖励槽位
         List<Integer> rewardSlots = contentSlots("admin_reward_manager", List.of(
                 10, 11, 12, 13, 14, 15, 16,
@@ -1531,8 +1551,11 @@ public class GuiListener implements Listener {
                 }
             }
             case 52 -> { // 概率平衡
-                plugin.getCrateManager().balanceRewardChances(crate.getId());
-                plugin.getLanguageManager().send(player, "admin-reward-balanced");
+                boolean equalize = event.isShiftClick() && event.isRightClick();
+                if (!equalize && !event.isLeftClick()) return;
+                boolean saved = plugin.getCrateManager().adjustRewardWeights(crate.getId(), equalize);
+                plugin.getLanguageManager().send(player, !saved ? "admin-reward-weights-failed"
+                        : equalize ? "admin-reward-weights-equalized" : "admin-reward-weights-normalized");
                 plugin.getGuiManager().openRewardManagerGui(player, plugin.getCrateManager().getCrate(crate.getId()), page);
             }
             case 53 -> { // 添加新奖励
@@ -1854,167 +1877,6 @@ public class GuiListener implements Listener {
         }
     }
 
-    private void handleKeysClick(InventoryClickEvent event, Player player, CrateGuiHolder holder) {
-        int slot = event.getSlot();
-
-        GuiConfig config = plugin.getGuiManager().getConfigManager().getGuiConfig("admin_keys");
-        if (config != null) {
-            GuiItem guiItem = config.getItem(slot);
-            if (guiItem != null && guiItem.getAction() != null) {
-                handleAction(player, guiItem.getAction(), guiItem.getActionValue(), holder);
-                return;
-            }
-        }
-
-        // 检查是否点击了钥匙
-        List<Integer> contentSlots = config != null ? config.getContentSlots() : List.of();
-        int slotIndex = contentSlots.indexOf(slot);
-        if (slotIndex >= 0) {
-            List<String> keyIds = plugin.getKeyManager().getKeyIds().stream().toList();
-            if (slotIndex < keyIds.size()) {
-                String keyId = keyIds.get(slotIndex);
-                gg.fotia.crates.key.Key key = plugin.getKeyManager().getKey(keyId);
-                if (key != null) {
-                    if (event.isLeftClick()) {
-                        plugin.getGuiManager().openKeyEditGui(player, key);
-                    } else if (event.isShiftClick() && event.isRightClick()) {
-                        // 删除钥匙
-                        plugin.getKeyManager().deleteKey(keyId);
-                        plugin.getLanguageManager().send(player, "admin-key-deleted",
-                                LanguageManager.placeholders("key", key.getName()));
-                        plugin.getGuiManager().openKeysGui(player);
-                    }
-                }
-            }
-        }
-    }
-
-    private void handleKeyEditClick(InventoryClickEvent event, Player player, CrateGuiHolder holder) {
-        int slot = event.getSlot();
-        String keyId = holder.getData("key_id");
-        gg.fotia.crates.key.Key key = plugin.getKeyManager().getKey(keyId);
-
-        if (key == null) {
-            plugin.getGuiManager().openKeysGui(player);
-            return;
-        }
-
-        // 检查是否是宝箱选择模式
-        Boolean selectMode = holder.getData("select_mode");
-        if (selectMode != null && selectMode) {
-            handleCrateSelectClick(event, player, holder, key);
-            return;
-        }
-
-        GuiConfig config = plugin.getGuiManager().getConfigManager().getGuiConfig("admin_key_edit");
-        if (config != null) {
-            GuiItem guiItem = config.getItem(slot);
-            if (guiItem != null && guiItem.getAction() != null) {
-                handleKeyEditAction(player, guiItem.getAction(), key, holder);
-                return;
-            }
-        }
-
-        // 检查是否点击了宝箱（移除宝箱）
-        List<Integer> contentSlots = config != null ? config.getContentSlots() : List.of();
-        int slotIndex = contentSlots.indexOf(slot);
-        if (slotIndex >= 0 && event.isShiftClick() && event.isRightClick()) {
-            List<String> crateIds = key.getCrateIds().stream().toList();
-            if (slotIndex < crateIds.size()) {
-                String crateId = crateIds.get(slotIndex);
-                key.removeCrate(crateId);
-                plugin.getKeyManager().saveKey(key);
-                plugin.getLanguageManager().send(player, "admin-key-crate-removed",
-                        LanguageManager.placeholders("crate", crateId));
-                plugin.getGuiManager().openKeyEditGui(player, key);
-            }
-        }
-    }
-
-    private void handleCrateSelectClick(InventoryClickEvent event, Player player, CrateGuiHolder holder, gg.fotia.crates.key.Key key) {
-        int slot = event.getSlot();
-        String action = actionOrFallback("admin_crate_select", slot, Map.of(45, "back"));
-
-        // 返回按钮
-        if ("back".equals(action)) {
-            plugin.getGuiManager().openKeyEditGui(player, key);
-            return;
-        }
-
-        // 检查是否点击了宝箱
-        List<Integer> contentSlots = contentSlots("admin_crate_select",
-                List.of(10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34));
-        if (contentSlots.contains(slot) && event.isLeftClick()) {
-            // 获取点击的宝箱
-            int slotIndex = contentSlots.indexOf(slot);
-            List<Crate> availableCrates = plugin.getCrateManager().getAllCrates().stream()
-                    .filter(c -> !key.getCrateIds().contains(c.getId()))
-                    .toList();
-
-            if (slotIndex < availableCrates.size()) {
-                Crate crate = availableCrates.get(slotIndex);
-                key.addCrate(crate.getId());
-                plugin.getKeyManager().saveKey(key);
-                plugin.getLanguageManager().send(player, "admin-key-crate-added",
-                        LanguageManager.placeholders("crate", crate.getName()));
-                plugin.getGuiManager().openKeyEditGui(player, key);
-            }
-        }
-    }
-
-    private void handleKeyEditAction(Player player, String action, gg.fotia.crates.key.Key key, CrateGuiHolder holder) {
-        switch (action.toLowerCase()) {
-            case "edit_key_name" -> {
-                plugin.getLanguageManager().send(player, "admin-input-name");
-                plugin.getGuiManager().startInputSession(player, "key_name", key.getId(), (p, input, data) -> {
-                    String keyId = (String) data;
-                    gg.fotia.crates.key.Key k = plugin.getKeyManager().getKey(keyId);
-                    if (k != null) {
-                        k.setName(input);
-                        plugin.getKeyManager().saveKey(k);
-                        plugin.getLanguageManager().send(p, "admin-key-name-updated",
-                                LanguageManager.placeholders("name", input));
-                        plugin.getGuiManager().openKeyEditGui(p, k);
-                    }
-                });
-            }
-            case "edit_key_item" -> {
-                org.bukkit.inventory.ItemStack item = player.getInventory().getItemInMainHand();
-                if (item.getType().isAir()) {
-                    plugin.getLanguageManager().send(player, "reward-hold-item");
-                    return;
-                }
-                key.setItem(item.clone());
-                plugin.getKeyManager().saveKey(key);
-                plugin.getLanguageManager().send(player, "admin-key-item-updated");
-                plugin.getGuiManager().openKeyEditGui(player, key);
-            }
-            case "toggle_key_glow" -> {
-                key.setGlow(!key.isGlow());
-                plugin.getKeyManager().saveKey(key);
-                plugin.getGuiManager().openKeyEditGui(player, key);
-            }
-            case "add_key_crate" -> {
-                // 打开宝箱选择界面
-                plugin.getGuiManager().openCrateSelectGui(player, key);
-            }
-            case "save_key" -> {
-                plugin.getKeyManager().saveKey(key);
-                plugin.getLanguageManager().send(player, "admin-key-saved");
-            }
-            case "delete_key" -> {
-                plugin.getKeyManager().deleteKey(key.getId());
-                plugin.getLanguageManager().send(player, "admin-key-deleted",
-                        LanguageManager.placeholders("key", key.getName()));
-                plugin.getGuiManager().openKeysGui(player);
-            }
-            case "open_gui" -> {
-                plugin.getGuiManager().openKeysGui(player);
-            }
-            case "close" -> player.closeInventory();
-        }
-    }
-
     private void handleHistoryClick(InventoryClickEvent event, Player player, CrateGuiHolder holder) {
         int slot = event.getSlot();
 
@@ -2223,32 +2085,17 @@ public class GuiListener implements Listener {
         CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
         if (!openAttempt.isSuccess()) {
             plugin.getOpenSessionManager().finish(playerUuid);
-            crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
+            crateOpenService.sendOpenFailure(player, crate, openAttempt.failureReason());
             return;
         }
 
         crateOpenService.commitOpen(player, openAttempt, () -> {
-            RewardResult rewardResult = openAttempt.rewardResult();
-            Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
-            plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-
-            if (crate.isAnimationEnabled() || crate.isPhysicalAnimationEnabled()) {
-                String playerName = player.getName();
-                Runnable finish = () -> {
-                    crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
-                    plugin.getOpenSessionManager().finish(playerUuid);
-                };
-                if (!plugin.getAnimationManager().playAnimation(
-                        player, crate, rewardResult.getDisplayReward(), crateLocation, finish)) {
-                    finish.run();
-                }
-            } else {
-                try {
-                    crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
-                } finally {
-                    plugin.getOpenSessionManager().finish(playerUuid);
-                }
-            }
+            RewardResult result = openAttempt.rewardResult();
+            Location location = plugin.getParticleManager().resolveCrateLocation(player, crate);
+            Runnable delivery = () -> crateOpenService.deliverRewardSafely(playerUuid, player.getName(), crate,
+                    result, location, () -> plugin.getOpenSessionManager().finish(playerUuid));
+            plugin.getCratePresentationManager().play(playerUuid, crate, List.of(result.getDisplayReward()),
+                    location, false, true, delivery);
         }, () -> plugin.getOpenSessionManager().finish(playerUuid));
     }
 
@@ -2277,7 +2124,7 @@ public class GuiListener implements Listener {
         }
 
         if (plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId()) < amount) {
-            plugin.getLanguageManager().send(player, "no-key");
+            crateOpenService.sendMissingKeys(player, crate, amount);
             plugin.getOpenSessionManager().finish(playerUuid);
             return;
         }
@@ -2375,7 +2222,7 @@ public class GuiListener implements Listener {
             // 在主线程处理输入
             plugin.getServer().getScheduler().runTask(plugin, () -> {
                 if (message.equalsIgnoreCase("cancel")) {
-                    plugin.getGuiManager().cancelInputSession(player);
+                    plugin.getGuiManager().cancelInputSession(player, true);
                     plugin.getLanguageManager().send(player, "admin-input-cancelled");
                 } else {
                     plugin.getGuiManager().handleInput(player, message);

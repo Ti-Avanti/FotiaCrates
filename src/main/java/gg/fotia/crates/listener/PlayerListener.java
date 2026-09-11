@@ -27,8 +27,9 @@ public class PlayerListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         plugin.getAnimationManager().cancelAnimation(event.getPlayer());
+        plugin.getCratePresentationManager().cancel(event.getPlayer().getUniqueId());
         plugin.getGuiManager().cancelInputSession(event.getPlayer());
-        plugin.getOpenSessionManager().clear(event.getPlayer().getUniqueId());
+        plugin.getOpenSessionManager().clearInteraction(event.getPlayer().getUniqueId());
         plugin.getAsyncPlayerDataManager().flushAndUnload(event.getPlayer().getUniqueId());
     }
 }

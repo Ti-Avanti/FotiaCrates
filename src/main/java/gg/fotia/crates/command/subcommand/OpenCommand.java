@@ -6,7 +6,6 @@ import gg.fotia.crates.crate.CrateOpenService;
 import gg.fotia.crates.crate.MultiOpenService;
 import gg.fotia.crates.crate.RewardResult;
 import gg.fotia.crates.lang.LanguageManager;
-import gg.fotia.crates.particle.ParticleStage;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -74,7 +73,7 @@ public class OpenCommand extends AbstractSubCommand {
 
         int keys = plugin.getKeyManager().getTotalKeysForCrate(player, crateId);
         if (keys < amount) {
-            plugin.getLanguageManager().send(player, "no-key");
+            crateOpenService.sendMissingKeys(player, crate, amount);
             return;
         }
 
@@ -94,32 +93,17 @@ public class OpenCommand extends AbstractSubCommand {
         CrateOpenService.OpenAttempt openAttempt = crateOpenService.prepareOpen(player, crate);
         if (!openAttempt.isSuccess()) {
             plugin.getOpenSessionManager().finish(playerUuid);
-            crateOpenService.sendOpenFailure(player, openAttempt.failureReason());
+            crateOpenService.sendOpenFailure(player, crate, openAttempt.failureReason());
             return;
         }
 
         crateOpenService.commitOpen(player, openAttempt, () -> {
-            RewardResult rewardResult = openAttempt.rewardResult();
-            Location crateLocation = plugin.getParticleManager().resolveCrateLocation(player, crate);
-            plugin.getParticleManager().playStage(ParticleStage.OPEN, player, crate, crateLocation);
-            if (crate.isAnimationEnabled() || crate.isPhysicalAnimationEnabled()) {
-                var playerName = player.getName();
-                Runnable finish = () -> {
-                    crateOpenService.deliverRewardSafely(playerUuid, playerName, crate, rewardResult, crateLocation);
-                    plugin.getOpenSessionManager().finish(playerUuid);
-                };
-                if (!plugin.getAnimationManager().playAnimation(
-                        player, crate, rewardResult.getDisplayReward(), crateLocation, finish)) {
-                    finish.run();
-                }
-                return;
-            }
-
-            try {
-                crateOpenService.deliverReward(player, crate, rewardResult, crateLocation);
-            } finally {
-                plugin.getOpenSessionManager().finish(playerUuid);
-            }
+            RewardResult result = openAttempt.rewardResult();
+            Location location = plugin.getParticleManager().resolveCrateLocation(player, crate);
+            Runnable delivery = () -> crateOpenService.deliverRewardSafely(playerUuid, player.getName(), crate,
+                    result, location, () -> plugin.getOpenSessionManager().finish(playerUuid));
+            plugin.getCratePresentationManager().play(playerUuid, crate, List.of(result.getDisplayReward()),
+                    location, false, true, delivery);
         }, () -> plugin.getOpenSessionManager().finish(playerUuid));
     }
 

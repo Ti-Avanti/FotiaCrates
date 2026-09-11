@@ -37,6 +37,8 @@ public final class AsyncPlayerDataManager {
     private final PlayerDataCache cache = new PlayerDataCache();
     private final HistoryWriteBuffer historyBuffer;
     private final ThreadPoolExecutor executor;
+    private final PlayerLoadRetries loadRetries;
+    private final java.util.Queue<Runnable> commitCallbacks = new java.util.concurrent.ConcurrentLinkedQueue<>();
     private final Set<UUID> loadingPlayers = new HashSet<>();
     private final Set<UUID> committingPlayers = new HashSet<>();
     private final Set<UUID> dirtyPlayers = ConcurrentHashMap.newKeySet();
@@ -66,6 +68,7 @@ public final class AsyncPlayerDataManager {
 
     public AsyncPlayerDataManager(FotiaCrates plugin) {
         this.plugin = plugin;
+        this.loadRetries = new PlayerLoadRetries(plugin, this::loadPlayer);
         refreshSettings();
         this.historyBuffer = new HistoryWriteBuffer(plugin.getConfigManager().getPersistenceHistoryQueueCapacity());
         this.executor = new ThreadPoolExecutor(
@@ -115,14 +118,20 @@ public final class AsyncPlayerDataManager {
                     if (!isPlayerOnline(playerId)) {
                         return;
                     }
+                    loadRetries.clear(playerId);
                     cache.load(playerId, loaded.virtualKeys(), loaded.pityCounts(), loaded.collectedRewards());
                     notifyPlayerReady(playerId);
                 });
             } catch (SQLException exception) {
                 plugin.getLogger().severe("Failed to load player data for " + playerId + ": " + exception.getMessage());
-                runOnServerThread(() -> loadingPlayers.remove(playerId));
+                runOnServerThread(() -> retryPlayerLoad(playerId));
             }
-        }, () -> loadingPlayers.remove(playerId));
+        }, () -> retryPlayerLoad(playerId));
+    }
+
+    private void retryPlayerLoad(UUID playerId) {
+        loadingPlayers.remove(playerId);
+        loadRetries.schedule(playerId);
     }
 
     public <T> void executeDatabaseOperation(DatabaseOperation<T> operation,
@@ -256,6 +265,7 @@ public final class AsyncPlayerDataManager {
         PlayerDataCache.Snapshot snapshot = cache.snapshot(playerId);
         dirtyPlayers.remove(playerId);
         submitDatabaseTask(() -> {
+            boolean committed = false;
             try (Connection connection = plugin.getDatabaseManager().getConnection()) {
                 boolean originalAutoCommit = connection.getAutoCommit();
                 connection.setAutoCommit(false);
@@ -263,26 +273,35 @@ public final class AsyncPlayerDataManager {
                     persistPlayerState(connection, playerId, snapshot);
                     operation.execute(connection);
                     connection.commit();
+                    committed = true;
                 } catch (Exception exception) {
                     connection.rollback();
                     throw exception;
                 } finally {
                     connection.setAutoCommit(originalAutoCommit);
                 }
-                runOnServerThread(() -> {
-                    cache.markPersisted(playerId, snapshot);
-                    committingPlayers.remove(playerId);
-                    onSuccess.run();
-                    finishFlushOrUnload(playerId);
-                });
             } catch (Exception exception) {
-                plugin.getLogger().severe("Failed to persist player data for " + playerId + ": " + exception.getMessage());
-                dirtyPlayers.add(playerId);
-                runOnServerThread(() -> {
-                    committingPlayers.remove(playerId);
-                    onFailure.run();
-                });
+                if (!committed) {
+                    plugin.getLogger().severe("Failed to persist player data for " + playerId + ": " + exception.getMessage());
+                    dirtyPlayers.add(playerId);
+                    scheduleCommitCallback(() -> {
+                        committingPlayers.remove(playerId);
+                        onFailure.run();
+                    });
+                    return;
+                }
+                plugin.getLogger().warning("Player data committed, but connection cleanup failed: " + exception.getMessage());
             }
+            acknowledgeRetrySnapshot(playerId, snapshot);
+            scheduleCommitCallback(() -> {
+                cache.markPersisted(playerId, snapshot);
+                committingPlayers.remove(playerId);
+                try {
+                    onSuccess.run();
+                } finally {
+                    finishFlushOrUnload(playerId);
+                }
+            });
         }, () -> {
             committingPlayers.remove(playerId);
             dirtyPlayers.add(playerId);
@@ -337,6 +356,7 @@ public final class AsyncPlayerDataManager {
     }
 
     public void flushAndUnload(UUID playerId) {
+        loadRetries.clear(playerId);
         if (!cache.isLoaded(playerId) || committingPlayers.contains(playerId)) {
             return;
         }
@@ -373,6 +393,7 @@ public final class AsyncPlayerDataManager {
     }
 
     public boolean shutdown() {
+        loadRetries.shutdown();
         if (flushTask != null) {
             flushTask.cancel();
             flushTask = null;
@@ -384,16 +405,17 @@ public final class AsyncPlayerDataManager {
             terminated = executor.awaitTermination(shutdownFlushTimeoutMillis, TimeUnit.MILLISECONDS);
             if (!terminated) {
                 plugin.getLogger().warning("Timed out while flushing player data during shutdown.");
-                executor.shutdownNow();
+                discardQueuedTasks(executor.shutdownNow());
                 terminated = executor.awaitTermination(
                         Math.min(shutdownFlushTimeoutMillis, 1_000L), TimeUnit.MILLISECONDS);
             }
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            executor.shutdownNow();
+            discardQueuedTasks(executor.shutdownNow());
         }
 
         if (terminated) {
+            drainCommitCallbacks();
             flushRemainingSynchronously();
         } else {
             plugin.getLogger().severe("Persistence worker did not stop; " + dirtyPlayers.size()
@@ -583,6 +605,11 @@ public final class AsyncPlayerDataManager {
         return new LoadedPlayerData(virtualKeys, pityCounts, collectedRewards);
     }
 
+    private void acknowledgeRetrySnapshot(UUID playerId, PlayerDataCache.Snapshot snapshot) {
+        pendingRetrySnapshots.computeIfPresent(playerId,
+                (ignored, retry) -> retry.revision() <= snapshot.revision() ? null : retry);
+    }
+
     private void persistPlayerState(UUID playerId, PlayerDataCache.Snapshot snapshot) throws SQLException {
         try (Connection connection = plugin.getDatabaseManager().getConnection()) {
             boolean originalAutoCommit = connection.getAutoCommit();
@@ -590,6 +617,7 @@ public final class AsyncPlayerDataManager {
             try {
                 persistPlayerState(connection, playerId, snapshot);
                 connection.commit();
+                acknowledgeRetrySnapshot(playerId, snapshot);
             } catch (SQLException exception) {
                 connection.rollback();
                 throw exception;
@@ -805,26 +833,26 @@ public final class AsyncPlayerDataManager {
     }
 
     private boolean submitDatabaseTask(Runnable task, Runnable onRejected) {
+        RecoverableDatabaseTask queued = new RecoverableDatabaseTask(task, onRejected);
         try {
-            executor.execute(task);
+            executor.execute(queued);
             return true;
         } catch (RejectedExecutionException exception) {
             plugin.getLogger().warning("Database task rejected because the persistence queue is full or stopping.");
-            if (onRejected != null) {
-                onRejected.run();
-            }
+            queued.discard();
             return false;
         }
     }
 
     private boolean submitShutdownFlush(Runnable task, Runnable onRejected) {
+        RecoverableDatabaseTask queued = new RecoverableDatabaseTask(task, onRejected);
         try {
-            executor.execute(task);
+            executor.execute(queued);
             return true;
         } catch (RejectedExecutionException exception) {
             if (!executor.isShutdown()) {
                 try {
-                    if (executor.getQueue().offer(task, shutdownFlushTimeoutMillis, TimeUnit.MILLISECONDS)) {
+                    if (executor.getQueue().offer(queued, shutdownFlushTimeoutMillis, TimeUnit.MILLISECONDS)) {
                         return true;
                     }
                 } catch (InterruptedException interruptedException) {
@@ -833,10 +861,44 @@ public final class AsyncPlayerDataManager {
             }
 
             plugin.getLogger().severe("Could not queue the final persistence flush before shutdown.");
-            if (onRejected != null) {
-                onRejected.run();
-            }
+            queued.discard();
             return false;
+        }
+    }
+
+    private void discardQueuedTasks(List<Runnable> tasks) {
+        for (Runnable task : tasks) {
+            if (task instanceof RecoverableDatabaseTask recoverable) {
+                try {
+                    recoverable.discard();
+                } catch (RuntimeException exception) {
+                    plugin.getLogger().severe("Could not recover a cancelled database task: " + exception.getMessage());
+                }
+            }
+        }
+    }
+
+    private void scheduleCommitCallback(Runnable callback) {
+        commitCallbacks.add(callback);
+        if (plugin.isEnabled()) {
+            try {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    if (commitCallbacks.remove(callback)) callback.run();
+                });
+            } catch (RuntimeException ignored) {
+                // Shutdown drains the retained callback after the persistence worker stops.
+            }
+        }
+    }
+
+    private void drainCommitCallbacks() {
+        Runnable callback;
+        while ((callback = commitCallbacks.poll()) != null) {
+            try {
+                callback.run();
+            } catch (RuntimeException exception) {
+                plugin.getLogger().severe("Could not complete a committed player operation: " + exception.getMessage());
+            }
         }
     }
 

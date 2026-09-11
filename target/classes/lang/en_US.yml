@@ -5,9 +5,42 @@
 prefix: "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> "
 
 messages:
+  rarity-probability-mode-per-reward: '<!i><gray>Per reward'
+  rarity-probability-mode-rarity-total: '<!i><gray>Rarity total'
+  rarity-probability-mode-selected: '<!i><green>[Selected] {mode}'
+  rarity-probability-ready: '<!i><green>Valid preview. Confirm to apply.'
+  rarity-probability-input: '<!i><yellow>Enter a base percentage (0-100, decimals and % allowed), or cancel to return.'
+  rarity-probability-missing-preset: '<!i><yellow>No valid preset. Enter a percentage first.'
+  rarity-probability-invalid-number: '<!i><red>Enter a finite number from 0 to 100, not NaN or infinity.'
+  rarity-probability-no-matches: '<!i><red>No positive-weight rewards match this rarity. Zero-weight rewards stay disabled.'
+  rarity-probability-total-exceeded: '<!i><red>The selected rewards exceed 100% combined. Lower the value or select rarity total.'
+  rarity-probability-no-remainder: '<!i><red>No other positive-weight reward can receive the remaining probability.'
+  rarity-probability-invalid-weights: '<!i><red>The pool contains negative or invalid weights. Fix its configuration first.'
+  rarity-probability-precision: '<!i><red>Weight magnitudes differ too much to retain nonzero probabilities safely.'
+  rarity-probability-disabled: '<!i><red>Rarity probability editing is disabled or your authorization has expired.'
+  rarity-probability-busy: '<!i><yellow>Probabilities are being saved. Wait before editing or reloading.'
+  rarity-probability-stale: '<!i><red>The pool changed. Nothing was applied; reopen the probability editor.'
+  rarity-probability-save-failed: '<!i><red>Could not save probabilities. Check the console.'
+  rarity-probability-saved: '<!i><green>Base probabilities saved. Other rewards keep their relative proportions.'
+  rarity-probability-gui-invalid: '<!i><red>Missing content slots or item template. Check the probability GUI configuration.'
+  admin-input-weight: '<!i><yellow>Enter a non-negative weight, not a percentage. Decimals are allowed; 0 excludes normal random selection:'
+  admin-reward-weights-normalized: '<!i><green>Weights normalized while preserving their proportions.'
+  admin-reward-weights-equalized: '<!i><green>Weights distributed equally. All rewards now have equal base chances.'
+  admin-reward-weights-failed: '<!i><red>Could not update weights. Check reward settings and the console.'
+  admin-auto-display-disabled: 'Disabled'
+  admin-auto-display-manual: 'Manual'
+  admin-auto-display-waiting: 'Waiting for a reward item'
+  admin-auto-display-enabled: 'Automatic'
+  admin-reward-auto-display-pending: '<!i><yellow>Sync did not complete. Check saved reward items, auto-sync settings and the console.'
   # General messages
   no-permission: "<!i><red>You don't have permission to do this!"
-  no-key: "<!i><red>You don't have enough keys!"
+  # {keys}/{key}: accepted key names (alternatives); {crate}: crate name
+  # {required}: required amount; {owned}: owned total; {missing}: shortfall
+  no-key: "<!i><red>Not enough keys! You need {keys}<!i><red> ({missing} more; required: {required}, owned: {owned})."
+  # Appended to legacy custom no-key messages without {keys}/{key}; empty disables it.
+  no-key-detail: " <!i><red>You need {keys}<!i><red> ({missing} more; required: {required}, owned: {owned})."
+  no-key-separator: "<!i><gray> or "
+  no-key-configured: "<!i><red>No keys are configured for {crate}<!i><red>. Please contact an administrator."
   player-data-loading: "<!i><yellow>Your data is still synchronizing. Please try again shortly."
   player-data-save-failed: "<!i><red>Data saving failed. This crate opening was cancelled."
   reward-received: "<!i><green>Congratulations! You received {reward}<!i><green>!"
@@ -176,3 +209,6 @@ messages:
   admin-alternative-reward-cleared: "<!i><green>Alternative reward cleared!"
   help-claim: "<!i><yellow>/crate claim <!i><gray>- Claim pending rewards"
   pending-reward-unavailable: "<!i><red>Some pending rewards could not be restored. Please contact an administrator."
+  reward-delivery-pending: "<!i><yellow>Your reward is retained for a later claim. Please try /crate claim shortly."
+  reward-delivery-review: "<!i><red>Reward delivery could not be confirmed. The record is retained; please contact an administrator."
+  configuration-save-busy: "<!i><yellow>Configuration is being saved. Please try reloading shortly."

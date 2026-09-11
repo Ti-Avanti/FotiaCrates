@@ -13,6 +13,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class RewardPreviewLoreFormatterTest {
 
+    @Test
+    void rendersManagerIdWeightAndRealProbabilitySeparately() {
+        TestReward selected = new TestReward("selected", "common", 3.0, false);
+        TestReward other = new TestReward("other", "common", 7.0, false);
+        RewardPreviewDisplayConfig config = new RewardPreviewDisplayConfig(true,
+                List.of("ID: {reward_id}", "Weight: {weight}", "Probability: {probability}"),
+                "", "", "");
+        assertEquals(List.of("ID: selected", "Weight: 3", "Probability: 30%"),
+                RewardPreviewLoreFormatter.render(config, PreviewChanceDisplayMode.PERCENTAGE,
+                        selected, List.of(selected, other), "common"));
+    }
+
     private static final RewardPreviewDisplayConfig CONFIG = new RewardPreviewDisplayConfig(
             true,
             List.of("", "稀有度: {rarity}", "{chance_line}", "{broadcast_line}"),

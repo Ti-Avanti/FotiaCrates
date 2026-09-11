@@ -37,6 +37,15 @@ content-slots:
   - 43
 
 items:
+  rarity_probability:
+    slot: 46
+    material: AMETHYST_SHARD
+    name: '<!i><light_purple>快捷设置概率'
+    lore:
+      - '<!i><gray>选择稀有度，批量设置基础百分比'
+      - '<!i><gray>预览调整结果，确认后保存'
+      - '<!i><yellow>点击打开'
+    action: rarity_probability
   back:
     slot: 45
     material: ARROW
@@ -62,7 +71,7 @@ items:
     name: "<!i><gold>奖励统计"
     lore:
       - "<!i><gray>奖励数量: <!i><white>{reward_count}"
-      - "<!i><gray>总概率: <!i><white>{total_chance}%"
+      - "<!i><gray>总权重: <!i><white>{total_weight}"
   next:
     slot: 50
     material: ARROW
@@ -78,11 +87,13 @@ items:
   balance:
     slot: 52
     material: GOLDEN_APPLE
-    name: "<!i><gold>概率平衡"
+    name: "<!i><gold>权重调整"
     lore:
-      - "<!i><gray>自动调整所有奖励概率到 100%"
+      - "<!i><gray>归一化保留原比例，总权重调整为100"
+      - "<!i><gray>平均分配会将所有奖励改为相同权重"
       - ""
-      - "<!i><yellow>点击执行"
+      - "<!i><yellow>左键 按比例归一化"
+      - "<!i><red>Shift+右键 平均分配（改变原概率）"
     action: balance_chances
   add:
     slot: 53
@@ -93,3 +104,19 @@ items:
       - ""
       - "<!i><yellow>点击添加"
     action: add_reward
+
+# 奖励列表附加说明。支持 {reward_id}、{reward_name}、{weight}、{probability}、{rarity}
+reward-display:
+  append-item-lore: true
+  lore:
+    - ''
+    - '<!i><gray>ID: <!i><white>{reward_id}'
+    - '<!i><gray>权重: <!i><yellow>{weight}'
+    - '<!i><gray>概率: <!i><yellow>{probability}'
+    - '<!i><gray>稀有度: {rarity}'
+    - '{broadcast_line}'
+    - ''
+    - '<!i><yellow>左键 编辑奖励'
+    - '<!i><aqua>中键 复制奖励'
+    - '<!i><red>Shift+右键 删除'
+  broadcast-line: '<!i><gold>★ 全服广播'

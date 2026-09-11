@@ -43,6 +43,8 @@ public class GuiConfigManager {
             "admin_unique_icon_material_select.yml",
             "admin_reward_edit.yml",
             "admin_reward_manager.yml",
+            "admin_rarity_probability_select.yml",
+            "admin_rarity_probability_edit.yml",
             "admin_item_input.yml",
             "admin_reward_items.yml",
             "admin_alternative_reward_select.yml",
@@ -448,6 +450,29 @@ public class GuiConfigManager {
     }
 
     private void migrateFeatureGuiConfigs(File guisFolder) {
+        File rewardManager = new File(guisFolder, "admin_reward_manager.yml");
+        try (var stream = plugin.getResource("guis/admin_reward_manager.yml")) {
+            if (stream != null && rewardManager.exists()) {
+                var defaults = YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8));
+                var existing = YamlConfiguration.loadConfiguration(rewardManager);
+                if (RarityProbabilityGuiMigration.install(existing, defaults.getConfigurationSection("items.rarity_probability"))) {
+                    saveMigratedGui(rewardManager, existing, "admin_reward_manager");
+                }
+            }
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Could not install rarity probability shortcut: " + exception.getMessage());
+        }
+        for (String id : List.of("admin_reward_manager", "admin_crate_edit", "admin_reward_edit")) {
+            File file = new File(guisFolder, id + ".yml");
+            if (!file.exists()) continue;
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+            boolean changed = id.equals("admin_reward_edit")
+                    ? RewardEditorGuiMigration.applyInput(config)
+                    : RewardEditorGuiMigration.apply(config, id.equals("admin_reward_manager"));
+            if (changed) {
+                saveMigratedGui(file, config, id);
+            }
+        }
         migratePityEarlyResetGui(guisFolder);
         migrateMultiOpenAnimationGui(guisFolder);
         migratePreviewRewardDisplayGui(guisFolder);
@@ -1150,7 +1175,7 @@ public class GuiConfigManager {
             centerSlot = animationSlots.get(animationSlots.size() / 2);
         }
 
-        RewardPreviewDisplayConfig rewardPreviewDisplay = loadRewardPreviewDisplay(config);
+        RewardPreviewDisplayConfig rewardPreviewDisplay = loadRewardPreviewDisplay(config, id);
         PreviewMultiOpenHintConfig previewMultiOpenHint = loadPreviewMultiOpenHint(config);
 
         return new GuiConfig(id, title, size, fillEnabled, fillMaterial, fillName,
@@ -1166,17 +1191,18 @@ public class GuiConfigManager {
         );
     }
 
-    private RewardPreviewDisplayConfig loadRewardPreviewDisplay(YamlConfiguration config) {
-        RewardPreviewDisplayConfig defaults = RewardPreviewDisplayConfig.defaults();
+    private RewardPreviewDisplayConfig loadRewardPreviewDisplay(YamlConfiguration config, String id) {
+        RewardPreviewDisplayConfig defaults = switch (id) {
+            case "admin_reward_manager" -> RewardPreviewDisplayConfig.editorDefaults(true);
+            case "admin_crate_edit" -> RewardPreviewDisplayConfig.editorDefaults(false);
+            default -> RewardPreviewDisplayConfig.defaults();
+        };
         ConfigurationSection section = config.getConfigurationSection("reward-display");
         if (section == null) {
             return defaults;
         }
 
-        List<String> lore = section.getStringList("lore");
-        if (lore.isEmpty()) {
-            lore = defaults.getLore();
-        }
+        List<String> lore = section.contains("lore") ? section.getStringList("lore") : defaults.getLore();
         return new RewardPreviewDisplayConfig(
                 section.getBoolean("append-item-lore", defaults.isAppendItemLore()),
                 lore,
