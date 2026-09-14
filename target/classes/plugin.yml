@@ -1,5 +1,5 @@
 name: FotiaCrates
-version: 1.1.18
+version: 1.1.19
 main: gg.fotia.crates.FotiaCrates
 api-version: '1.20'
 authors:
@@ -8,6 +8,8 @@ description: Feature-rich Minecraft crate plugin
 depend:
   - packetevents
 softdepend:
+  - ItemsAdder
+  - FotiaTranslator
   - Vault
   - PlaceholderAPI
   - ModelEngine

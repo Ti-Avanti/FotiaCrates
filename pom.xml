@@ -1,12 +1,10 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="utf-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>gg.fotia</groupId>
     <artifactId>FotiaCrates</artifactId>
-    <version>1.1.18</version>
+    <version>1.1.19</version>
     <packaging>jar</packaging>
 
     <name>FotiaCrates</name>
@@ -53,6 +51,12 @@
     </repositories>
 
     <dependencies>
+        <dependency>
+            <groupId>beer.devs</groupId>
+            <artifactId>itemsadder-api</artifactId>
+            <version>4.0.18-beta-10</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
@@ -125,7 +129,7 @@
             <version>3.46.1.0</version>
             <scope>test</scope>
         </dependency>
-    </dependencies>
+    <dependency><groupId>gg.fotia</groupId><artifactId>translator-bridge</artifactId><version>1.0.0</version><scope>provided</scope></dependency></dependencies>
 
     <build>
         <plugins>
@@ -153,7 +157,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
             </plugin>
-        </plugins>
+        <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-dependency-plugin</artifactId><version>3.8.1</version><executions><execution><id>fotia-translator-optional-bridge</id><phase>process-classes</phase><goals><goal>unpack</goal></goals><configuration><artifactItems><artifactItem><groupId>gg.fotia</groupId><artifactId>translator-bridge</artifactId><version>1.0.0</version><outputDirectory>${project.build.outputDirectory}</outputDirectory><includes>gg/fotia/translator/bridge/**</includes></artifactItem></artifactItems></configuration></execution></executions></plugin></plugins>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>

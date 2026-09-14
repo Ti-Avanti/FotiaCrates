@@ -4,6 +4,10 @@ import gg.fotia.crates.animation.AnimationManager;
 import gg.fotia.crates.command.CrateCommand;
 import gg.fotia.crates.config.ConfigManager;
 import gg.fotia.crates.crate.CrateManager;
+import gg.fotia.crates.crate.CrateBlockInteraction;
+import gg.fotia.crates.crate.CrateBlockPlacement;
+import gg.fotia.crates.hook.CustomBlockSupport;
+import gg.fotia.crates.hook.ItemsAdderBlockSupport;
 import gg.fotia.crates.crate.CratePresentationManager;
 import gg.fotia.crates.crate.OpenSessionManager;
 import gg.fotia.crates.data.AsyncPlayerDataManager;
@@ -54,6 +58,9 @@ public class FotiaCrates extends JavaPlugin {
     private CratePresentationManager cratePresentationManager;
     private EntityInteractPacketListener entityInteractPacketListener;
     private Economy economy;
+    private CustomBlockSupport customBlockSupport = CustomBlockSupport.NONE;
+
+    public CustomBlockSupport getCustomBlockSupport() { return customBlockSupport; }
 
     @Override
     public void onEnable() {
@@ -127,7 +134,15 @@ public class FotiaCrates extends JavaPlugin {
 
         // 注册监听器
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
-        getServer().getPluginManager().registerEvents(new BlockListener(this), this);
+        CrateBlockInteraction blockInteraction = new CrateBlockInteraction(this);
+        CrateBlockPlacement blockPlacement = new CrateBlockPlacement(this);
+        if (getServer().getPluginManager().isPluginEnabled("ItemsAdder")) {
+            ItemsAdderBlockSupport itemsAdder = new ItemsAdderBlockSupport(this, blockInteraction, blockPlacement);
+            getServer().getPluginManager().registerEvents(itemsAdder, this);
+            customBlockSupport = itemsAdder;
+            getLogger().info("ItemsAdder custom block support enabled.");
+        }
+        getServer().getPluginManager().registerEvents(new BlockListener(this, blockInteraction, blockPlacement), this);
         getServer().getPluginManager().registerEvents(new GuiListener(this), this);
         getServer().getPluginManager().registerEvents(new ModelLifecycleListener(this), this);
 

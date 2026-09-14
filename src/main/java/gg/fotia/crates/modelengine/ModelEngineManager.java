@@ -166,6 +166,8 @@ public class ModelEngineManager {
             return false;
         }
 
+        if (!plugin.getCustomBlockSupport().isReady() || usesCustomBlock(crate, blockLoc)) return false;
+
         ModelIdentity desired = ModelIdentity.from(crate);
         if (desired.equals(modelIdentities.get(positionOf(blockLoc))) && isProviderModelHealthy(crate, blockLoc)) {
             return true;
@@ -293,6 +295,12 @@ public class ModelEngineManager {
             removeCrateModel(location);
             return;
         }
+        if (!plugin.getCustomBlockSupport().isReady()) return;
+        if (usesCustomBlock(crate, location)) {
+            removeAllProviderModels(location, false);
+            modelIdentities.remove(positionOf(location));
+            return;
+        }
         if (!crate.isModelEnabled()) {
             removeAllProviderModels(location, false);
             modelIdentities.remove(positionOf(location));
@@ -360,7 +368,13 @@ public class ModelEngineManager {
         ensureCrateModel(crate, location, yaw);
     }
 
+    private boolean usesCustomBlock(Crate crate, Location location) {
+        return plugin.getCustomBlockSupport().isCustomBlock(location.getBlock())
+                || plugin.getCustomBlockSupport().isCustomBlockItem(crate.getBlockItemTemplate());
+    }
+
     public void spawnCrateModel(Crate crate, Location location, float yaw) {
+        if (!plugin.getCustomBlockSupport().isReady() || usesCustomBlock(crate, location)) return;
         if (crate.isBetterModelEnabled()) {
             if (isBetterModelAvailable()) {
                 removeCrateModelInternal(location.getBlock().getLocation(), false);
@@ -436,7 +450,8 @@ public class ModelEngineManager {
 
     public void removeCrateModel(Location location) {
         Location blockLoc = location.getBlock().getLocation();
-        removeAllProviderModels(blockLoc, true);
+        removeAllProviderModels(blockLoc, plugin.getCustomBlockSupport().isReady()
+                && !plugin.getCustomBlockSupport().isCustomBlock(blockLoc.getBlock()));
         modelIdentities.remove(positionOf(blockLoc));
     }
 

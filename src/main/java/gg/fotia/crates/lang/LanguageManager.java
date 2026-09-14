@@ -63,7 +63,7 @@ public class LanguageManager {
                         for (String key : messages.getKeys(false)) {
                             String path = "messages." + key;
                             if ((key.startsWith("rarity-probability-") || key.startsWith("reward-delivery-")
-                                    || key.equals("configuration-save-busy")) && !config.isSet(path)) {
+                                    || key.equals("configuration-save-busy") || key.equals("crate-location-save-failed")) && !config.isSet(path)) {
                                 config.set(path, messages.get(key));
                                 changed = true;
                             }
@@ -118,6 +118,9 @@ public class LanguageManager {
     }
 
     private String resolveLanguageValue(String langCode, String path, String fallback) {
+        var translated = gg.fotia.translator.bridge.PaperTranslatorBridge.find("fotiacrates", langCode, path);
+        if (translated.isPresent() && !(translated.get() instanceof java.util.List<?>)) return String.valueOf(translated.get());
+
         String value = getString(languages.get(langCode), path);
         if (value != null) {
             return value;
@@ -151,25 +154,7 @@ public class LanguageManager {
      * 获取玩家的语言代码
      */
     public String getPlayerLanguage(Player player) {
-        if (player == null) {
-            return defaultLanguage;
-        }
-
-        String locale = player.locale().toString();
-        // 转换格式: en_us -> en_US, zh_cn -> zh_CN
-        if (locale.contains("_")) {
-            String[] parts = locale.split("_");
-            if (parts.length >= 2) {
-                locale = parts[0].toLowerCase() + "_" + parts[1].toUpperCase();
-            }
-        }
-
-        // 如果有对应语言文件则使用，否则使用默认语言
-        if (languages.containsKey(locale)) {
-            return locale;
-        }
-
-        return defaultLanguage;
+        return gg.fotia.translator.bridge.PaperTranslatorBridge.locale(player, defaultLanguage);
     }
 
     /**

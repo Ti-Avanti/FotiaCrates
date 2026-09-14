@@ -118,6 +118,7 @@ messages:
   crate-set: "<!i><green>已将 {crate} <!i><green>设置到此位置！"
   crate-block-received: "<!i><green>你获得了 {amount} 个 {crate} <!i><green>方块！"
   crate-block-given: "<!i><green>已给予 {player} {amount} 个 {crate} <!i><green>方块！"
+  crate-location-save-failed: "<!i><red>保存宝箱位置失败，请查看服务器日志后重试。"
   crate-block-placed: "<!i><green>已放置 {crate} <!i><green>抽奖箱！"
   crate-break-denied: "<!i><red>无法破坏抽奖箱！请蹲下+左键移除。"
   pending-rewards-available: "<!i><gold>你有 {count} 个待领取的奖励！使用 /crate claim 领取。"

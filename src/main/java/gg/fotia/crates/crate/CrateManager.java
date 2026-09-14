@@ -38,6 +38,7 @@ public class CrateManager {
     private final Map<String, Crate> crates = new HashMap<>();
     private final CrateLocationIndex crateLocations = new CrateLocationIndex();
     private final NamespacedKey crateBlockKey;
+    private final Map<CrateLocation, Object> pendingLocationWrites = new HashMap<>();
 
     public CrateManager(FotiaCrates plugin) {
         this.plugin = plugin;
@@ -490,6 +491,8 @@ public class CrateManager {
     }
 
     public void loadLocations() {
+        // 正在保存时保留主线程索引，防止重载用尚未提交的旧数据覆盖新放置的位置。
+        if (!pendingLocationWrites.isEmpty()) return;
         crateLocations.clear();
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement("SELECT * FROM crate_locations");
@@ -512,9 +515,39 @@ public class CrateManager {
     }
 
     public void addLocation(CrateLocation location) {
-        String sql = plugin.getConfigManager().getDatabaseType().equalsIgnoreCase("mysql")
+        addLocationAsync(location, () -> {}, exception ->
+                plugin.getLogger().severe("Failed to save crate location: " + exception.getMessage()));
+    }
+
+    /** 索引仅在主线程变更；持久化交给现有的有界数据库队列。 */
+    public void addLocationAsync(CrateLocation location, Runnable onSuccess,
+                                 java.util.function.Consumer<Exception> onFailure) {
+        String sql = locationUpsertSql();
+        CrateLocation previous = crateLocations.put(location);
+        Object operation = new Object();
+        pendingLocationWrites.put(location, operation);
+        plugin.getAsyncPlayerDataManager().executeDatabaseOperation(() -> {
+            saveLocation(location, sql);
+            return true;
+        }, ignored -> {
+            if (pendingLocationWrites.remove(location, operation)) onSuccess.run();
+        }, exception -> {
+            if (pendingLocationWrites.remove(location, operation)
+                    && crateLocations.get(location.getWorld(), location.getX(), location.getY(), location.getZ()) == location) {
+                if (previous == null) crateLocations.remove(location.getWorld(), location.getX(), location.getY(), location.getZ());
+                else crateLocations.put(previous);
+            }
+            onFailure.accept(exception);
+        });
+    }
+
+    private String locationUpsertSql() {
+        return plugin.getConfigManager().getDatabaseType().equalsIgnoreCase("mysql")
                 ? "INSERT INTO crate_locations (world, x, y, z, crate_id, yaw) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE crate_id = VALUES(crate_id), yaw = VALUES(yaw)"
                 : "INSERT OR REPLACE INTO crate_locations (world, x, y, z, crate_id, yaw) VALUES (?, ?, ?, ?, ?, ?)";
+    }
+
+    private void saveLocation(CrateLocation location, String sql) throws SQLException {
         try (Connection conn = plugin.getDatabaseManager().getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, location.getWorld());
@@ -524,32 +557,41 @@ public class CrateManager {
             stmt.setString(5, location.getCrateId());
             stmt.setFloat(6, location.getYaw());
             stmt.executeUpdate();
-            crateLocations.put(location);
-        } catch (SQLException exception) {
-            plugin.getLogger().severe("Failed to save crate location: " + exception.getMessage());
         }
     }
 
+    public void removeLocationAsync(Location location, Runnable onSuccess,
+                                    java.util.function.Consumer<Exception> onFailure) {
+        CrateLocation existing = getLocationAt(location);
+        if (existing == null) return;
+        Object operation = new Object();
+        pendingLocationWrites.put(existing, operation);
+        plugin.getAsyncPlayerDataManager().executeDatabaseOperation(() -> {
+            try (Connection connection = plugin.getDatabaseManager().getConnection();
+                 PreparedStatement statement = connection.prepareStatement(
+                         "DELETE FROM crate_locations WHERE world = ? AND x = ? AND y = ? AND z = ? AND crate_id = ?")) {
+                statement.setString(1, existing.getWorld());
+                statement.setInt(2, existing.getX());
+                statement.setInt(3, existing.getY());
+                statement.setInt(4, existing.getZ());
+                statement.setString(5, existing.getCrateId());
+                statement.executeUpdate();
+            }
+            return true;
+        }, ignored -> {
+            if (pendingLocationWrites.remove(existing, operation) && getLocationAt(location) == existing) {
+                crateLocations.remove(existing.getWorld(), existing.getX(), existing.getY(), existing.getZ());
+                onSuccess.run();
+            }
+        }, exception -> {
+            pendingLocationWrites.remove(existing, operation);
+            onFailure.accept(exception);
+        });
+    }
+
     public void removeLocation(Location location) {
-        if (location.getWorld() == null) {
-            return;
-        }
-        String world = location.getWorld().getName();
-        int x = location.getBlockX();
-        int y = location.getBlockY();
-        int z = location.getBlockZ();
-        try (Connection conn = plugin.getDatabaseManager().getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
-                     "DELETE FROM crate_locations WHERE world = ? AND x = ? AND y = ? AND z = ?")) {
-            stmt.setString(1, world);
-            stmt.setInt(2, x);
-            stmt.setInt(3, y);
-            stmt.setInt(4, z);
-            stmt.executeUpdate();
-            crateLocations.remove(world, x, y, z);
-        } catch (SQLException exception) {
-            plugin.getLogger().severe("Failed to remove crate location: " + exception.getMessage());
-        }
+        removeLocationAsync(location, () -> {}, exception ->
+                plugin.getLogger().severe("Failed to remove crate location: " + exception.getMessage()));
     }
 
     public CrateLocation getLocationAt(Location location) {

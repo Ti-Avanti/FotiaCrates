@@ -3,13 +3,13 @@ package gg.fotia.crates.command.subcommand;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.lang.LanguageManager;
 import gg.fotia.crates.crate.Crate;
+import gg.fotia.crates.crate.CrateLocation;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class SetCommand extends AbstractSubCommand {
 
@@ -43,10 +43,20 @@ public class SetCommand extends AbstractSubCommand {
             return;
         }
 
-        plugin.getCrateManager().setCrateLocation(crate.getId(), targetBlock.getLocation());
-
-        plugin.getLanguageManager().send(player, "crate-set",
-                LanguageManager.placeholders("crate", crate.getName()));
+        var location = targetBlock.getLocation();
+        CrateLocation placed = new CrateLocation(location, crate.getId());
+        plugin.getCrateManager().addLocationAsync(placed, () -> {
+            if (plugin.getCrateManager().getLocationAt(location) != placed) return;
+            if (location.getWorld().isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) {
+                plugin.getModelEngineManager().ensureCrateModel(crate, location);
+                plugin.getHologramManager().createHologram(location, crate.getId());
+            }
+            if (player.isOnline()) plugin.getLanguageManager().send(player, "crate-set",
+                    LanguageManager.placeholders("crate", crate.getName()));
+        }, exception -> {
+            plugin.getLogger().severe("Failed to set crate location: " + exception.getMessage());
+            if (player.isOnline()) plugin.getLanguageManager().send(player, "crate-location-save-failed");
+        });
     }
 
     @Override

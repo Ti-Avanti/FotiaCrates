@@ -5,6 +5,7 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\Car
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\RarityProbabilityView.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\HistoryReturnContext.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\data\RecoverableDatabaseTask.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\CrateBlockPlacement.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\MultiOpenAnimationPolicy.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\Animation.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\kr\toxicity\model\api\tracker\TrackerModifier.java
@@ -39,6 +40,7 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\Reward
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\PreviewCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\OrbitalAnimationSettings.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\PreviewSortMode.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\hook\ItemsAdderBlockSupport.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\distribution\KeyDistributionGrant.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\GuiType.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\PendingRewardManager.java
@@ -144,6 +146,7 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\Wor
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\PreviewChanceDisplayMode.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\key\distribution\KeyDistributionConfirmationStore.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\particle\ParticleEffectRenderer.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\CrateBlockInteraction.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\crate\MultiOpenAmount.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\command\subcommand\ReloadCommand.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\listener\GuiListener.java
@@ -167,6 +170,7 @@ D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\database\Data
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\database\SQLiteDatabase.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\kr\toxicity\model\api\platform\PlatformEntity.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\pity\PityResetPolicy.java
+D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\hook\CustomBlockSupport.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\reward\RewardAutoDisplayNameResolver.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\animation\MeteorAnimationSettings.java
 D:\MC_Plugin\fotiacrates\FotiaCrates\src\main\java\gg\fotia\crates\gui\KeyEditorGui.java

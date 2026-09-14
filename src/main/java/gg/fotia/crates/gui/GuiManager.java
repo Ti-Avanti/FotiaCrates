@@ -74,6 +74,17 @@ public class GuiManager {
         this.renderer = new GuiRenderSupport(plugin, configManager);
         this.keyEditorGui = new KeyEditorGui(plugin, configManager, renderer);
         this.rarityProbabilityEditor = new RarityProbabilityEditor(plugin);
+        gg.fotia.translator.bridge.PaperTranslatorBridge.onChange(plugin, event -> {
+            Player player = event.getPlayer();
+            if (!(player.getOpenInventory().getTopInventory().getHolder() instanceof CrateGuiHolder holder)) return;
+            // 编辑输入与抽奖动画保留会话，避免刷新丢失尚未保存的内容。
+            switch (holder.getGuiType()) {
+                case PREVIEW -> openPreview(player, holder.getCrate(), holder.getCurrentPage());
+                case ADMIN -> openAdminGui(player);
+                case ADMIN_KEYS -> openKeysGui(player);
+                default -> { }
+            }
+        });
     }
 
     /**

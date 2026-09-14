@@ -118,6 +118,7 @@ messages:
   crate-set: "<!i><green>Set {crate} <!i><green>at this location!"
   crate-block-received: "<!i><green>You received {amount} {crate} <!i><green>block(s)!"
   crate-block-given: "<!i><green>Gave {player} {amount} {crate} <!i><green>block(s)!"
+  crate-location-save-failed: "<!i><red>Could not save the crate location. Check the server log and retry."
   crate-block-placed: "<!i><green>Placed {crate} <!i><green>crate!"
   crate-break-denied: "<!i><red>Cannot break crate! Use sneak + left-click to remove."
   pending-rewards-available: "<!i><gold>You have {count} pending reward(s)! Use /crate claim to collect."

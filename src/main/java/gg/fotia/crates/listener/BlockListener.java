@@ -1,15 +1,9 @@
 package gg.fotia.crates.listener;
 
 import gg.fotia.crates.FotiaCrates;
-import gg.fotia.crates.crate.Crate;
-import gg.fotia.crates.crate.CrateLocation;
-import gg.fotia.crates.crate.CrateOpenService;
-import gg.fotia.crates.crate.MultiOpenService;
-import gg.fotia.crates.crate.RewardResult;
-import gg.fotia.crates.lang.LanguageManager;
-import gg.fotia.crates.particle.ParticleStage;
+import gg.fotia.crates.crate.CrateBlockInteraction;
+import gg.fotia.crates.crate.CrateBlockPlacement;
 import org.bukkit.Location;
-import org.bukkit.block.Block;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -22,334 +16,73 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.ItemStack;
 
-import java.util.UUID;
-
-public class BlockListener implements Listener {
-
+public final class BlockListener implements Listener {
     private final FotiaCrates plugin;
-    private final CrateOpenService crateOpenService;
-    private final MultiOpenService multiOpenService;
-    private static final long INTERACT_COOLDOWN_MS = 500;
+    private final CrateBlockInteraction interaction;
+    private final CrateBlockPlacement placement;
 
-    public BlockListener(FotiaCrates plugin) {
+    public BlockListener(FotiaCrates plugin, CrateBlockInteraction interaction, CrateBlockPlacement placement) {
         this.plugin = plugin;
-        this.crateOpenService = new CrateOpenService(plugin);
-        this.multiOpenService = new MultiOpenService(plugin, crateOpenService);
+        this.interaction = interaction;
+        this.placement = placement;
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBlockPlace(BlockPlaceEvent event) {
-        Player player = event.getPlayer();
-        ItemStack item = event.getItemInHand();
-
-        if (plugin.getKeyManager().isPhysicalKey(item)) {
-            event.setCancelled(true);
-            return;
-        }
-
-        String crateId = plugin.getCrateManager().getCrateIdFromItem(item);
-        if (crateId == null) {
-            return;
-        }
-
-        if (!player.hasPermission("fotiacrates.admin.place")) {
-            event.setCancelled(true);
-            plugin.getLanguageManager().send(player, "no-permission");
-            return;
-        }
-
-        Crate crate = plugin.getCrateManager().getCrate(crateId);
-        if (crate == null) {
-            event.setCancelled(true);
-            plugin.getLanguageManager().send(player, "invalid-crate");
-            return;
-        }
-
+        if (plugin.getCustomBlockSupport().isCustomBlockItem(event.getItemInHand())) return;
         Location location = event.getBlock().getLocation();
-        if (plugin.getCrateManager().isLocationSet(location)) {
+        if (!placement.validate(event.getPlayer(), event.getItemInHand(), location)) {
             event.setCancelled(true);
-            plugin.getLanguageManager().send(player, "already-crate-location");
             return;
         }
-
-        float yaw = 0f;
-        if (crate.isModelEnabled()) {
-            Location spawnLoc = location.clone().add(0.5, 0, 0.5);
-            Location playerLoc = player.getLocation();
-            double dx = playerLoc.getX() - spawnLoc.getX();
-            double dz = playerLoc.getZ() - spawnLoc.getZ();
-            yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
-        }
-
-        plugin.getCrateManager().setCrateLocation(crateId, location, yaw);
-        plugin.getLanguageManager().send(player, "crate-block-placed",
-                LanguageManager.placeholders("crate", crate.getName()));
-
-        if (crate.isModelEnabled()) {
-            plugin.getModelEngineManager().spawnCrateModel(crate, location, player);
-        }
-
-        plugin.getHologramManager().createHologram(location, crateId);
+        if (!event.canBuild()) return;
+        var item = event.getItemInHand().clone();
+        var placedType = event.getBlock().getType();
+        placement.afterPlacement(event.getPlayer(), item, location,
+                () -> !event.isCancelled() && event.canBuild()
+                        && location.getBlock().getType() == placedType);
     }
 
-    // ignoreCancelled：尊重保护插件（领地/区域）已取消的交互，不再绕过保护开箱
+    // 自定义方块由其专用事件处理，避免原版事件先取消导致 ItemsAdder 无法派发交互。
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) {
-            return;
-        }
-
-        Player player = event.getPlayer();
-        Block block = event.getClickedBlock();
-        if (block == null) {
-            return;
-        }
-
-        Location location = block.getLocation();
-        CrateLocation crateLocation = plugin.getCrateManager().getLocationAt(location);
-        if (crateLocation == null) {
-            return;
-        }
-
+        if (event.getHand() != EquipmentSlot.HAND || event.getClickedBlock() == null
+                || plugin.getCustomBlockSupport().isCustomBlock(event.getClickedBlock())) return;
+        Location location = event.getClickedBlock().getLocation();
+        if (!interaction.isCrate(location)) return;
         event.setCancelled(true);
-
-        Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
-        if (crate == null) {
-            plugin.getLanguageManager().send(player, "invalid-crate");
-            return;
-        }
-
-        if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-            if (player.isSneaking()) {
-                handleShiftRightOpen(player, crate, location);
-                return;
-            }
-
-            if (!crateOpenService.hasOpenPermission(player, crate)) {
-                plugin.getLanguageManager().send(player, "no-permission");
-                return;
-            }
-
-            if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
-                plugin.getLanguageManager().send(player, "player-data-loading");
-                return;
-            }
-
-            // 无钥匙的情况由 prepareOpen 统一返回 NO_KEY 并提示，不再预检（省一次背包扫描）
-            openCrate(player, crate, location);
-            return;
-        }
-
-        if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
-            if (player.isSneaking()) {
-                removeCrate(player, crate, location);
-                return;
-            }
-
-            if (!player.hasPermission("fotiacrates.preview")) {
-                plugin.getLanguageManager().send(player, "no-permission");
-                return;
-            }
-
-            plugin.getGuiManager().openPreview(player, crate);
-        }
-    }
-
-    private void openCrate(Player player, Crate crate, Location crateLocation) {
-        UUID playerUuid = player.getUniqueId();
-        if (plugin.getOpenSessionManager().isActive(playerUuid)) {
-            return;
-        }
-
-        long now = System.currentTimeMillis();
-        if (!plugin.getOpenSessionManager().tryInteract(playerUuid, now, INTERACT_COOLDOWN_MS)
-                || !plugin.getOpenSessionManager().tryBegin(playerUuid)) {
-            return;
-        }
-
-        CrateOpenService.OpenAttempt openAttempt;
-        try {
-            openAttempt = crateOpenService.prepareOpen(player, crate);
-            if (!openAttempt.isSuccess()) {
-                plugin.getOpenSessionManager().finish(playerUuid);
-                crateOpenService.sendOpenFailure(player, crate, openAttempt.failureReason());
-                return;
-            }
-
-            crateOpenService.commitOpen(player, openAttempt, () -> {
-                RewardResult result = openAttempt.rewardResult();
-                Runnable delivery = () -> crateOpenService.deliverRewardSafely(playerUuid, player.getName(), crate,
-                        result, crateLocation, () -> plugin.getOpenSessionManager().finish(playerUuid));
-                plugin.getCratePresentationManager().play(playerUuid, crate, java.util.List.of(result.getDisplayReward()),
-                        crateLocation, true, true, delivery);
-            }, () -> plugin.getOpenSessionManager().finish(playerUuid));
-        } catch (RuntimeException exception) {
-            // 同步段抛异常时必须释放会话，否则该玩家将被永久拦截
-            plugin.getOpenSessionManager().finish(playerUuid);
-            throw exception;
-        }
+        interaction.interact(event.getPlayer(), location, event.getAction());
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onBlockBreak(BlockBreakEvent event) {
-        Block block = event.getBlock();
-        Location location = block.getLocation();
-        if (plugin.getCrateManager().isLocationSet(location)) {
-            event.setCancelled(true);
+        if (!interaction.isCrate(event.getBlock().getLocation())) return;
+        event.setCancelled(true);
+        if (!plugin.getCustomBlockSupport().isCustomBlock(event.getBlock())) {
             plugin.getLanguageManager().send(event.getPlayer(), "crate-break-denied");
         }
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlayerInteractAtEntity(PlayerInteractAtEntityEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) {
-            return;
-        }
-
-        if (!(event.getRightClicked() instanceof ArmorStand armorStand)) {
-            return;
-        }
-
-        if (armorStand.isVisible() || !armorStand.isMarker()) {
-            return;
-        }
-
-        Location location = armorStand.getLocation().getBlock().getLocation();
-        CrateLocation crateLocation = plugin.getCrateManager().getLocationAt(location);
-        if (crateLocation == null) {
-            return;
-        }
-
+        if (event.getHand() != EquipmentSlot.HAND
+                || !(event.getRightClicked() instanceof ArmorStand stand)
+                || stand.isVisible() || !stand.isMarker()) return;
+        Location location = stand.getLocation().getBlock().getLocation();
+        if (!interaction.isCrate(location)) return;
         event.setCancelled(true);
-
-        Player player = event.getPlayer();
-        Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
-        if (crate == null) {
-            plugin.getLanguageManager().send(player, "invalid-crate");
-            return;
-        }
-
-        if (player.isSneaking()) {
-            handleShiftRightOpen(player, crate, location);
-            return;
-        }
-
-        if (!crateOpenService.hasOpenPermission(player, crate)) {
-            plugin.getLanguageManager().send(player, "no-permission");
-            return;
-        }
-
-        if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
-            plugin.getLanguageManager().send(player, "player-data-loading");
-            return;
-        }
-
-        openCrate(player, crate, location);
+        interaction.interact(event.getPlayer(), location, Action.RIGHT_CLICK_BLOCK);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-        if (!(event.getDamager() instanceof Player player)) {
-            return;
-        }
-        if (!(event.getEntity() instanceof ArmorStand armorStand)) {
-            return;
-        }
-        if (armorStand.isVisible() || !armorStand.isMarker()) {
-            return;
-        }
-
-        Location location = armorStand.getLocation().getBlock().getLocation();
-        CrateLocation crateLocation = plugin.getCrateManager().getLocationAt(location);
-        if (crateLocation == null) {
-            return;
-        }
-
+        if (!(event.getDamager() instanceof Player player)
+                || !(event.getEntity() instanceof ArmorStand stand)
+                || stand.isVisible() || !stand.isMarker()) return;
+        Location location = stand.getLocation().getBlock().getLocation();
+        if (!interaction.isCrate(location)) return;
         event.setCancelled(true);
-
-        Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
-        if (crate == null) {
-            plugin.getLanguageManager().send(player, "invalid-crate");
-            return;
-        }
-
-        if (player.isSneaking()) {
-            removeCrate(player, crate, location);
-            return;
-        }
-
-        if (!player.hasPermission("fotiacrates.preview")) {
-            plugin.getLanguageManager().send(player, "no-permission");
-            return;
-        }
-
-        plugin.getGuiManager().openPreview(player, crate);
-    }
-
-    private void handleShiftRightOpen(Player player, Crate crate, Location location) {
-        if (!crateOpenService.hasOpenPermission(player, crate)) {
-            plugin.getLanguageManager().send(player, "no-permission");
-            return;
-        }
-
-        if (!plugin.getAsyncPlayerDataManager().isReady(player.getUniqueId())) {
-            plugin.getLanguageManager().send(player, "player-data-loading");
-            return;
-        }
-
-        int amount = 1;
-        if (crate.isMultiOpenEnabled()) {
-            amount = crate.getMultiOpenMax();
-        }
-
-        if (amount <= 1) {
-            openCrate(player, crate, location);
-            return;
-        }
-
-        int keys = plugin.getKeyManager().getTotalKeysForCrate(player, crate.getId());
-        if (keys < amount) {
-            crateOpenService.sendMissingKeys(player, crate, amount);
-            return;
-        }
-
-        openMultiple(player, crate, amount, location);
-    }
-
-    private void removeCrate(Player player, Crate crate, Location location) {
-        if (!player.hasPermission("fotiacrates.admin.remove")) {
-            plugin.getLanguageManager().send(player, "no-permission");
-            return;
-        }
-
-        plugin.getModelEngineManager().removeCrateModel(location);
-        plugin.getHologramManager().removeHologram(location);
-        plugin.getCrateManager().removeLocation(location);
-        plugin.getLanguageManager().send(player, "crate-removed",
-                LanguageManager.placeholders("crate", crate.getName()));
-    }
-
-    private void openMultiple(Player player, Crate crate, int amount, Location location) {
-        UUID playerUuid = player.getUniqueId();
-        if (plugin.getOpenSessionManager().isActive(playerUuid)) {
-            return;
-        }
-
-        long now = System.currentTimeMillis();
-        if (!plugin.getOpenSessionManager().tryInteract(playerUuid, now, INTERACT_COOLDOWN_MS)
-                || !plugin.getOpenSessionManager().tryBegin(playerUuid)) {
-            return;
-        }
-
-        try {
-            multiOpenService.open(player, crate, amount, location,
-                    () -> plugin.getOpenSessionManager().finish(playerUuid));
-        } catch (RuntimeException exception) {
-            // 同步段抛异常时必须释放会话，否则该玩家将被永久拦截
-            plugin.getOpenSessionManager().finish(playerUuid);
-            throw exception;
-        }
+        interaction.interact(player, location, Action.LEFT_CLICK_BLOCK);
     }
 }

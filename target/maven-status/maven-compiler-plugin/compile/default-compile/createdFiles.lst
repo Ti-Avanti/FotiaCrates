@@ -12,6 +12,7 @@ gg\fotia\crates\config\ConfigManager$RarityConfig.class
 gg\fotia\crates\animation\CardAnimationSettings.class
 gg\fotia\crates\pity\PityProgressKey.class
 gg\fotia\crates\animation\VoidRiftAnimation.class
+gg\fotia\crates\crate\CrateBlockInteraction.class
 gg\fotia\crates\particle\CrateParticleEffect$1.class
 gg\fotia\crates\data\HistoryWriteBuffer.class
 gg\fotia\crates\animation\OrbitalConvergenceAnimation.class
@@ -58,6 +59,7 @@ kr\toxicity\model\api\tracker\TrackerModifier.class
 gg\fotia\crates\animation\CardRevealBoard.class
 gg\fotia\crates\animation\AnimationSlotResolver.class
 gg\fotia\crates\animation\AnimationFactory.class
+gg\fotia\crates\hook\CustomBlockSupport$1.class
 gg\fotia\crates\crate\MultiOpenAnimationPolicy.class
 gg\fotia\crates\data\HistoryWriteBuffer$Record.class
 gg\fotia\crates\listener\KeyEditorController$ActionHandler.class
@@ -118,6 +120,7 @@ gg\fotia\crates\command\subcommand\GiveCommand.class
 gg\fotia\crates\listener\ModelLifecycleListener.class
 gg\fotia\crates\command\CrateCommand.class
 gg\fotia\crates\particle\ParticleManager$2.class
+gg\fotia\crates\hook\CustomBlockSupport.class
 gg\fotia\crates\data\AsyncPlayerDataManager.class
 gg\fotia\crates\key\distribution\KeyDistributionTarget.class
 gg\fotia\crates\crate\Crate.class
@@ -153,6 +156,7 @@ gg\fotia\crates\animation\BatchAnimation.class
 gg\fotia\crates\util\ItemBuilder.class
 gg\fotia\crates\gui\GuiPaginationState.class
 gg\fotia\crates\command\subcommand\HistoryCommand.class
+gg\fotia\crates\hook\ItemsAdderBlockSupport.class
 kr\toxicity\model\api\tracker\TrackerModifier$Builder.class
 gg\fotia\crates\gui\RewardEditContext$ReturnTarget.class
 gg\fotia\crates\modelengine\ModelEngineManager$ModelPosition.class
@@ -241,6 +245,8 @@ gg\fotia\crates\listener\GuiListener.class
 gg\fotia\crates\reward\ExperienceReward.class
 gg\fotia\crates\config\CrateConfigurationStore.class
 gg\fotia\crates\data\PlayerDataCache$Snapshot.class
+gg\fotia\crates\gui\GuiManager$1.class
+gg\fotia\crates\crate\CrateBlockPlacement.class
 gg\fotia\crates\crate\PreviewSortMode.class
 gg\fotia\crates\reward\AbstractReward.class
 gg\fotia\crates\key\distribution\KeyDistributionScope.class
