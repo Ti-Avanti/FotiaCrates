@@ -40,7 +40,8 @@ public class OpenCommand extends AbstractSubCommand {
         String crateId = args[0];
         Crate crate = plugin.getCrateManager().getCrate(crateId);
         if (crate == null) {
-            plugin.getLanguageManager().send(player, "invalid-crate");
+            plugin.getLanguageManager().send(player, plugin.getCrateManager().getLoadErrors().contains(crateId)
+                    ? "reward-item-unavailable" : "invalid-crate");
             return;
         }
 

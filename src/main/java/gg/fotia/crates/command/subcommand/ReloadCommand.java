@@ -2,7 +2,6 @@ package gg.fotia.crates.command.subcommand;
 
 import gg.fotia.crates.FotiaCrates;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
 
 import java.util.List;
 
@@ -24,11 +23,7 @@ public class ReloadCommand extends AbstractSubCommand {
         }
         plugin.reload();
 
-        if (sender instanceof Player p) {
-            plugin.getLanguageManager().send(p, "reload-success");
-        } else {
-            sender.sendMessage(plugin.getLanguageManager().getMessage("reload-success"));
-        }
+        plugin.sendReloadResult(sender);
     }
 
     @Override

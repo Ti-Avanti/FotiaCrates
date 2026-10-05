@@ -53,6 +53,10 @@ public class CrateOpenService {
             return OpenAttempt.failure(OpenFailureReason.PLAYER_DATA_PENDING);
         }
 
+        if (!plugin.getCrateManager().areRewardItemsAvailable(crate)) {
+            return OpenAttempt.failure(OpenFailureReason.REWARD_ITEM_UNAVAILABLE);
+        }
+
         PlayerDataCache.Snapshot previousData = batchSnapshot != null ? batchSnapshot
                 : plugin.getAsyncPlayerDataManager().snapshot(player.getUniqueId());
         ResolvedReward resolvedReward = resolveRewardResult(player, crate, permissionContext);
@@ -147,6 +151,10 @@ public class CrateOpenService {
             plugin.getLanguageManager().send(player, "player-data-loading");
             return;
         }
+        if (reason == OpenFailureReason.REWARD_ITEM_UNAVAILABLE) {
+            plugin.getLanguageManager().send(player, "reward-item-unavailable");
+            return;
+        }
         if (reason == OpenFailureReason.NO_AVAILABLE_REWARD) {
             plugin.getLanguageManager().send(player, "no-available-reward");
             return;
@@ -211,7 +219,7 @@ public class CrateOpenService {
         if (displayReward.shouldBroadcast() && plugin.getConfigManager().isBroadcastRareRewards()) {
             var message = plugin.getLanguageManager().getMessage(player, "broadcast-rare",
                     LanguageManager.placeholders(
-                            "player", player.getName(),
+                            "player", gg.fotia.basictool.bridge.PaperNickBridge.name("FotiaCrates", player),
                             "crate", crate.getName(),
                             "reward", displayReward.getDisplayName()
                     ));
@@ -220,7 +228,7 @@ public class CrateOpenService {
 
         plugin.getHistoryManager().addHistory(
                 player.getUniqueId(),
-                player.getName(),
+                gg.fotia.basictool.bridge.PaperNickBridge.name("FotiaCrates", player),
                 crate.getId(),
                 displayReward.getId(),
                 displayReward.getDisplayName()
@@ -272,6 +280,7 @@ public class CrateOpenService {
     }
 
     private void recordDeferredReward(UUID playerUuid, String playerName, Crate crate, RewardResult result) {
+        playerName = gg.fotia.basictool.bridge.PaperNickBridge.name("FotiaCrates", playerUuid, playerName);
         Reward reward = result.getDisplayReward();
         plugin.getHistoryManager().addHistory(playerUuid, playerName, crate.getId(),
                 reward.getId(), reward.getDisplayName());
@@ -359,6 +368,7 @@ public class CrateOpenService {
     public enum OpenFailureReason {
         NO_KEY,
         NO_AVAILABLE_REWARD,
+        REWARD_ITEM_UNAVAILABLE,
         PLAYER_DATA_PENDING
     }
 

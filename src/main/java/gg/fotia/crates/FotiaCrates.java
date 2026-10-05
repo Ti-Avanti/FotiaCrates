@@ -226,6 +226,13 @@ public class FotiaCrates extends JavaPlugin {
         return true;
     }
 
+    public void sendReloadResult(org.bukkit.command.CommandSender sender) {
+        String key = crateManager.hasLoadErrors() ? "reload-failed" : "reload-success";
+        var placeholders = LanguageManager.placeholders("crates", String.join(", ", crateManager.getLoadErrors()));
+        if (sender instanceof org.bukkit.entity.Player player) languageManager.send(player, key, placeholders);
+        else sender.sendMessage(languageManager.getMessage(key, placeholders));
+    }
+
     public void reload() {
         var previousLocations = crateManager.getCrateLocations();
         configManager.loadConfigs();

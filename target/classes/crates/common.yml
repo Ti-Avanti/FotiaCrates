@@ -201,6 +201,10 @@ rewards:
     broadcast: true
     type: item
     item:
+      # 可填写 CraftEngine ID；设置后使用完整自定义物品，并保留其模型和数据。
+      # craftengine-id: "namespace:item_id"
+      # 也兼容 material: "craftengine-namespace:item_id"；此处不能填写 icon:。
+      # 自定义物品仅覆盖明确填写的 name、lore、amount、enchantments 等属性。
       material: DIAMOND_SWORD
       name: "<!i><aqua>传说之剑"
       lore:

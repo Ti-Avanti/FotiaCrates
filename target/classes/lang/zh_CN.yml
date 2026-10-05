@@ -5,6 +5,8 @@
 prefix: "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> "
 
 messages:
+  reload-failed: "<!i><red>以下宝箱配置加载失败：{crates}。已保留旧配置并暂停相关开箱，请查看控制台修正后重载。"
+  reward-item-unavailable: "<!i><red>该宝箱奖励物品暂不可用，请联系管理员。未扣除钥匙。"
   rarity-probability-mode-per-reward: '<!i><gray>每个奖励'
   rarity-probability-mode-rarity-total: '<!i><gray>同稀有度合计'
   rarity-probability-mode-selected: '<!i><green>[当前] {mode}'
@@ -103,13 +105,9 @@ messages:
   admin-edit-crate: "<!i><yellow>编辑抽奖箱"
   admin-delete-crate: "<!i><red>删除抽奖箱"
   admin-manage-keys: "<!i><aqua>管理钥匙"
-  admin-crate-created: "<!i><green>抽奖箱 {crate} <!i><green>已创建！"
-  admin-crate-deleted: "<!i><red>抽奖箱 {crate} <!i><red>已删除！"
-  admin-crate-saved: "<!i><green>抽奖箱配置已保存！"
   admin-reward-added: "<!i><green>奖励已添加！"
   admin-reward-removed: "<!i><red>奖励已移除！"
   admin-input-name: "<!i><yellow>请在聊天中输入名称："
-  admin-input-chance: "<!i><yellow>请在聊天中输入概率（0-100）："
   admin-input-cancelled: "<!i><red>输入已取消。"
 
   # 额外消息

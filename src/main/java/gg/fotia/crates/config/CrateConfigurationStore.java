@@ -23,7 +23,15 @@ public final class CrateConfigurationStore {
 
     public YamlConfiguration read(File file) {
         Path path = path(file);
-        return configurations.computeIfAbsent(path, ignored -> YamlConfiguration.loadConfiguration(file));
+        return configurations.computeIfAbsent(path, ignored -> {
+            YamlConfiguration configuration = new YamlConfiguration();
+            try {
+                configuration.load(file);
+                return configuration;
+            } catch (IOException | org.bukkit.configuration.InvalidConfigurationException exception) {
+                throw new IllegalArgumentException("Could not read " + file.getPath() + ": " + exception.getMessage(), exception);
+            }
+        });
     }
 
     public void remember(File file, YamlConfiguration configuration) {

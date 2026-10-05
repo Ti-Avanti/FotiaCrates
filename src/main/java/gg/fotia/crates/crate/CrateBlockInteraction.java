@@ -32,7 +32,9 @@ public final class CrateBlockInteraction {
 
         Crate crate = plugin.getCrateManager().getCrate(crateLocation.getCrateId());
         if (crate == null) {
-            plugin.getLanguageManager().send(player, "invalid-crate");
+            plugin.getLanguageManager().send(player,
+                    plugin.getCrateManager().getLoadErrors().contains(crateLocation.getCrateId())
+                            ? "reward-item-unavailable" : "invalid-crate");
             return;
         }
 

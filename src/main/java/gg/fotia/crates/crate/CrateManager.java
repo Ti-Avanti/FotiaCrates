@@ -1,6 +1,9 @@
 package gg.fotia.crates.crate;
 
 import gg.fotia.crates.FotiaCrates;
+import gg.fotia.crates.hook.CraftEngineRewardSupport;
+import gg.fotia.crates.reward.config.ExternalRewardItems;
+import gg.fotia.crates.reward.config.RewardItemParser;
 import gg.fotia.crates.animation.AnimationTemplate;
 import gg.fotia.crates.animation.AnimationType;
 import gg.fotia.crates.config.CrateConfigurationStore;
@@ -38,16 +41,27 @@ public class CrateManager {
     private final Map<String, Crate> crates = new HashMap<>();
     private final CrateLocationIndex crateLocations = new CrateLocationIndex();
     private final NamespacedKey crateBlockKey;
+    private final RewardItemParser itemParser;
+    private final Map<String, Set<String>> rewardItemReferences = new HashMap<>();
+    private final Map<String, YamlConfiguration> externalRewardConfigs = new HashMap<>();
+    private final Set<String> loadErrors = new TreeSet<>();
     private final Map<CrateLocation, Object> pendingLocationWrites = new HashMap<>();
 
     public CrateManager(FotiaCrates plugin) {
         this.plugin = plugin;
         this.configurationStore = new CrateConfigurationStore(plugin);
         this.crateBlockKey = new NamespacedKey(plugin, "crate_block");
+        ExternalRewardItems externalItems = plugin.getServer().getPluginManager().isPluginEnabled("CraftEngine")
+                ? new CraftEngineRewardSupport(plugin) : ExternalRewardItems.NONE;
+        this.itemParser = new RewardItemParser(externalItems);
     }
 
     public void loadCrates() {
         configurationStore.reset();
+        Map<String, Crate> previous = new HashMap<>(crates);
+        Set<String> fileIds = new HashSet<>();
+        loadErrors.clear();
+        externalRewardConfigs.clear();
         crates.clear();
         File cratesFolder = new File(plugin.getDataFolder(), "crates");
         if (!cratesFolder.exists()) {
@@ -60,6 +74,7 @@ public class CrateManager {
 
         for (File file : files) {
             String id = file.getName().replace(".yml", "");
+            fileIds.add(id);
             try {
                 Crate crate = loadCrate(id, file);
                 if (crate != null) {
@@ -67,17 +82,26 @@ public class CrateManager {
                     plugin.getLogger().info("Loaded crate: " + id);
                 }
             } catch (Exception e) {
-                plugin.getLogger().severe("Failed to load crate " + id + ": " + e.getMessage());
+                loadErrors.add(id);
+                if (previous.containsKey(id)) crates.put(id, previous.get(id));
+                if (e instanceof ExternalRewardItems.Pending) {
+                    plugin.getLogger().info("Waiting to load crate " + id + ": " + e.getMessage());
+                } else {
+                    plugin.getLogger().severe("Failed to load crate " + file.getPath() + ": " + e.getMessage());
+                }
             }
         }
 
-        plugin.getLogger().info("Loaded " + crates.size() + " crates.");
+        externalRewardConfigs.keySet().retainAll(fileIds);
+        rewardItemReferences.keySet().retainAll(fileIds);
+        plugin.getLogger().info("Loaded " + crates.size() + " crates; invalid configurations: " + loadErrors.size() + '.');
     }
 
     public Crate reloadCrate(String crateId) {
         File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
         if (!configurationStore.exists(file)) {
             crates.remove(crateId);
+            forgetRewardConfiguration(crateId);
             return null;
         }
 
@@ -85,11 +109,13 @@ public class CrateManager {
             Crate crate = loadCrate(crateId, file);
             if (crate == null) {
                 crates.remove(crateId);
+                forgetRewardConfiguration(crateId);
                 return null;
             }
             crates.put(crateId, crate);
             return crate;
         } catch (RuntimeException exception) {
+            loadErrors.add(crateId);
             plugin.getLogger().severe("Failed to reload crate " + crateId + ": " + exception.getMessage());
             return null;
         }
@@ -107,7 +133,55 @@ public class CrateManager {
         return crate;
     }
 
+    public boolean hasLoadErrors() { return !loadErrors.isEmpty(); }
+    public Set<String> getLoadErrors() { return Set.copyOf(loadErrors); }
+
+    public boolean areRewardItemsAvailable(Crate crate) {
+        return !loadErrors.contains(crate.getId())
+                && itemParser.available(rewardItemReferences.getOrDefault(crate.getId(), Set.of()));
+    }
+
+    /** CraftEngine 完成加载后重新解析已有配置快照，不在事件回调中读取磁盘。 */
+    public void reloadExternalRewardItems() {
+        boolean changed = false;
+        for (var entry : new HashMap<>(externalRewardConfigs).entrySet()) {
+            String id = entry.getKey();
+            try {
+                Crate crate = loadCrate(id, new File(plugin.getDataFolder(), "crates/" + id + ".yml"), entry.getValue());
+                crates.put(id, crate);
+                changed = true;
+                plugin.getLogger().info("Refreshed CraftEngine rewards for crate: " + id);
+            } catch (RuntimeException exception) {
+                loadErrors.add(id);
+                plugin.getLogger().warning("Could not refresh CraftEngine rewards for " + id + ": " + exception.getMessage());
+            }
+        }
+        if (changed) plugin.getHologramManager().createAllHolograms();
+    }
+
+    private void forgetRewardConfiguration(String crateId) {
+        externalRewardConfigs.remove(crateId);
+        rewardItemReferences.remove(crateId);
+        loadErrors.remove(crateId);
+    }
+
     private Crate loadCrate(String id, File file, YamlConfiguration config) {
+        itemParser.begin();
+        try {
+            Crate crate = loadCrateContents(id, file, config);
+            rewardItemReferences.put(id, itemParser.references());
+            loadErrors.remove(id);
+            return crate;
+        } catch (RuntimeException exception) {
+            loadErrors.add(id);
+            throw exception;
+        } finally {
+            if (!itemParser.references().isEmpty()) externalRewardConfigs.put(id, config);
+            else externalRewardConfigs.remove(id);
+        }
+    }
+
+    private Crate loadCrateContents(String id, File file, YamlConfiguration config) {
 
         String name = config.getString("name", id);
         Material blockMaterial = Material.valueOf(config.getString("block.material", "CHEST"));
@@ -372,30 +446,7 @@ public class CrateManager {
     }
 
     private ItemStack loadItemFromSection(ConfigurationSection section, String defaultName) {
-        Material material = Material.valueOf(section.getString("material", "PAPER"));
-        String name = section.getString("name", defaultName);
-        List<String> lore = section.getStringList("lore");
-        int amount = section.getInt("amount", 1);
-        int customModelData = section.getInt("custom-model-data", 0);
-        boolean glow = section.getBoolean("glow", false);
-
-        ItemBuilder builder = new ItemBuilder(material)
-                .name(name)
-                .lore(lore)
-                .amount(amount)
-                .customModelData(customModelData)
-                .glow(glow);
-
-        ConfigurationSection enchantSection = section.getConfigurationSection("enchantments");
-        if (enchantSection != null) {
-            Map<String, Integer> enchants = new HashMap<>();
-            for (String enchantName : enchantSection.getKeys(false)) {
-                enchants.put(enchantName, enchantSection.getInt(enchantName));
-            }
-            builder.enchantments(enchants);
-        }
-
-        return builder.build();
+        return itemParser.parse(section, defaultName);
     }
 
     private ItemStack loadOptionalRewardItem(ConfigurationSection section, String defaultName) {
@@ -424,15 +475,17 @@ public class CrateManager {
             return extraItems;
         }
 
-        for (Object obj : extraList) {
+        for (int index = 0; index < extraList.size(); index++) {
+            Object obj = extraList.get(index);
             if (obj instanceof ItemStack itemStack) {
-                extraItems.add(itemStack);
-            } else if (obj instanceof Map<?, ?> extraMap && extraMap.containsKey("material")) {
-                try {
-                    Material material = Material.valueOf((String) extraMap.get("material"));
-                    extraItems.add(new ItemStack(material));
-                } catch (Exception ignored) {
-                }
+                extraItems.add(itemStack.clone());
+            } else if (obj instanceof Map<?, ?> extraMap) {
+                YamlConfiguration temporary = new YamlConfiguration();
+                ConfigurationSection itemSection = temporary.createSection(
+                        section.getCurrentPath() + ".extra-items." + index, extraMap);
+                extraItems.add(loadItemFromSection(itemSection, null));
+            } else {
+                throw new IllegalArgumentException(section.getCurrentPath() + ".extra-items." + index + ": 无效物品配置");
             }
         }
 
@@ -1373,6 +1426,7 @@ public class CrateManager {
             return;
         }
         crates.remove(crateId);
+        forgetRewardConfiguration(crateId);
 
         plugin.getAsyncPlayerDataManager().executeDatabaseOperation(() -> {
             try (Connection connection = plugin.getDatabaseManager().getConnection();

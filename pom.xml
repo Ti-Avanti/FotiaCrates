@@ -4,7 +4,7 @@
 
     <groupId>gg.fotia</groupId>
     <artifactId>FotiaCrates</artifactId>
-    <version>1.1.19</version>
+    <version>1.1.20</version>
     <packaging>jar</packaging>
 
     <name>FotiaCrates</name>
@@ -12,6 +12,8 @@
 
     <properties>
         <java.version>17</java.version>
+        <paper.api.version>1.20.6-R0.1-SNAPSHOT</paper.api.version>
+        <packetevents.version>2.14.0</packetevents.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -60,7 +62,7 @@
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
-            <version>1.20.6-R0.1-SNAPSHOT</version>
+            <version>${paper.api.version}</version>
             <scope>provided</scope>
             <exclusions>
                 <exclusion>
@@ -90,7 +92,7 @@
         <dependency>
             <groupId>com.github.retrooper</groupId>
             <artifactId>packetevents-spigot</artifactId>
-            <version>2.12.1</version>
+            <version>${packetevents.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -129,7 +131,8 @@
             <version>3.46.1.0</version>
             <scope>test</scope>
         </dependency>
-    <dependency><groupId>gg.fotia</groupId><artifactId>translator-bridge</artifactId><version>1.0.0</version><scope>provided</scope></dependency></dependencies>
+    <dependency><groupId>gg.fotia</groupId><artifactId>translator-bridge</artifactId><version>1.0.0</version><scope>provided</scope></dependency><dependency><groupId>gg.fotia</groupId><artifactId>basictool-bridge</artifactId><version>1.0.0-SNAPSHOT</version><scope>provided</scope></dependency>
+    </dependencies>
 
     <build>
         <plugins>
@@ -138,8 +141,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <release>${java.version}</release>
                 </configuration>
             </plugin>
             <plugin>
@@ -157,7 +159,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
             </plugin>
-        <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-dependency-plugin</artifactId><version>3.8.1</version><executions><execution><id>fotia-translator-optional-bridge</id><phase>process-classes</phase><goals><goal>unpack</goal></goals><configuration><artifactItems><artifactItem><groupId>gg.fotia</groupId><artifactId>translator-bridge</artifactId><version>1.0.0</version><outputDirectory>${project.build.outputDirectory}</outputDirectory><includes>gg/fotia/translator/bridge/**</includes></artifactItem></artifactItems></configuration></execution></executions></plugin></plugins>
+        <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-dependency-plugin</artifactId><version>3.8.1</version><executions><execution><id>basictool-optional-nick-bridge</id><phase>process-resources</phase><goals><goal>unpack</goal></goals><configuration><artifactItems><artifactItem><groupId>gg.fotia</groupId><artifactId>basictool-bridge</artifactId><version>1.0.0-SNAPSHOT</version><outputDirectory>${project.build.outputDirectory}</outputDirectory><includes>gg/fotia/basictool/bridge/**</includes><overWrite>true</overWrite></artifactItem></artifactItems></configuration></execution><execution><id>fotia-translator-optional-bridge</id><phase>process-classes</phase><goals><goal>unpack</goal></goals><configuration><artifactItems><artifactItem><groupId>gg.fotia</groupId><artifactId>translator-bridge</artifactId><version>1.0.0</version><outputDirectory>${project.build.outputDirectory}</outputDirectory><includes>gg/fotia/translator/bridge/**</includes></artifactItem></artifactItems></configuration></execution></executions></plugin></plugins>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>

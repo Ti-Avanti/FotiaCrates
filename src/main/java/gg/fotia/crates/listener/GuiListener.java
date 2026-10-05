@@ -2027,7 +2027,7 @@ public class GuiListener implements Listener {
             }
             case "reload" -> {
                 plugin.reload();
-                plugin.getLanguageManager().send(player, "reload-success");
+                plugin.sendReloadResult(player);
             }
             case "back" -> {
                 if (holder.getGuiType() == GuiType.ADMIN_CRATE_EDIT) {

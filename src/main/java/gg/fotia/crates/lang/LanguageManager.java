@@ -53,6 +53,13 @@ public class LanguageManager {
         if (files != null) {
             for (File file : files) {
                 String langCode = file.getName().replace(".yml", "");
+                try {
+                    if (LanguageDuplicateMigration.apply(file.toPath())) {
+                        plugin.getLogger().info("Removed legacy duplicate message keys from " + file.getName());
+                    }
+                } catch (IOException | RuntimeException exception) {
+                    plugin.getLogger().warning("Could not migrate language file " + file.getName() + ": " + exception.getMessage());
+                }
                 FileConfiguration config = YamlConfiguration.loadConfiguration(file);
                 FileConfiguration bundledConfig = loadBundledLanguage(file.getName());
                 if (bundledConfig != null) {
@@ -63,7 +70,8 @@ public class LanguageManager {
                         for (String key : messages.getKeys(false)) {
                             String path = "messages." + key;
                             if ((key.startsWith("rarity-probability-") || key.startsWith("reward-delivery-")
-                                    || key.equals("configuration-save-busy") || key.equals("crate-location-save-failed")) && !config.isSet(path)) {
+                                    || key.equals("configuration-save-busy") || key.equals("crate-location-save-failed")
+                                    || key.equals("reward-item-unavailable") || key.equals("reload-failed")) && !config.isSet(path)) {
                                 config.set(path, messages.get(key));
                                 changed = true;
                             }
@@ -178,7 +186,7 @@ public class LanguageManager {
         String langCode = getPlayerLanguage(player);
         String message = resolveLanguageValue(langCode, "messages." + key, key);
         String langPrefix = resolveLanguageValue(langCode, "prefix", prefix);
-        return MessageUtil.parse(langPrefix + message);
+        return gg.fotia.basictool.bridge.PaperNickBridge.redact("FotiaCrates", MessageUtil.parse(langPrefix + message));
     }
 
     /**
@@ -187,7 +195,7 @@ public class LanguageManager {
     public Component getMessage(String key) {
         String message = resolveLanguageValue(defaultLanguage, "messages." + key, key);
         String langPrefix = resolveLanguageValue(defaultLanguage, "prefix", prefix);
-        return MessageUtil.parse(langPrefix + message);
+        return gg.fotia.basictool.bridge.PaperNickBridge.redact("FotiaCrates", MessageUtil.parse(langPrefix + message));
     }
 
     /**
@@ -197,7 +205,7 @@ public class LanguageManager {
         String langCode = getPlayerLanguage(player);
         String message = resolveLanguageValue(langCode, "messages." + key, key);
         String langPrefix = resolveLanguageValue(langCode, "prefix", prefix);
-        return MessageUtil.parse(langPrefix + message, placeholders);
+        return gg.fotia.basictool.bridge.PaperNickBridge.redact("FotiaCrates", MessageUtil.parse(langPrefix + message, placeholders));
     }
 
     /**
@@ -206,7 +214,7 @@ public class LanguageManager {
     public Component getMessage(String key, Map<String, String> placeholders) {
         String message = resolveLanguageValue(defaultLanguage, "messages." + key, key);
         String langPrefix = resolveLanguageValue(defaultLanguage, "prefix", prefix);
-        return MessageUtil.parse(langPrefix + message, placeholders);
+        return gg.fotia.basictool.bridge.PaperNickBridge.redact("FotiaCrates", MessageUtil.parse(langPrefix + message, placeholders));
     }
 
     /**
@@ -214,7 +222,7 @@ public class LanguageManager {
      */
     public Component getMessageNoPrefix(Player player, String key) {
         String message = resolveLanguageValue(getPlayerLanguage(player), "messages." + key, key);
-        return MessageUtil.parse(message);
+        return gg.fotia.basictool.bridge.PaperNickBridge.redact("FotiaCrates", MessageUtil.parse(message));
     }
 
     /**
@@ -222,7 +230,7 @@ public class LanguageManager {
      */
     public Component getMessageNoPrefix(Player player, String key, Map<String, String> placeholders) {
         String message = resolveLanguageValue(getPlayerLanguage(player), "messages." + key, key);
-        return MessageUtil.parse(message, placeholders);
+        return gg.fotia.basictool.bridge.PaperNickBridge.redact("FotiaCrates", MessageUtil.parse(message, placeholders));
     }
 
     /**

@@ -5,6 +5,8 @@
 prefix: "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> "
 
 messages:
+  reload-failed: "<!i><red>Failed to load crate configurations: {crates}. Previous configurations were kept and affected crates are paused. Check the console and reload after correcting them."
+  reward-item-unavailable: "<!i><red>This crate has unavailable reward items. Contact an administrator. No key was consumed."
   rarity-probability-mode-per-reward: '<!i><gray>Per reward'
   rarity-probability-mode-rarity-total: '<!i><gray>Rarity total'
   rarity-probability-mode-selected: '<!i><green>[Selected] {mode}'
