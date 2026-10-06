@@ -166,6 +166,11 @@ public final class KeyEditorController {
                 plugin.getKeyManager().saveKey(key);
                 plugin.getGuiManager().openKeyEditGui(player, key);
             }
+            case "toggle_master_key" -> {
+                key.setMasterKey(!key.isMasterKey());
+                plugin.getKeyManager().saveKey(key);
+                plugin.getGuiManager().openKeyEditGui(player, key);
+            }
             case "add_key_crate" -> {
                 // 打开宝箱选择界面
                 plugin.getGuiManager().openCrateSelectGui(player, key);

@@ -5,7 +5,7 @@ title: "<!i><dark_gray>编辑钥匙: {key}"
 
 layout:
   - '####I####'
-  - '#NEG#####'
+  - '#NEGM####'
   - '#CCCCCCC#'
   - '#CCCCCCC#'
   - '#CCCCCCC#'
@@ -68,6 +68,17 @@ icons:
         - ''
         - '<!i><yellow>左键点击切换'
     action: toggle_key_glow
+
+  'M':
+    display:
+      material: nether_star
+      name: '<!i><gold>万能钥匙'
+      lore:
+        - '<!i><gray>开启后此钥匙可以打开所有宝箱'
+        - '<!i><gray>当前: {master_key}'
+        - ''
+        - '<!i><yellow>左键点击切换'
+    action: toggle_master_key
 
   'A':
     display:

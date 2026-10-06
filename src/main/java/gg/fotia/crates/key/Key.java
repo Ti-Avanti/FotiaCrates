@@ -57,13 +57,35 @@ public class Key {
 
     /**
      * 检查此钥匙是否可以打开指定宝箱
+     * 列表包含 "*"、"all"、"全部" 时可以打开所有宝箱；留空则不能打开任何宝箱。
      */
     public boolean canOpenCrate(String crateId) {
-        // 如果allowedCrates为空或包含"*"，则可以打开所有宝箱
-        if (allowedCrates.isEmpty() || allowedCrates.contains("*")) {
-            return true;
+        if (allowedCrates.isEmpty()) {
+            return false;
+        }
+        for (String entry : allowedCrates) {
+            if (isWildcard(entry)) {
+                return true;
+            }
         }
         return allowedCrates.contains(crateId);
+    }
+
+    private static boolean isWildcard(String entry) {
+        if (entry == null) {
+            return false;
+        }
+        String normalized = entry.trim();
+        return normalized.equals("*") || normalized.equalsIgnoreCase("all") || normalized.equals("全部");
+    }
+
+    private boolean hasWildcardEntry() {
+        for (String entry : allowedCrates) {
+            if (isWildcard(entry)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -164,6 +186,26 @@ public class Key {
 
     public List<String> getAllowedCrates() {
         return new ArrayList<>(allowedCrates);
+    }
+
+    /**
+     * 是否为万能钥匙（allowed-crates 含 "*"/"all"/"全部" 通配项）
+     */
+    public boolean isMasterKey() {
+        return hasWildcardEntry();
+    }
+
+    /**
+     * 开关万能钥匙：开启时向 allowed-crates 添加 "all"，关闭时移除所有通配项（保留具体宝箱）
+     */
+    public void setMasterKey(boolean masterKey) {
+        if (masterKey) {
+            if (!hasWildcardEntry()) {
+                allowedCrates.add("all");
+            }
+        } else {
+            allowedCrates.removeIf(Key::isWildcard);
+        }
     }
 
     public void setAllowedCrates(List<String> allowedCrates) {

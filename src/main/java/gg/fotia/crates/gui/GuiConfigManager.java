@@ -484,6 +484,38 @@ public class GuiConfigManager {
         migrateAnimationTypeSelectorGui(guisFolder);
         migratePaginationButtonDisplays(guisFolder);
         migrateAdminLayoutWidth(guisFolder);
+        migrateKeyEditGui(guisFolder);
+    }
+
+    private void migrateKeyEditGui(File guisFolder) {
+        File file = new File(guisFolder, "admin_key_edit.yml");
+        if (!file.exists()) {
+            return;
+        }
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+        boolean changed = false;
+
+        List<String> layout = new ArrayList<>(config.getStringList("layout"));
+        if (layout.size() > 1 && "#NEG#####".equals(layout.get(1))) {
+            layout.set(1, "#NEGM####");
+            config.set("layout", layout);
+            changed = true;
+        }
+        if (!config.contains("icons.M")) {
+            config.set("icons.M.display.material", "nether_star");
+            config.set("icons.M.display.name", "<!i><gold>万能钥匙");
+            config.set("icons.M.display.lore", List.of(
+                    "<!i><gray>开启后此钥匙可以打开所有宝箱",
+                    "<!i><gray>当前: {master_key}",
+                    "",
+                    "<!i><yellow>左键点击切换"));
+            config.set("icons.M.action", "toggle_master_key");
+            changed = true;
+        }
+
+        if (changed) {
+            saveMigratedGui(file, config, "admin_key_edit");
+        }
     }
 
     private void migrateAdminLayoutWidth(File guisFolder) {
