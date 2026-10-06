@@ -165,7 +165,10 @@ public class CrateOpenService {
 
     public void sendMissingKeys(Player player, Crate crate, int required) {
         var language = plugin.getLanguageManager();
-        var keys = plugin.getKeyManager().getKeysForCrate(crate.getId());
+        // 万能钥匙对玩家隐藏，不出现在缺少钥匙的提示里
+        var keys = plugin.getKeyManager().getKeysForCrate(crate.getId()).stream()
+                .filter(key -> !key.isMasterKey())
+                .toList();
         if (keys.isEmpty()) {
             language.send(player, "no-key-configured",
                     LanguageManager.placeholders("crate", crate.getName()));

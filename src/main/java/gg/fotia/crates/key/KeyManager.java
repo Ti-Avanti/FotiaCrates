@@ -121,6 +121,10 @@ public class KeyManager {
         List<String> allowedCrates = config.getStringList("allowed-crates");
 
         Key key = new Key(id, name, material, displayName, lore, customModelData, glow, allowedCrates);
+        // 兼容 1.2.0 的 master-key 字段：加载时迁移为 allowed-crates 中的 "all"
+        if (config.getBoolean("master-key", false)) {
+            key.setMasterKey(true);
+        }
 
         // 加载新字段
         if (itemSection != null) {
@@ -346,10 +350,13 @@ public class KeyManager {
 
     /**
      * 消耗一把可以打开指定宝箱的钥匙，返回消耗明细（用于开箱失败时精确退还）
+     * 优先消耗具体钥匙，万能钥匙（通配）最后才消耗
      * @return 消耗明细，没有可消耗的钥匙时返回 null
      */
     public ConsumedKey consumeKeyForCrateDetailed(Player player, String crateId, KeyType preferredType) {
-        for (Key key : getKeysForCrate(crateId)) {
+        List<Key> candidates = getKeysForCrate(crateId);
+        candidates.sort(Comparator.comparing(Key::isMasterKey));
+        for (Key key : candidates) {
             ConsumedKey consumed = consumeKeyDetailed(player, key.getId(), preferredType);
             if (consumed != null) {
                 return consumed;

@@ -94,8 +94,9 @@ public final class KeyEditorGui {
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{key}", key.getName());
         placeholders.put("{key_id}", key.getId());
-        placeholders.put("{crate_count}", String.valueOf(key.getCrateIds().size()));
+        placeholders.put("{crate_count}", key.isMasterKey() ? "全部" : String.valueOf(key.getCrateIds().size()));
         placeholders.put("{glow}", key.isGlow() ? "是" : "否");
+        placeholders.put("{master_key}", key.isMasterKey() ? "是" : "否");
 
         renderer.placeFixedItemsWithPlaceholders(inventory, config, player, null, placeholders);
 
@@ -120,7 +121,9 @@ public final class KeyEditorGui {
     private ItemStack createAdminKeyItem(Key key) {
         List<String> lore = new ArrayList<>();
         lore.add("<!i><gray>ID: <!i><white>" + key.getId());
-        lore.add("<!i><gray>可开启宝箱: <!i><white>" + key.getCrateIds().size() + "个");
+        lore.add(key.isMasterKey()
+                ? "<!i><gray>可开启宝箱: <!i><white>全部 (万能钥匙)"
+                : "<!i><gray>可开启宝箱: <!i><white>" + key.getCrateIds().size() + "个");
         lore.add("");
         lore.add("<!i><yellow>左键 <!i><gray>- 编辑钥匙");
         lore.add("<!i><red>Shift+右键 <!i><gray>- 删除钥匙");

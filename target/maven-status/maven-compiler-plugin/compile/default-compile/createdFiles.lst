@@ -2,6 +2,7 @@ gg\fotia\crates\key\KeyType.class
 gg\fotia\crates\reward\RarityProbabilityMode.class
 gg\fotia\crates\animation\AnimationManager$AnimationSession.class
 gg\fotia\crates\crate\UniqueDrawSettings.class
+gg\fotia\crates\reward\config\ExternalRewardItems$Pending.class
 gg\fotia\crates\animation\AnimationCompletion.class
 gg\fotia\crates\command\subcommand\RemoveCommand.class
 gg\fotia\crates\crate\CrateOpenService$ResolvedReward.class
@@ -37,6 +38,7 @@ gg\fotia\crates\util\LegacyColorConverter.class
 gg\fotia\crates\reward\MoneyReward.class
 gg\fotia\crates\data\AsyncPlayerDataManager$TransactionalDatabaseOperation.class
 gg\fotia\crates\key\KeyItemProvider.class
+gg\fotia\crates\hook\CraftEngineRewardSupport.class
 gg\fotia\crates\listener\GuiListener$RewardEditInput.class
 gg\fotia\crates\reward\RewardAutoDisplayPolicy.class
 gg\fotia\crates\animation\WorldAnimationSupport.class
@@ -85,6 +87,7 @@ gg\fotia\crates\crate\CrateBlockItemTemplate.class
 gg\fotia\crates\data\PlayerDataCache.class
 gg\fotia\crates\gui\GuiConfigManager.class
 gg\fotia\crates\animation\AnimationRewardBatchPolicy.class
+gg\fotia\crates\reward\config\ExternalRewardItems.class
 gg\fotia\crates\gui\RarityProbabilityEditor$Draft.class
 gg\fotia\crates\hologram\HologramUpdateQueue.class
 gg\fotia\crates\hook\CraftEngineKeyItemProvider.class
@@ -96,6 +99,7 @@ gg\fotia\crates\animation\VoidRiftAnimationSettings.class
 gg\fotia\crates\animation\CardBackDisplay.class
 gg\fotia\crates\gui\GuiManager$InputCallback.class
 gg\fotia\crates\reward\RarityProbabilityAdjustment$Entry.class
+gg\fotia\crates\lang\LanguageDuplicateMigration.class
 gg\fotia\crates\gui\GuiRenderSupport.class
 gg\fotia\crates\key\KeyItemConfig.class
 gg\fotia\crates\listener\EntityInteractPacketListener.class
@@ -141,6 +145,7 @@ gg\fotia\crates\data\PlayerDataCache$RewardKey.class
 gg\fotia\crates\animation\AnimationFactory$1.class
 gg\fotia\crates\reward\RewardAutoDisplayNameResolver.class
 gg\fotia\crates\particle\ParticleManager.class
+gg\fotia\crates\reward\config\RewardItemParser.class
 gg\fotia\crates\crate\CrateLocationIndex.class
 kr\toxicity\model\api\BetterModel.class
 gg\fotia\crates\gui\CrateGuiHolder.class
@@ -182,6 +187,7 @@ gg\fotia\crates\reward\RarityProbabilityAdjustment.class
 gg\fotia\crates\animation\MeteorPath$Point.class
 gg\fotia\crates\animation\MeteorJudgmentAnimation.class
 gg\fotia\crates\reward\RewardSnapshotCodec.class
+gg\fotia\crates\reward\config\ExternalRewardItems$1.class
 gg\fotia\crates\listener\EntityInteractPacketListener$1.class
 gg\fotia\crates\data\PlayerDataCache$State.class
 gg\fotia\crates\crate\MultiOpenService.class
