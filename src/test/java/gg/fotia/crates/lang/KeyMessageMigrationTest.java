@@ -15,6 +15,8 @@ class KeyMessageMigrationTest {
             assertTrue(KeyMessageMigration.apply(config, bundled));
             assertEquals("Missing {keys}", config.getString("messages.no-key"));
             assertEquals(" or ", config.getString("messages.no-key-separator"));
+            assertEquals("No crates bound", config.getString("messages.admin-key-binding-none-name"));
+            assertEquals("All crates", config.getString("messages.admin-key-binding-all-name"));
             assertFalse(KeyMessageMigration.apply(config, bundled));
         }
     }
@@ -25,9 +27,11 @@ class KeyMessageMigrationTest {
             var config = new YamlConfiguration();
             config.set("messages.no-key", custom);
             config.set("messages.no-key-detail", "");
+            config.set("messages.admin-key-binding-none-name", custom);
             KeyMessageMigration.apply(config, defaults());
             assertEquals(custom, config.getString("messages.no-key"));
             assertEquals("", config.getString("messages.no-key-detail"));
+            assertEquals(custom, config.getString("messages.admin-key-binding-none-name"));
         }
     }
 
@@ -37,6 +41,8 @@ class KeyMessageMigrationTest {
         config.set("messages.no-key-detail", "Need {keys}");
         config.set("messages.no-key-separator", " or ");
         config.set("messages.no-key-configured", "No keys configured for {crate}");
+        config.set("messages.admin-key-binding-none-name", "No crates bound");
+        config.set("messages.admin-key-binding-all-name", "All crates");
         return config;
     }
 }

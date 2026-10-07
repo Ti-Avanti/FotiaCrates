@@ -9,6 +9,7 @@ import gg.fotia.crates.lang.LanguageManager;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import java.util.List;
+import java.util.Map;
 
 /** Routes only key-editor actions; general navigation stays in the inventory listener. */
 public final class KeyEditorController {
@@ -87,12 +88,10 @@ public final class KeyEditorController {
         }
 
         // 检查是否点击了宝箱（移除宝箱）
-        List<Integer> contentSlots = config != null ? config.getContentSlots() : List.of();
-        int slotIndex = contentSlots.indexOf(slot);
-        if (slotIndex >= 0 && event.isShiftClick() && event.isRightClick()) {
-            List<String> crateIds = key.getCrateIds().stream().toList();
-            if (slotIndex < crateIds.size()) {
-                String crateId = crateIds.get(slotIndex);
+        Map<Integer, String> bindingsBySlot = holder.getData("key_crate_slots");
+        if (bindingsBySlot != null && event.isShiftClick() && event.isRightClick()) {
+            String crateId = bindingsBySlot.get(slot);
+            if (crateId != null && key.getCrateIds().contains(crateId)) {
                 key.removeCrate(crateId);
                 plugin.getKeyManager().saveKey(key);
                 plugin.getLanguageManager().send(player, "admin-key-crate-removed",

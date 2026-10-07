@@ -5,6 +5,13 @@
 prefix: "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> "
 
 messages:
+  admin-key-binding-all-name: "<!i><gold>All crates (universal key)"
+  admin-key-binding-all-lore: "<!i><gray>Explicitly bound to *: opens all current and future crates."
+  admin-key-binding-none-name: "<!i><red>No crates bound"
+  admin-key-binding-none-lore: "<!i><gray>This key cannot open crates. Add a crate using the button below."
+  admin-key-binding-missing-name: "<!i><red>Missing crate binding: {crate}"
+  admin-key-binding-missing-lore: "<!i><gray>This crate does not exist. You can remove this binding."
+  admin-key-binding-remove: "<!i><red>Shift+Right-click <!i><gray>- Remove this binding"
   reload-failed: "<!i><red>Failed to load crate configurations: {crates}. Previous configurations were kept and affected crates are paused. Check the console and reload after correcting them."
   reward-item-unavailable: "<!i><red>This crate has unavailable reward items. Contact an administrator. No key was consumed."
   rarity-probability-mode-per-reward: '<!i><gray>Per reward'

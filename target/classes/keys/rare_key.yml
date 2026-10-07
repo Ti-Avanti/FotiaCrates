@@ -19,6 +19,7 @@ item:
   glow: true
 
 # 可以打开的宝箱列表
+# 空列表 [] 表示不能开箱；只有显式填写 "*" 才能打开全部宝箱。
 # 此钥匙可以打开common和rare两种宝箱
 allowed-crates:
   - "common"

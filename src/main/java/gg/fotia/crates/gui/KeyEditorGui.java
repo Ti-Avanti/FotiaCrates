@@ -94,24 +94,33 @@ public final class KeyEditorGui {
         Map<String, String> placeholders = new HashMap<>();
         placeholders.put("{key}", key.getName());
         placeholders.put("{key_id}", key.getId());
-        placeholders.put("{crate_count}", String.valueOf(key.getCrateIds().size()));
+        placeholders.put("{crate_count}", String.valueOf(allowedCrateCount(key)));
         placeholders.put("{glow}", key.isGlow() ? "是" : "否");
 
         renderer.placeFixedItemsWithPlaceholders(inventory, config, player, null, placeholders);
 
         // 放置可开启的宝箱列表
         List<Integer> contentSlots = config.getContentSlots();
+        Map<Integer, String> bindingsBySlot = new HashMap<>();
         int slotIndex = 0;
         for (String crateId : key.getCrateIds()) {
             if (slotIndex >= contentSlots.size()) break;
 
             Crate crate = plugin.getCrateManager().getCrate(crateId);
-            if (crate == null) continue;
-
             int slot = contentSlots.get(slotIndex);
-            ItemStack crateItem = createKeyEditCrateItem(crate);
+            ItemStack crateItem = "*".equals(crateId)
+                    ? createBindingStatusItem(player, Material.NETHER_STAR, "all", crateId)
+                    : crate == null
+                            ? createBindingStatusItem(player, Material.BARRIER, "missing", crateId)
+                            : createKeyEditCrateItem(crate);
             inventory.setItem(slot, crateItem);
+            bindingsBySlot.put(slot, crateId);
             slotIndex++;
+        }
+        holder.setData("key_crate_slots", Map.copyOf(bindingsBySlot));
+        if (bindingsBySlot.isEmpty() && !contentSlots.isEmpty()) {
+            inventory.setItem(contentSlots.get(0),
+                    createBindingStatusItem(player, Material.BARRIER, "none", ""));
         }
 
         player.openInventory(inventory);
@@ -120,7 +129,7 @@ public final class KeyEditorGui {
     private ItemStack createAdminKeyItem(Key key) {
         List<String> lore = new ArrayList<>();
         lore.add("<!i><gray>ID: <!i><white>" + key.getId());
-        lore.add("<!i><gray>可开启宝箱: <!i><white>" + key.getCrateIds().size() + "个");
+        lore.add("<!i><gray>可开启宝箱: <!i><white>" + allowedCrateCount(key) + "个");
         lore.add("");
         lore.add("<!i><yellow>左键 <!i><gray>- 编辑钥匙");
         lore.add("<!i><red>Shift+右键 <!i><gray>- 删除钥匙");
@@ -145,6 +154,27 @@ public final class KeyEditorGui {
         return new ItemBuilder(crate.getBlockMaterial())
                 .name(crate.getName())
                 .lore(lore)
+                .build();
+    }
+
+    private int allowedCrateCount(Key key) {
+        if (key.opensAllCrates()) return plugin.getCrateManager().getAllCrates().size();
+        return (int) key.getCrateIds().stream()
+                .filter(id -> plugin.getCrateManager().getCrate(id) != null).count();
+    }
+
+    private ItemStack createBindingStatusItem(Player player, Material material, String status, String crateId) {
+        var language = plugin.getLanguageManager();
+        String prefix = "admin-key-binding-" + status;
+        var placeholders = gg.fotia.crates.lang.LanguageManager.placeholders("crate", crateId);
+        List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
+        lore.add(language.getMessageNoPrefix(player, prefix + "-lore", placeholders));
+        if (!"none".equals(status)) {
+            lore.add(language.getMessageNoPrefix(player, "admin-key-binding-remove"));
+        }
+        return new ItemBuilder(material)
+                .name(language.getMessageNoPrefix(player, prefix + "-name", placeholders))
+                .loreComponents(lore)
                 .build();
     }
 

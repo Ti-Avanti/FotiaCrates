@@ -10,7 +10,11 @@ final class KeyMessageMigration {
 
     static boolean apply(ConfigurationSection config, ConfigurationSection bundled) {
         boolean changed = false;
-        for (String key : List.of("no-key", "no-key-detail", "no-key-separator", "no-key-configured")) {
+        for (String key : List.of("no-key", "no-key-detail", "no-key-separator", "no-key-configured",
+                "admin-key-binding-all-name", "admin-key-binding-all-lore",
+                "admin-key-binding-none-name", "admin-key-binding-none-lore",
+                "admin-key-binding-missing-name", "admin-key-binding-missing-lore",
+                "admin-key-binding-remove")) {
             String path = "messages." + key;
             String current = config.getString(path);
             String replacement = bundled.getString(path);

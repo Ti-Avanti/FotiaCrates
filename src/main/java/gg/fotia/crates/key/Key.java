@@ -59,11 +59,13 @@ public class Key {
      * 检查此钥匙是否可以打开指定宝箱
      */
     public boolean canOpenCrate(String crateId) {
-        // 如果allowedCrates为空或包含"*"，则可以打开所有宝箱
-        if (allowedCrates.isEmpty() || allowedCrates.contains("*")) {
-            return true;
-        }
-        return allowedCrates.contains(crateId);
+        // 未绑定的钥匙不能开箱；通用钥匙必须显式配置 "*"。
+        return crateId != null && !crateId.isBlank()
+                && (opensAllCrates() || allowedCrates.contains(crateId));
+    }
+
+    public boolean opensAllCrates() {
+        return allowedCrates.contains("*");
     }
 
     /**

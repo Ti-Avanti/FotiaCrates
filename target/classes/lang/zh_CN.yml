@@ -5,6 +5,13 @@
 prefix: "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> "
 
 messages:
+  admin-key-binding-all-name: "<!i><gold>全部宝箱（通用钥匙）"
+  admin-key-binding-all-lore: "<!i><gray>显式绑定了 *，可开启当前及以后创建的所有宝箱。"
+  admin-key-binding-none-name: "<!i><red>尚未绑定任何宝箱"
+  admin-key-binding-none-lore: "<!i><gray>此钥匙不能开箱，请通过下方按钮添加宝箱。"
+  admin-key-binding-missing-name: "<!i><red>失效的宝箱绑定：{crate}"
+  admin-key-binding-missing-lore: "<!i><gray>此宝箱不存在，可以移除该绑定。"
+  admin-key-binding-remove: "<!i><red>Shift+右键 <!i><gray>- 移除此绑定"
   reload-failed: "<!i><red>以下宝箱配置加载失败：{crates}。已保留旧配置并暂停相关开箱，请查看控制台修正后重载。"
   reward-item-unavailable: "<!i><red>该宝箱奖励物品暂不可用，请联系管理员。未扣除钥匙。"
   rarity-probability-mode-per-reward: '<!i><gray>每个奖励'
