@@ -81,7 +81,7 @@ animation:
   # CSGO/PHYSICAL/TRIPLE_REEL 为旧版兼容值，TRIPLE_REEL 会自动迁移为 CARD_REVEAL
   type: ROULETTE
   # 持续时间(秒)
-  duration: 3
+  duration: 8
   # 抽奖GUI标题（留空则使用全局配置）
   title: "<!i><dark_gray>普通宝箱抽奖中..."
 

@@ -169,6 +169,7 @@ public class FotiaCrates extends JavaPlugin {
         if (animationManager != null) {
             animationManager.cancelAllAnimations();
         }
+        if (guiManager != null) guiManager.getFutureMenus().close();
         if (openSessionManager != null) {
             openSessionManager.clear();
         }

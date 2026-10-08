@@ -276,7 +276,19 @@ public class CrateOpenService {
         plugin.getRewardSettlementCoordinator().deliver(playerUuid, results,
                 (player, result) -> deliverReward(player, crate, result, crateLocation,
                         playPresentation && result == first),
-                result -> recordDeferredReward(playerUuid, playerName, crate, result), completion);
+                result -> recordDeferredReward(playerUuid, playerName, crate, result), () -> {
+                    try {
+                        completion.run();
+                    } finally {
+                        try {
+                            Player current = plugin.getServer().getPlayer(playerUuid);
+                            if (plugin.isEnabled() && current != null && current.isOnline())
+                                plugin.getGuiManager().getFutureMenus().results(current, crate, results);
+                        } catch (RuntimeException displayFailure) {
+                            plugin.getLogger().warning("抽奖结果界面显示失败: " + displayFailure.getMessage());
+                        }
+                    }
+                });
     }
 
     private void recordDeferredReward(UUID playerUuid, String playerName, Crate crate, RewardResult result) {

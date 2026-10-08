@@ -8,6 +8,7 @@ description: Feature-rich Minecraft crate plugin
 depend:
   - packetevents
 softdepend:
+  - FutureUI
   - BasicTool
   - ItemsAdder
   - FotiaTranslator

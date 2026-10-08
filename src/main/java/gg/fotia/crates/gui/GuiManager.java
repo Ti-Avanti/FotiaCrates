@@ -65,6 +65,7 @@ public class GuiManager {
     private final RarityProbabilityEditor rarityProbabilityEditor;
     private final GuiRenderSupport renderer;
     private final KeyEditorGui keyEditorGui;
+    private final OptionalCrateMenus futureMenus;
     // 异步聊天线程会读取（GuiListener.onPlayerChat），必须用并发 Map
     private final Map<UUID, InputSession> inputSessions = new ConcurrentHashMap<>();
 
@@ -74,6 +75,7 @@ public class GuiManager {
         this.renderer = new GuiRenderSupport(plugin, configManager);
         this.keyEditorGui = new KeyEditorGui(plugin, configManager, renderer);
         this.rarityProbabilityEditor = new RarityProbabilityEditor(plugin);
+        this.futureMenus = new OptionalCrateMenus(plugin);
         gg.fotia.translator.bridge.PaperTranslatorBridge.onChange(plugin, event -> {
             Player player = event.getPlayer();
             if (!(player.getOpenInventory().getTopInventory().getHolder() instanceof CrateGuiHolder holder)) return;
@@ -101,6 +103,7 @@ public class GuiManager {
         if (!crate.isPreviewEnabled()) {
             return;
         }
+        if (futureMenus.preview(player, crate, page)) return;
 
         GuiConfig config = configManager.getGuiConfig("preview");
         if (config == null) {
@@ -320,7 +323,7 @@ public class GuiManager {
 
     public void openHistoryGui(Player player, UUID targetUuid, String targetName, String crateId, int page,
                                HistoryReturnContext returnContext) {
-        plugin.getHistoryManager().getHistoryAsync(targetUuid, crateId, 100,
+        plugin.getHistoryManager().getHistoryAsync(targetUuid, crateId, futureMenus.historyLimit(),
                 history -> openHistoryGuiLoaded(
                         player, targetUuid, targetName, crateId, page, history, returnContext));
     }
@@ -331,6 +334,7 @@ public class GuiManager {
         if (!player.isOnline()) {
             return;
         }
+        if (futureMenus.history(player, targetUuid, targetName, crateId, page, history, returnContext)) return;
         GuiConfig config = configManager.getGuiConfig("history");
         if (config == null) {
             plugin.getLogger().warning("History GUI config not found!");
@@ -1237,8 +1241,11 @@ public class GuiManager {
      * 重新加载
      */
     public void reload() {
+        futureMenus.reload();
         configManager.reload();
     }
+
+    public OptionalCrateMenus getFutureMenus() { return futureMenus; }
 
     /**
      * 检查是否是GUI
@@ -2366,6 +2373,7 @@ public class GuiManager {
     }
 
     public void openMultiOpenResultGui(Player player, Crate crate, List<RewardResult> rewardResults) {
+        if (futureMenus.results(player, crate, rewardResults)) return;
         GuiConfig config = configManager.getGuiConfig("multi_open_result");
         if (config == null) {
             return;

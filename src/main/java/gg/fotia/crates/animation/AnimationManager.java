@@ -34,7 +34,9 @@ public class AnimationManager {
         List<Animation> animations = new ArrayList<>(2);
 
         if (guiAnimEnabled) {
-            Animation animation = animationFactory.create(crate.getAnimationType());
+            Animation animation = crate.getAnimationType() == AnimationType.INSTANT ? null
+                    : plugin.getGuiManager().getFutureMenus().animation(player, crate);
+            if (animation == null) animation = animationFactory.create(crate.getAnimationType());
             if (animation != null) {
                 animations.add(animation);
             }
