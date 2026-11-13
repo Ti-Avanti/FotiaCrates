@@ -15,7 +15,7 @@ public final class OptimizationSettings {
         for (String path : List.of("hologram.update-interval-ticks", "hologram.max-updates-per-tick",
                 "persistence.player-load.retry-delay-ticks", "persistence.player-load.max-retry-delay-ticks",
                 "persistence.configuration.write-delay-ticks", "persistence.configuration.retry-delay-ticks",
-                "performance.multi-open.delivery-batch-size")) {
+                "performance.multi-open.delivery-batch-size", "performance.models.fotiamodel-visibility-interval-ticks")) {
             if (!config.isSet(path) && config.getDefaults().contains(path)) {
                 config.set(path, config.getDefaults().get(path));
                 config.setComments(path, config.getDefaults().getComments(path));

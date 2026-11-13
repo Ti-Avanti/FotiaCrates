@@ -184,19 +184,30 @@ public final class AsyncPlayerDataManager {
     }
 
     public boolean addVirtualKeys(UUID playerId, String keyId, int amount) {
-        if (!cache.isLoaded(playerId)) {
+        if (!cache.isLoaded(playerId) || amount < 0 || !cache.changeVirtualKeys(playerId, keyId, amount)) {
             return false;
         }
-        setVirtualKeys(playerId, keyId, getVirtualKeys(playerId, keyId) + amount);
+        dirtyPlayers.add(playerId);
         return true;
     }
 
     public boolean removeVirtualKeys(UUID playerId, String keyId, int amount) {
-        if (!cache.isLoaded(playerId)) {
+        if (!cache.isLoaded(playerId) || amount < 0 || !cache.changeVirtualKeys(playerId, keyId, -amount)) {
             return false;
         }
-        setVirtualKeys(playerId, keyId, Math.max(0, getVirtualKeys(playerId, keyId) - amount));
+        dirtyPlayers.add(playerId);
         return true;
+    }
+
+    public void refreshVirtualKeys(UUID playerId) {
+        if (!isReady(playerId) || dirtyPlayers.contains(playerId)) return;
+        var before = cache.snapshot(playerId);
+        if (!before.keyMutations().isEmpty()) return;
+        executeDatabaseOperation(() -> {
+            try (var c = plugin.getDatabaseManager().getConnection()) { return gg.fotia.basictool.assets.CrateKeyStore.balances(c, playerId); }
+        }, balances -> {
+            if (!committingPlayers.contains(playerId) && !dirtyPlayers.contains(playerId)) cache.refreshVirtualKeys(playerId, before.revision(), balances);
+        }, error -> { /* 不把读取失败当作零余额；下次定时刷新重试。 */ });
     }
 
     public int getPityCount(UUID playerId, String crateId) {
@@ -630,15 +641,14 @@ public final class AsyncPlayerDataManager {
     private void persistPlayerState(Connection connection, UUID playerId,
                                     PlayerDataCache.Snapshot snapshot) throws SQLException {
         // 仅写入本会话变更过的条目，避免每次开箱全量重写所有钥匙/保底行
-        Map<String, Integer> changedKeys = filterChanged(snapshot.virtualKeys(), snapshot.changedKeys());
         Map<String, Integer> changedPity = filterChanged(snapshot.pityCounts(), snapshot.changedCrates());
         Set<PlayerDataCache.RewardKey> changedCollectedRewards = new HashSet<>(
                 snapshot.changedCollectedRewards());
         changedCollectedRewards.retainAll(snapshot.collectedRewards());
-        if (changedKeys.isEmpty() && changedPity.isEmpty() && changedCollectedRewards.isEmpty()) {
+        if (snapshot.keyMutations().isEmpty() && changedPity.isEmpty() && changedCollectedRewards.isEmpty()) {
             return;
         }
-        upsertVirtualKeys(connection, playerId, changedKeys);
+        gg.fotia.basictool.assets.CrateKeyStore.apply(connection, mysql, playerId, snapshot.keyMutations(), "FotiaCrates");
         upsertPityCounts(connection, playerId, changedPity);
         insertCollectedRewards(connection, playerId, changedCollectedRewards);
     }
@@ -655,24 +665,6 @@ public final class AsyncPlayerDataManager {
             }
         }
         return filtered;
-    }
-
-    private void upsertVirtualKeys(Connection connection, UUID playerId, Map<String, Integer> virtualKeys) throws SQLException {
-        if (virtualKeys.isEmpty()) {
-            return;
-        }
-        String sql = mysql
-                ? "INSERT INTO player_keys (uuid, key_id, amount) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE amount = VALUES(amount)"
-                : "INSERT OR REPLACE INTO player_keys (uuid, key_id, amount) VALUES (?, ?, ?)";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            for (Map.Entry<String, Integer> entry : virtualKeys.entrySet()) {
-                statement.setString(1, playerId.toString());
-                statement.setString(2, entry.getKey());
-                statement.setInt(3, entry.getValue());
-                statement.addBatch();
-            }
-            statement.executeBatch();
-        }
     }
 
     private void upsertPityCounts(Connection connection, UUID playerId, Map<String, Integer> pityCounts) throws SQLException {

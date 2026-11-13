@@ -5,6 +5,10 @@
 prefix: "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> "
 
 messages:
+  model-fotiamodel-unavailable: "<!i><red>宝箱 {crate} 的 FotiaModel 服务尚未就绪。"
+  model-fotiamodel-missing: "<!i><red>宝箱 {crate} 使用的 FotiaModel 模型不存在：{model}。"
+  model-fotiamodel-animation-missing: "<!i><red>宝箱 {crate} 的模型 {model} 不包含动画：{detail}。"
+  model-fotiamodel-error: "<!i><red>宝箱 {crate} 的 FotiaModel 显示失败：{detail}。"
   admin-key-binding-all-name: "<!i><gold>全部宝箱（通用钥匙）"
   admin-key-binding-all-lore: "<!i><gray>显式绑定了 *，可开启当前及以后创建的所有宝箱。"
   admin-key-binding-none-name: "<!i><red>尚未绑定任何宝箱"

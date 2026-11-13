@@ -18,7 +18,8 @@ block:
       - ""
       - "<!i><yellow>右键放置"
   # 模型设置（可选）
-  # provider 可选: modelengine, bettermodel
+  # provider 可选: modelengine, bettermodel, fotiamodel
+  # fotiamodel 从服务端 FotiaModel 的 models 目录加载模型，玩家使用配套客户端。
   # 旧版 block.modelengine 配置仍兼容，但推荐使用此通用配置。
   model:
     enabled: false

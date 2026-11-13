@@ -57,6 +57,7 @@ public final class OpenRewardJournal {
                 result.getActualReward().getId(), snapshots.computeIfAbsent(
                         result.getActualReward(), RewardSnapshotCodec::serialize))).toList();
     }
+    public UUID ownerId() { return UUID.fromString(ownerId); }
 
     /** Called within the same transaction as the key and pity changes. */
     public void insert(Connection connection, List<Entry> entries) throws SQLException {

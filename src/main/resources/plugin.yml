@@ -16,6 +16,7 @@ softdepend:
   - PlaceholderAPI
   - ModelEngine
   - BetterModel
+  - FotiaModel
   - CraftEngine
   - SweetMail
 libraries:

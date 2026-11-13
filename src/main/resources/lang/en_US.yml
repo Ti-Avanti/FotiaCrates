@@ -5,6 +5,10 @@
 prefix: "<!i><gradient:#FFD700:#FFA500>[FotiaCrates]</gradient> "
 
 messages:
+  model-fotiamodel-unavailable: "<!i><red>FotiaModel is not ready for crate {crate}."
+  model-fotiamodel-missing: "<!i><red>FotiaModel model {model} for crate {crate} was not found."
+  model-fotiamodel-animation-missing: "<!i><red>Model {model} for crate {crate} has no animation named {detail}."
+  model-fotiamodel-error: "<!i><red>FotiaModel failed for crate {crate}: {detail}."
   admin-key-binding-all-name: "<!i><gold>All crates (universal key)"
   admin-key-binding-all-lore: "<!i><gray>Explicitly bound to *: opens all current and future crates."
   admin-key-binding-none-name: "<!i><red>No crates bound"

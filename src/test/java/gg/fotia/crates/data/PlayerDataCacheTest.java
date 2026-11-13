@@ -12,6 +12,33 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerDataCacheTest {
 
+    @Test void acknowledgedKeyOperationsAreNotReplayedAndRefreshDoesNotClobberPendingChanges() {
+        var cache = new PlayerDataCache(); var player = UUID.randomUUID();
+        cache.load(player, Map.of("common_key", 5), Map.of());
+        assertTrue(cache.changeVirtualKeys(player, "common_key", 2));
+        var first = cache.snapshot(player);
+        assertTrue(cache.changeVirtualKeys(player, "common_key", -1));
+        cache.markPersisted(player, first);
+        assertEquals(1, cache.snapshot(player).keyMutations().size());
+        cache.refreshVirtualKeys(player, cache.snapshot(player).revision(), Map.of("common_key", 20));
+        assertEquals(6, cache.getVirtualKeys(player, "common_key"));
+        cache.markPersisted(player, cache.snapshot(player));
+        cache.refreshVirtualKeys(player, cache.snapshot(player).revision(), Map.of("common_key", 20));
+        assertEquals(20, cache.getVirtualKeys(player, "common_key"));
+        assertTrue(cache.snapshot(player).keyMutations().isEmpty());
+    }
+
+    @Test void failedOpenDiscardsOnlyItsUncommittedKeyMutation() {
+        var cache = new PlayerDataCache(); var player = UUID.randomUUID();
+        cache.load(player, Map.of("common_key", 5), Map.of());
+        assertTrue(cache.changeVirtualKeys(player, "common_key", 2));
+        var before = cache.snapshot(player);
+        assertTrue(cache.changeVirtualKeys(player, "common_key", -1));
+        cache.restore(player, before);
+        assertEquals(before.keyMutations(), cache.snapshot(player).keyMutations());
+        assertEquals(7, cache.getVirtualKeys(player, "common_key"));
+    }
+
     @Test
     void restoresThePreviousStateWhenPersistenceFails() {
         PlayerDataCache cache = new PlayerDataCache();

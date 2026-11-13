@@ -37,6 +37,12 @@ public class DatabaseManager {
         }
 
         database.createTables();
+        try (Connection connection = database.getConnection()) {
+            gg.fotia.basictool.assets.CrateKeyStore.schema(connection, type.equalsIgnoreCase("mysql"));
+        } catch (SQLException error) {
+            plugin.getLogger().severe("Failed to initialize shared key ledger: " + error.getMessage());
+            database.close(); return false;
+        }
         return true;
     }
 

@@ -122,6 +122,8 @@ performance:
   models:
     # 模型健康检查间隔，单位为 tick
     health-check-interval-ticks: 100
+    # 旧 FotiaModel 版本没有实例可视距离接口时，刷新观察者的间隔；新版使用原生距离控制。
+    fotiamodel-visibility-interval-ticks: 10
     # 每次检查的最大抽奖箱数量，避免大量模型在同一 tick 内处理
     max-checks-per-run: 16
   pending-rewards:
@@ -201,3 +203,12 @@ overflow-mail:
     - "<!i><gray>你的背包空间不足。"
     - "<!i><gray>多余的奖励物品已发送到邮箱。"
     - "<!i><yellow>请输入 /mail inbox 查收。"
+
+# 多 Bungee / 多子服共用钥匙：所有宝箱服连接同一 MySQL 数据库并更新兼容版。
+# 原余额保留；新增流水防止重试重复发放。不同独立网络使用不同数据库。
+# settlement-server.id 是持久化节点标识，每个宝箱服应独立生成，不要复制到其他节点。
+key-network:
+  # 轮询数据库更新在线玩家的钥匙显示；实际开箱扣除始终在数据库事务校验。
+  refresh-interval-ticks: 40
+  # 每轮最多刷新多少玩家；高在线量时分批处理，不阻塞主线程。
+  max-players-per-refresh: 50

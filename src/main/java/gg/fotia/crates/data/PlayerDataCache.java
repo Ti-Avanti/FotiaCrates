@@ -6,6 +6,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
+import gg.fotia.basictool.assets.KeyMutation;
 
 /**
  * Main-thread cache for the persistent key and pity values of online players.
@@ -42,9 +45,27 @@ public final class PlayerDataCache {
 
     public void setVirtualKeys(UUID playerId, String keyId, int amount) {
         State state = requireState(playerId);
+        state.keyMutations.add(new KeyMutation(UUID.randomUUID(), keyId, KeyMutation.Mode.SET, Math.max(0, amount)));
         state.virtualKeys.put(keyId, Math.max(0, amount));
         state.changedKeys.add(keyId);
         state.revision++;
+    }
+
+    public boolean changeVirtualKeys(UUID playerId, String keyId, int delta) {
+        State state = requireState(playerId);
+        long next = (long) state.virtualKeys.getOrDefault(keyId, 0) + delta;
+        if (next < 0 || next > Integer.MAX_VALUE || state.keyMutations.size() >= 4096) return false;
+        if (delta == 0) return true;
+        state.keyMutations.add(new KeyMutation(UUID.randomUUID(), keyId, KeyMutation.Mode.ADD, delta));
+        state.virtualKeys.put(keyId, (int) next); state.changedKeys.add(keyId); state.revision++;
+        return true;
+    }
+
+    /** 异步读取期间发生过本地修改时放弃刷新，下轮再读取。刷新不会创建写入操作。 */
+    public void refreshVirtualKeys(UUID playerId, long expectedRevision, Map<String, Integer> balances) {
+        State state = states.get(playerId);
+        if (state == null || state.revision != expectedRevision || !state.keyMutations.isEmpty()) return;
+        state.virtualKeys.clear(); state.virtualKeys.putAll(copyNonNegative(balances)); state.revision++;
     }
 
     public int getPityCount(UUID playerId, String crateId) {
@@ -122,16 +143,20 @@ public final class PlayerDataCache {
                 state.changedKeys,
                 state.changedCrates,
                 state.changedCollectedRewards,
-                state.revision
+                state.revision, state.keyMutations
         );
     }
 
     public void markPersisted(UUID playerId, Snapshot persistedSnapshot) {
         State state = states.get(playerId);
-        if (state == null || state.revision != persistedSnapshot.revision()) {
+        if (state == null) return;
+        var persisted = persistedSnapshot.keyMutations().stream().map(KeyMutation::operation).collect(java.util.stream.Collectors.toSet());
+        state.keyMutations.removeIf(change -> persisted.contains(change.operation()));
+        if (state.revision != persistedSnapshot.revision()) {
             return;
         }
         state.changedKeys.removeAll(persistedSnapshot.changedKeys());
+        state.keyMutations.forEach(change -> state.changedKeys.add(change.key()));
         state.changedCrates.removeAll(persistedSnapshot.changedCrates());
         state.changedCollectedRewards.removeAll(persistedSnapshot.changedCollectedRewards());
     }
@@ -144,6 +169,7 @@ public final class PlayerDataCache {
                 new HashSet<>(snapshot.collectedRewards())
         );
         state.changedKeys.addAll(snapshot.changedKeys());
+        state.keyMutations.addAll(snapshot.keyMutations());
         state.changedCrates.addAll(snapshot.changedCrates());
         state.changedCollectedRewards.addAll(snapshot.changedCollectedRewards());
         State previous = states.put(playerId, state);
@@ -183,6 +209,7 @@ public final class PlayerDataCache {
         private final Map<String, Integer> pityCounts;
         private final Set<RewardKey> collectedRewards;
         private final Set<String> changedKeys = new HashSet<>();
+        private final List<KeyMutation> keyMutations = new ArrayList<>();
         private final Set<String> changedCrates = new HashSet<>();
         private final Set<RewardKey> changedCollectedRewards = new HashSet<>();
         private long revision;
@@ -208,7 +235,7 @@ public final class PlayerDataCache {
     public record Snapshot(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts,
                            Set<RewardKey> collectedRewards,
                            Set<String> changedKeys, Set<String> changedCrates,
-                           Set<RewardKey> changedCollectedRewards, long revision) {
+                           Set<RewardKey> changedCollectedRewards, long revision, List<KeyMutation> keyMutations) {
 
         public Snapshot {
             virtualKeys = Map.copyOf(virtualKeys);
@@ -217,6 +244,13 @@ public final class PlayerDataCache {
             changedKeys = Set.copyOf(changedKeys);
             changedCrates = Set.copyOf(changedCrates);
             changedCollectedRewards = Set.copyOf(changedCollectedRewards);
+            keyMutations = List.copyOf(keyMutations);
+        }
+
+        public Snapshot(Map<String, Integer> virtualKeys, Map<String, Integer> pityCounts, Set<RewardKey> collectedRewards,
+                        Set<String> changedKeys, Set<String> changedCrates, Set<RewardKey> changedCollectedRewards, long revision) {
+            this(virtualKeys, pityCounts, collectedRewards, changedKeys, changedCrates, changedCollectedRewards, revision,
+                    changedKeys.stream().sorted().map(key -> new KeyMutation(UUID.randomUUID(), key, KeyMutation.Mode.SET, virtualKeys.getOrDefault(key, 0))).toList());
         }
 
         /**

@@ -42,6 +42,7 @@ public class FotiaCrates extends JavaPlugin {
     private DatabaseManager databaseManager;
     private CrateManager crateManager;
     private KeyManager keyManager;
+    private gg.fotia.crates.key.CrateKeyNetwork keyNetwork;
     private KeyDistributionManager keyDistributionManager;
     private GuiManager guiManager;
     private HistoryManager historyManager;
@@ -107,6 +108,8 @@ public class FotiaCrates extends JavaPlugin {
         cratePresentationManager = new CratePresentationManager(this);
         keyDistributionManager.start();
         asyncPlayerDataManager.start();
+        keyNetwork = new gg.fotia.crates.key.CrateKeyNetwork(this, rewardSettlementCoordinator.journal().ownerId());
+        keyNetwork.start();
 
         // 加载抽奖箱
         crateManager.loadCrates();
@@ -161,6 +164,7 @@ public class FotiaCrates extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (keyNetwork != null) keyNetwork.close();
         if (rewardSettlementCoordinator != null) rewardSettlementCoordinator.beginShutdown();
         if (entityInteractPacketListener != null) {
             entityInteractPacketListener.unregister();
@@ -245,6 +249,7 @@ public class FotiaCrates extends JavaPlugin {
         hologramManager.reload();
         particleManager.restart();
         asyncPlayerDataManager.reload();
+        if (keyNetwork != null) keyNetwork.start();
         keyDistributionManager.refreshOnlinePlayers();
         modelEngineManager.reconcileLoadedModels(previousLocations);
         modelEngineManager.restartHealthCheck();

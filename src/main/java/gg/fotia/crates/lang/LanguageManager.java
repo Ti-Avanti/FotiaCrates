@@ -69,7 +69,7 @@ public class LanguageManager {
                     if (messages != null) {
                         for (String key : messages.getKeys(false)) {
                             String path = "messages." + key;
-                            if ((key.startsWith("rarity-probability-") || key.startsWith("reward-delivery-")
+                            if ((key.startsWith("rarity-probability-") || key.startsWith("reward-delivery-") || key.startsWith("model-fotiamodel-")
                                     || key.equals("configuration-save-busy") || key.equals("crate-location-save-failed")
                                     || key.equals("reward-item-unavailable") || key.equals("reload-failed")) && !config.isSet(path)) {
                                 config.set(path, messages.get(key));

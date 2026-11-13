@@ -186,7 +186,7 @@ public class Crate {
             return "modelengine";
         }
         String normalized = provider.trim().toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
-        return normalized.equals("bettermodel") ? "bettermodel" : "modelengine";
+        return switch(normalized){case "bettermodel","fotiamodel" -> normalized;default -> "modelengine";};
     }
 
     public Reward rollReward() {
@@ -562,6 +562,7 @@ public class Crate {
     public boolean isModelEnabled() { return modelEngineEnabled; }
     public String getModelProvider() { return modelProvider; }
     public boolean isBetterModelEnabled() { return modelEngineEnabled && "bettermodel".equals(modelProvider); }
+    public boolean isFotiaModelEnabled() { return modelEngineEnabled && "fotiamodel".equals(modelProvider); }
     public boolean usesModelEngineProvider() { return modelEngineEnabled && "modelengine".equals(modelProvider); }
     public String getModelEngineId() { return modelEngineId; }
     public String getModelEngineIdleAnimation() { return modelEngineIdleAnimation; }

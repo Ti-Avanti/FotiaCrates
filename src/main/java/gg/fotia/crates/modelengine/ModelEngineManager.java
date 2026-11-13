@@ -35,6 +35,7 @@ public class ModelEngineManager {
     private final Map<ModelPosition, ModelIdentity> modelIdentities = new HashMap<>();
     private final Set<ModelPosition> staleModelPositions = new HashSet<>();
     private BetterModelManager betterModelManager;
+    private FotiaModelManager fotiaModelManager;
     private boolean modelEngineAvailable = false;
     private BukkitTask healthCheckTask;
     private int healthCheckCursor;
@@ -55,6 +56,9 @@ public class ModelEngineManager {
         this.plugin = plugin;
         initializeReflection();
         initializeBetterModel();
+        if(Runtime.version().feature()>=21&&plugin.getServer().getPluginManager().isPluginEnabled("FotiaModel")) {
+            fotiaModelManager=new FotiaModelManager(plugin);
+        }
     }
 
     private void initializeBetterModel() {
@@ -130,8 +134,10 @@ public class ModelEngineManager {
     }
 
     public boolean isAvailable() {
-        return modelEngineAvailable || isBetterModelAvailable();
+        return modelEngineAvailable || isBetterModelAvailable() || isFotiaModelAvailable();
     }
+
+    private boolean isFotiaModelAvailable(){return fotiaModelManager!=null&&fotiaModelManager.isAvailable();}
 
     private boolean isBetterModelAvailable() {
         return betterModelManager != null && betterModelManager.isAvailable();
@@ -314,6 +320,7 @@ public class ModelEngineManager {
     }
 
     private boolean isProviderModelHealthy(Crate crate, Location blockLoc) {
+        if(crate.isFotiaModelEnabled())return isFotiaModelAvailable()&&fotiaModelManager.hasModel(blockLoc);
         if (crate.isBetterModelEnabled()) {
             return isBetterModelAvailable() && betterModelManager.hasModel(blockLoc);
         }
@@ -350,6 +357,7 @@ public class ModelEngineManager {
     }
 
     private void removeAllProviderModels(Location blockLoc, boolean clearBarrierBlock) {
+        if(fotiaModelManager!=null)fotiaModelManager.removeCrateModel(blockLoc);
         if (isBetterModelAvailable()) {
             betterModelManager.removeCrateModel(blockLoc, false);
         }
@@ -375,6 +383,11 @@ public class ModelEngineManager {
 
     public void spawnCrateModel(Crate crate, Location location, float yaw) {
         if (!plugin.getCustomBlockSupport().isReady() || usesCustomBlock(crate, location)) return;
+        if(crate.isFotiaModelEnabled()) {
+            if(fotiaModelManager!=null){removeCrateModelInternal(location.getBlock().getLocation(),false);if(isBetterModelAvailable())betterModelManager.removeCrateModel(location,false);fotiaModelManager.spawnCrateModel(crate,location,yaw);}
+            return;
+        }
+        if(fotiaModelManager!=null)fotiaModelManager.removeCrateModel(location);
         if (crate.isBetterModelEnabled()) {
             if (isBetterModelAvailable()) {
                 removeCrateModelInternal(location.getBlock().getLocation(), false);
@@ -490,6 +503,7 @@ public class ModelEngineManager {
         if (!ensureCrateModel(crate, location, resolveSavedYaw(location))) {
             return;
         }
+        if(crate.isFotiaModelEnabled()){if(isFotiaModelAvailable())fotiaModelManager.playOpenAnimation(crate,location);return;}
         if (crate.isBetterModelEnabled()) {
             if (isBetterModelAvailable()) {
                 betterModelManager.playOpenAnimation(crate, location, openingPlayer);
@@ -535,6 +549,7 @@ public class ModelEngineManager {
         if (!ensureCrateModel(crate, location, resolveSavedYaw(location))) {
             return;
         }
+        if(crate.isFotiaModelEnabled()){if(isFotiaModelAvailable())fotiaModelManager.playIdleAnimation(crate,location);return;}
         if (crate.isBetterModelEnabled()) {
             if (isBetterModelAvailable()) {
                 betterModelManager.playIdleAnimation(crate, location);
@@ -782,11 +797,13 @@ public class ModelEngineManager {
 
     public boolean hasModel(Location location) {
         return hasHealthyModelEngineModel(location.getBlock().getLocation())
-                || (isBetterModelAvailable() && betterModelManager.hasModel(location));
+                || (isBetterModelAvailable() && betterModelManager.hasModel(location))
+                || (isFotiaModelAvailable()&&fotiaModelManager.hasModel(location));
     }
 
     public void cleanup() {
         stopHealthCheck();
+        if(fotiaModelManager!=null)fotiaModelManager.cleanup();
         if (isBetterModelAvailable()) {
             betterModelManager.cleanup();
         }
