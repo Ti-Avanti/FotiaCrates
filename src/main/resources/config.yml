@@ -1,5 +1,9 @@
 # FotiaCrates 主配置文件
 
+compatibility:
+  # 按 EnchantmentSlots 的规则显示奖励附魔槽，并在背包合并物品前应用其槽位设置。
+  enchantment-slots: true
+
 # 数据库设置
 database:
   # 数据库类型: sqlite 或 mysql

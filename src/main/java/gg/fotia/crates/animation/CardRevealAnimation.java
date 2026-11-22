@@ -80,7 +80,7 @@ public final class CardRevealAnimation implements BatchAnimation, InteractiveAni
         allowedSlots = resolveSlots(config, size);
         activeSlots = chooseSlots(this.finalRewards.size());
         selection = new CardRevealSelection(activeSlots, this.finalRewards.size());
-        board = new CardRevealBoard(inventory, settings);
+        board = new CardRevealBoard(inventory, settings, plugin.getEnchantmentSlots().animationIcons(player));
         board.useSlots(activeSlots);
         List<Reward> available = crate.getAvailableRewardsFor(player);
         displayRewards = available.isEmpty() ? this.finalRewards : List.copyOf(available);

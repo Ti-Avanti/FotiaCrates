@@ -9,16 +9,19 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.function.Function;
 
 final class CardRevealBoard {
 
     private final Inventory inventory;
     private final CardAnimationSettings settings;
+    private final Function<Reward, ItemStack> rewardIcons;
     private List<Integer> cardSlots = List.of();
 
-    CardRevealBoard(Inventory inventory, CardAnimationSettings settings) {
+    CardRevealBoard(Inventory inventory, CardAnimationSettings settings, Function<Reward, ItemStack> rewardIcons) {
         this.inventory = inventory;
         this.settings = settings;
+        this.rewardIcons = rewardIcons;
     }
 
     void useSlots(List<Integer> slots) {
@@ -35,7 +38,7 @@ final class CardRevealBoard {
             int rewardIndex = rewardIndexes.get(index);
             if (rewardIndex >= 0 && rewardIndex < rewards.size()) {
                 inventory.setItem(cardSlots.get(index),
-                        rewards.get(rewardIndex).getDisplayItem());
+                        rewardIcons.apply(rewards.get(rewardIndex)));
             }
         }
     }
@@ -48,7 +51,7 @@ final class CardRevealBoard {
     }
 
     void reveal(int slot, Reward reward) {
-        inventory.setItem(slot, reward.getDisplayItem());
+        inventory.setItem(slot, rewardIcons.apply(reward));
     }
 
     void status(String configuredName, int revealed, int total) {

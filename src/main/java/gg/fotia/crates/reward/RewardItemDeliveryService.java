@@ -80,8 +80,13 @@ public class RewardItemDeliveryService {
                 continue;
             }
 
-            HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(item.clone());
-            overflowItems.addAll(leftover.values());
+            ItemStack inventoryCopy = plugin.getEnchantmentSlots().inventoryCopy(player, item);
+            HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(inventoryCopy);
+            for (ItemStack remaining : leftover.values()) {
+                ItemStack overflow = item.clone();
+                overflow.setAmount(remaining.getAmount());
+                overflowItems.add(overflow);
+            }
         }
         return overflowItems;
     }

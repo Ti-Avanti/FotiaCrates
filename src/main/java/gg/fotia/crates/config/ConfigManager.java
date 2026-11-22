@@ -31,6 +31,10 @@ public class ConfigManager {
         config = plugin.getConfig();
 
         boolean updated = RarityProbabilitySettings.installDefaults(config);
+        if (!config.contains("compatibility.enchantment-slots", true)) {
+            config.set("compatibility.enchantment-slots", true);
+            updated = true;
+        }
         if (OptimizationSettings.installDefaults(config) | updated) {
             plugin.saveConfig();
         }
@@ -191,6 +195,10 @@ public class ConfigManager {
 
     public FileConfiguration getConfig() {
         return config;
+    }
+
+    public boolean isEnchantmentSlotsEnabled() {
+        return config.getBoolean("compatibility.enchantment-slots", true);
     }
 
     public String getDatabaseType() {

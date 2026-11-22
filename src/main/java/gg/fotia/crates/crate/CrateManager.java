@@ -1526,26 +1526,7 @@ public class CrateManager {
             YamlConfiguration config = configurationStore.read(file);
             String path = "rewards." + rewardId + ".item";
 
-            // 只更新item配置（实际给予的物品）
-            config.set(path + ".material", item.getType().name());
-            config.set(path + ".amount", item.getAmount());
-
-            if (item.hasItemMeta()) {
-                ItemMeta meta = item.getItemMeta();
-                if (meta.hasDisplayName()) {
-                    config.set(path + ".name", meta.getDisplayName());
-                } else {
-                    config.set(path + ".name", null);
-                }
-                if (meta.hasLore()) {
-                    config.set(path + ".lore", meta.getLore());
-                } else {
-                    config.set(path + ".lore", null);
-                }
-            } else {
-                config.set(path + ".name", null);
-                config.set(path + ".lore", null);
-            }
+            config.set(path, item.clone());
 
             configurationStore.save(config, file);
             reloadCrate(crateId);
@@ -1606,44 +1587,7 @@ public class CrateManager {
     }
 
     public void updateRewardDisplayIcon(String crateId, String rewardId, ItemStack item, boolean manual) {
-        File file = new File(plugin.getDataFolder(), "crates/" + crateId + ".yml");
-        if (!configurationStore.exists(file)) return;
-
-        try {
-            YamlConfiguration config = configurationStore.read(file);
-            String basePath = "rewards." + rewardId;
-            String path = basePath + ".display";
-
-            // 只更新display配置
-            config.set(path + ".material", item.getType().name());
-            config.set(path + ".amount", item.getAmount());
-
-            if (item.hasItemMeta()) {
-                ItemMeta meta = item.getItemMeta();
-                if (meta.hasDisplayName()) {
-                    config.set(path + ".name", meta.getDisplayName());
-                } else {
-                    config.set(path + ".name", null);
-                }
-                if (meta.hasLore()) {
-                    config.set(path + ".lore", meta.getLore());
-                } else {
-                    config.set(path + ".lore", null);
-                }
-            } else {
-                config.set(path + ".name", null);
-                config.set(path + ".lore", null);
-            }
-            if (manual) {
-                config.set(basePath + ".display-auto.icon", false);
-            }
-
-            syncDisplayNameFromFirstItem(config, basePath);
-            configurationStore.save(config, file);
-            reloadCrate(crateId);
-        } catch (java.io.IOException e) {
-            plugin.getLogger().severe("Failed to update reward display icon: " + e.getMessage());
-        }
+        updateRewardDisplayIconFull(crateId, rewardId, item, manual);
     }
 
     /**
@@ -2055,31 +1999,8 @@ public class CrateManager {
             }
             config.set(path + ".display-name", name);
 
-            // 设置物品
-            config.set(path + ".item.material", item.getType().name());
-            config.set(path + ".item.amount", item.getAmount());
-            if (item.hasItemMeta()) {
-                ItemMeta meta = item.getItemMeta();
-                if (meta.hasDisplayName()) {
-                    config.set(path + ".item.name", meta.getDisplayName());
-                }
-                if (meta.hasLore()) {
-                    config.set(path + ".item.lore", meta.getLore());
-                }
-            }
-
-            // 设置显示物品
-            config.set(path + ".display.material", item.getType().name());
-            config.set(path + ".display.amount", item.getAmount());
-            if (item.hasItemMeta()) {
-                ItemMeta meta = item.getItemMeta();
-                if (meta.hasDisplayName()) {
-                    config.set(path + ".display.name", meta.getDisplayName());
-                }
-                if (meta.hasLore()) {
-                    config.set(path + ".display.lore", meta.getLore());
-                }
-            }
+            config.set(path + ".item", item.clone());
+            config.set(path + ".display", item.clone());
             applyAutoDisplayFromFirstItem(config, path, item);
 
             configurationStore.save(config, file);

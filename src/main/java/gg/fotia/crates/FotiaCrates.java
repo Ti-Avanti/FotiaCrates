@@ -7,6 +7,7 @@ import gg.fotia.crates.crate.CrateManager;
 import gg.fotia.crates.crate.CrateBlockInteraction;
 import gg.fotia.crates.crate.CrateBlockPlacement;
 import gg.fotia.crates.hook.CustomBlockSupport;
+import gg.fotia.crates.hook.EnchantmentSlotsHook;
 import gg.fotia.crates.hook.ItemsAdderBlockSupport;
 import gg.fotia.crates.crate.CratePresentationManager;
 import gg.fotia.crates.crate.OpenSessionManager;
@@ -51,6 +52,7 @@ public class FotiaCrates extends JavaPlugin {
     private ModelEngineManager modelEngineManager;
     private PendingRewardManager pendingRewardManager;
     private RewardItemDeliveryService rewardItemDeliveryService;
+    private EnchantmentSlotsHook enchantmentSlots;
     private RewardSettlementCoordinator rewardSettlementCoordinator;
     private HologramManager hologramManager;
     private ParticleManager particleManager;
@@ -70,6 +72,7 @@ public class FotiaCrates extends JavaPlugin {
         // 加载配置
         configManager = new ConfigManager(this);
         configManager.loadConfigs();
+        enchantmentSlots = new EnchantmentSlotsHook(this);
 
         // 加载多语言系统
         languageManager = new LanguageManager(this);
@@ -324,6 +327,10 @@ public class FotiaCrates extends JavaPlugin {
 
     public RewardItemDeliveryService getRewardItemDeliveryService() {
         return rewardItemDeliveryService;
+    }
+
+    public EnchantmentSlotsHook getEnchantmentSlots() {
+        return enchantmentSlots;
     }
 
     public HologramManager getHologramManager() {

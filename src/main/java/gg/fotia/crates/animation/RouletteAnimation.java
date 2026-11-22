@@ -22,6 +22,7 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.Function;
 
 public class RouletteAnimation implements Animation {
 
@@ -31,6 +32,7 @@ public class RouletteAnimation implements Animation {
     private boolean running = false;
     private Inventory inventory;
     private Player player;
+    private Function<Reward, ItemStack> rewardIcons;
     private List<Integer> animationSlots;
     private int centerSlot;
     private boolean finalRewardPlaced = false; // 标记最终奖励是否已放入
@@ -43,6 +45,7 @@ public class RouletteAnimation implements Animation {
     @Override
     public void start(Player player, Crate crate, Reward finalReward, Location crateLocation, Runnable onComplete) {
         this.player = player;
+        rewardIcons = plugin.getEnchantmentSlots().animationIcons(player);
         this.running = true;
         this.finalRewardPlaced = false; // 重置标记
         this.completion = new AnimationCompletion();
@@ -206,7 +209,7 @@ public class RouletteAnimation implements Animation {
             running = false;
 
             // 强制确保中心位置显示最终奖励
-            inventory.setItem(centerSlot, finalReward.getDisplayItem());
+            inventory.setItem(centerSlot, rewardIcons.apply(finalReward));
 
             closeTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (player.isOnline()) {
@@ -237,10 +240,10 @@ public class RouletteAnimation implements Animation {
         ItemStack newItem;
         if (placeForFinal) {
             // 在正确时机放入最终奖励，让它自然滚动到中间
-            newItem = finalReward.getDisplayItem();
+            newItem = rewardIcons.apply(finalReward);
         } else {
             Reward randomReward = RewardProbability.select(rewards, random);
-            newItem = (randomReward != null ? randomReward : finalReward).getDisplayItem();
+            newItem = rewardIcons.apply(randomReward != null ? randomReward : finalReward);
         }
         inventory.setItem(lastSlot, newItem);
     }

@@ -180,7 +180,7 @@ public class GuiManager {
                     && crate.isReplaceObtainedInPreview()
                     && collectedRewardIds.contains(reward.getId());
             ItemStack rewardItem = createRewardPreviewItem(
-                    reward,
+                    player, reward,
                     rewards,
                     crate.getPreviewChanceDisplayMode(),
                     config.getRewardPreviewDisplay(),
@@ -302,7 +302,7 @@ public class GuiManager {
             if (slotIndex >= contentSlots.size()) break;
 
             int slot = contentSlots.get(slotIndex);
-            ItemStack rewardItem = createEditorRewardItem(reward, crate.getRewards(), false);
+            ItemStack rewardItem = createEditorRewardItem(player, reward, crate.getRewards(), false);
             inventory.setItem(slot, rewardItem);
             slotIndex++;
         }
@@ -390,7 +390,7 @@ public class GuiManager {
         for (int i = startIndex; i < history.size() && slotIndex < contentSlots.size(); i++) {
             HistoryManager.HistoryEntry entry = history.get(i);
             int slot = contentSlots.get(slotIndex);
-            ItemStack historyItem = createHistoryItem(entry);
+            ItemStack historyItem = createHistoryItem(player, entry);
             inventory.setItem(slot, historyItem);
             slotIndex++;
         }
@@ -835,7 +835,7 @@ public class GuiManager {
                 .toList();
         for (int i = 0; i < Math.min(rewards.size(), rewardSlots.size()); i++) {
             Reward reward = rewards.get(i);
-            ItemStack item = reward.getDisplayItem().clone();
+            ItemStack item = plugin.getEnchantmentSlots().preview(player, reward);
             ItemBuilder builder = new ItemBuilder(item);
             List<String> lore = new ArrayList<>();
             if (item.hasItemMeta() && item.getItemMeta().hasLore()) {
@@ -885,7 +885,7 @@ public class GuiManager {
         for (int i = 0; i < rewardSlots.size(); i++) {
             int rewardIndex = startIndex + i;
             if (rewardIndex < rewards.size()) {
-                inventory.setItem(rewardSlots.get(i), createEditorRewardItem(rewards.get(rewardIndex), rewards, true));
+                inventory.setItem(rewardSlots.get(i), createEditorRewardItem(player, rewards.get(rewardIndex), rewards, true));
             }
         }
         player.openInventory(inventory);
@@ -1038,11 +1038,15 @@ public class GuiManager {
     /**
      * 创建奖励预览物品
      */
-    private ItemStack createRewardPreviewItem(Reward reward, List<? extends Reward> rewards,
+    private ItemStack createRewardPreviewItem(Player player, Reward reward, List<? extends Reward> rewards,
                                               PreviewChanceDisplayMode displayMode,
                                               RewardPreviewDisplayConfig displayConfig,
                                               UniqueDrawSettings.ObtainedIcon obtainedIcon) {
-        ItemStack item = reward.getDisplayItem();
+        RewardPreviewDisplayConfig resolvedConfig = displayConfig != null
+                ? displayConfig
+                : RewardPreviewDisplayConfig.defaults();
+        ItemStack item = obtainedIcon == null && resolvedConfig.isAppendItemLore()
+                ? plugin.getEnchantmentSlots().preview(player, reward) : reward.getDisplayItem();
         ItemBuilder builder;
         if (obtainedIcon != null) {
             builder = new ItemBuilder(obtainedIcon.material())
@@ -1053,9 +1057,6 @@ public class GuiManager {
             builder = new ItemBuilder(item);
         }
 
-        RewardPreviewDisplayConfig resolvedConfig = displayConfig != null
-                ? displayConfig
-                : RewardPreviewDisplayConfig.defaults();
         List<String> lore = RewardPreviewLoreFormatter.render(
                 resolvedConfig,
                 displayMode,
@@ -1129,17 +1130,17 @@ public class GuiManager {
     /**
      * 创建管理界面的奖励物品
      */
-    private ItemStack createEditorRewardItem(Reward reward, List<Reward> rewards, boolean manager) {
+    private ItemStack createEditorRewardItem(Player player, Reward reward, List<Reward> rewards, boolean manager) {
         GuiConfig config = configManager.getGuiConfig(manager ? "admin_reward_manager" : "admin_crate_edit");
         RewardPreviewDisplayConfig display = config == null
                 ? RewardPreviewDisplayConfig.editorDefaults(manager) : config.getRewardPreviewDisplay();
-        return createRewardPreviewItem(reward, rewards, PreviewChanceDisplayMode.PERCENTAGE, display, null);
+        return createRewardPreviewItem(player, reward, rewards, PreviewChanceDisplayMode.PERCENTAGE, display, null);
     }
 
     /**
      * 创建历史记录物品
      */
-    private ItemStack createHistoryItem(HistoryManager.HistoryEntry entry) {
+    private ItemStack createHistoryItem(Player player, HistoryManager.HistoryEntry entry) {
         String crateId = entry.getCrateId();
         String rewardId = entry.getRewardId();
         String rewardName = entry.getRewardName();
@@ -1154,10 +1155,8 @@ public class GuiManager {
                 .orElse(null)
                 : null;
 
-        ItemStack displayItem;
-        if (reward != null && reward.getDisplayItem() != null && !reward.getDisplayItem().getType().isAir()) {
-            displayItem = reward.getDisplayItem().clone();
-        } else {
+        ItemStack displayItem = reward == null ? null : plugin.getEnchantmentSlots().preview(player, reward);
+        if (displayItem == null || displayItem.getType().isAir()) {
             Material material = crate != null ? crate.getBlockMaterial() : Material.CHEST;
             displayItem = new ItemStack(material);
         }
@@ -1583,7 +1582,7 @@ public class GuiManager {
         inventory.setItem(45, back);
 
         // ===== 第一行：显示图标 =====
-        ItemStack displayItem = reward.getDisplayItem().clone();
+        ItemStack displayItem = plugin.getEnchantmentSlots().preview(player, reward);
         ItemBuilder displayBuilder = new ItemBuilder(displayItem);
         List<String> displayLore = new ArrayList<>();
         if (displayItem.hasItemMeta() && displayItem.getItemMeta().hasLore()) {
@@ -2049,7 +2048,7 @@ public class GuiManager {
 
         for (int i = 0; i < Math.min(rewards.size(), rewardSlots.size()); i++) {
             Reward reward = rewards.get(i);
-            ItemStack item = reward.getDisplayItem().clone();
+            ItemStack item = plugin.getEnchantmentSlots().preview(player, reward);
             ItemBuilder builder = new ItemBuilder(item);
 
             List<String> lore = new ArrayList<>();
@@ -2176,7 +2175,7 @@ public class GuiManager {
 
             if (rewardIndex < rewards.size()) {
                 Reward reward = rewards.get(rewardIndex);
-                inventory.setItem(slot, createEditorRewardItem(reward, rewards, true));
+                inventory.setItem(slot, createEditorRewardItem(player, reward, rewards, true));
             }
             // 空槽位保持背景
         }
@@ -2392,7 +2391,7 @@ public class GuiManager {
         List<Integer> contentSlots = config.getContentSlots();
         for (int index = 0; index < rewardResults.size() && index < contentSlots.size(); index++) {
             Reward reward = rewardResults.get(index).getActualReward();
-            ItemStack item = reward.getDisplayItem();
+            ItemStack item = plugin.getEnchantmentSlots().preview(player, reward);
             ItemBuilder builder = new ItemBuilder(item)
                     .addLore("")
                     .addLore("<!i><yellow>第 " + (index + 1) + " 抽");
