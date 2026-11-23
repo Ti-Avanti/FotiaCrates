@@ -155,6 +155,7 @@ public class FotiaCrates extends JavaPlugin {
         // 注册PacketEvents数据包监听器（用于模型左键预览）
         entityInteractPacketListener = new EntityInteractPacketListener(this);
         entityInteractPacketListener.register();
+        enchantmentSlots.registerPreviewPackets();
 
         // 注册PlaceholderAPI扩展
         if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
@@ -167,6 +168,7 @@ public class FotiaCrates extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (enchantmentSlots != null) enchantmentSlots.close();
         if (keyNetwork != null) keyNetwork.close();
         if (rewardSettlementCoordinator != null) rewardSettlementCoordinator.beginShutdown();
         if (entityInteractPacketListener != null) {

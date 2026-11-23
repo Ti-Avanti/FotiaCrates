@@ -1045,41 +1045,27 @@ public class GuiManager {
         RewardPreviewDisplayConfig resolvedConfig = displayConfig != null
                 ? displayConfig
                 : RewardPreviewDisplayConfig.defaults();
-        ItemStack item = obtainedIcon == null && resolvedConfig.isAppendItemLore()
+        ItemStack item = obtainedIcon == null
                 ? plugin.getEnchantmentSlots().preview(player, reward) : reward.getDisplayItem();
-        ItemBuilder builder;
-        if (obtainedIcon != null) {
-            builder = new ItemBuilder(obtainedIcon.material())
-                    .name(reward.getDisplayName())
-                    .customModelData(obtainedIcon.customModelData())
-                    .itemModel(obtainedIcon.itemModel());
-        } else {
-            builder = new ItemBuilder(item);
-        }
-
-        List<String> lore = RewardPreviewLoreFormatter.render(
+        List<Component> details = RewardPreviewLoreFormatter.render(
                 resolvedConfig,
                 displayMode,
                 reward,
                 rewards,
                 getRarityColor(reward.getRarity()) + getRarityDisplayName(reward.getRarity())
-        );
-
-        if (resolvedConfig.isAppendItemLore() && item.hasItemMeta() && item.getItemMeta().hasLore()) {
-            List<Component> originalLore = item.getItemMeta().lore();
-            List<Component> newLore = new ArrayList<>();
-            if (originalLore != null) {
-                newLore.addAll(originalLore);
-            }
-            for (String line : lore) {
-                newLore.add(MessageUtil.parse(line));
-            }
-            builder.loreComponents(newLore);
-        } else {
-            builder.lore(lore);
+        ).stream().map(MessageUtil::parse).toList();
+        List<Component> lore = new ArrayList<>();
+        List<Component> originalLore = resolvedConfig.isAppendItemLore() ? item.lore() : null;
+        if (originalLore != null) lore.addAll(originalLore);
+        if (obtainedIcon != null || !plugin.getEnchantmentSlots().deferPreviewFooter(item, details)) {
+            lore.addAll(details);
         }
 
-        return builder.build();
+        ItemBuilder icon = obtainedIcon == null ? new ItemBuilder(item) : new ItemBuilder(obtainedIcon.material())
+                .name(reward.getDisplayName())
+                .customModelData(obtainedIcon.customModelData())
+                .itemModel(obtainedIcon.itemModel());
+        return icon.loreComponents(lore).build();
     }
 
     private String chanceModeLine(PreviewChanceDisplayMode current, PreviewChanceDisplayMode option) {

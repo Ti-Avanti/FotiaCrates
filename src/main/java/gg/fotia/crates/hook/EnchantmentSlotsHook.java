@@ -4,12 +4,14 @@ import cn.superiormc.enchantmentslots.managers.ConfigManager;
 import cn.superiormc.enchantmentslots.methods.SlotUtil;
 import gg.fotia.crates.FotiaCrates;
 import gg.fotia.crates.reward.Reward;
+import net.kyori.adventure.text.Component;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.logging.Level;
@@ -18,6 +20,7 @@ import java.util.logging.Level;
 public final class EnchantmentSlotsHook {
     private final FotiaCrates plugin;
     private final Plugin dependency;
+    private PreviewLorePackets previewPackets;
     private boolean incompatibleApi;
     private boolean reportedItemFailure;
 
@@ -28,6 +31,21 @@ public final class EnchantmentSlotsHook {
 
     public ItemStack preview(Player viewer, Reward reward) {
         return prepare(viewer, reward.getDisplayItem(), true);
+    }
+
+    public void registerPreviewPackets() {
+        if (dependency != null && dependency.isEnabled()) {
+            previewPackets = new PreviewLorePackets(plugin);
+            previewPackets.register(plugin);
+        }
+    }
+
+    public boolean deferPreviewFooter(ItemStack icon, List<Component> lines) {
+        return previewPackets != null && isAvailable() && !lines.isEmpty() && previewPackets.attach(icon, lines);
+    }
+
+    public void close() {
+        if (previewPackets != null) previewPackets.close();
     }
 
     public Function<Reward, ItemStack> animationIcons(Player viewer) {
